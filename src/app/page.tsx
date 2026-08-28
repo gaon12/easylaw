@@ -1,69 +1,69 @@
-import Image from "next/image";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { home } from "@/lib/strings";
 import styles from "./page.module.css";
 
-export default function Home() {
+/**
+ * 홈. `PAGES.md` §2 — 검색이 첫 번째, 업로드가 두 번째다.
+ *
+ * 검색은 평범한 GET 폼이다. 자바스크립트 없이도 동작해야 한다.
+ */
+export default function HomePage() {
   return (
     <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+      <section className={styles.hero}>
+        <h1 className={styles.heroTitle}>{home.heroTitle}</h1>
+        <p className={styles.heroBody}>{home.heroBody}</p>
+      </section>
+
+      <form action="/search" className={styles.searchCard} method="get">
+        {/* label이 input을 감싸면 id/htmlFor 없이도 연결된다 — 서버 컴포넌트에서 useId를 쓸 수 없으므로 이 편이 정확하다. */}
+        <label className={styles.searchLabel}>
+          <span className={styles.searchLabelText}>{home.searchLabel}</span>
+          <span className={styles.searchRow}>
+            <input
+              autoComplete="off"
+              className={styles.searchInput}
+              name="q"
+              placeholder={home.searchPlaceholder}
+              type="search"
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <Button size="m" type="submit">
+              {home.searchSubmit}
+            </Button>
+          </span>
+        </label>
+        <p className={styles.searchHint}>{home.searchHint}</p>
+      </form>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>{home.uploadTitle}</h2>
+        <div className={styles.uploadCard}>
+          <p className={styles.sectionBody}>{home.uploadBody}</p>
+          <ButtonLink href="/upload" size="m" variant="tertiary">
+            {home.uploadCta}
+          </ButtonLink>
         </div>
-      </main>
+        <h3 className={styles.sectionTitle}>{home.privacyTitle}</h3>
+        <ul className={styles.privacyList}>
+          {home.privacyPoints.map((point) => (
+            <li className={styles.privacyItem} key={point}>
+              {point}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>{home.audienceTitle}</h2>
+        <ul className={styles.audienceGrid}>
+          {home.audiences.map((audience) => (
+            <li className={styles.audienceCard} key={audience.title}>
+              <h3 className={styles.audienceTitle}>{audience.title}</h3>
+              <p className={styles.audienceBody}>{audience.body}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

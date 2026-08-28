@@ -1,0 +1,117 @@
+.skipLink {
+  position: absolute;
+  left: var(--el-space-4);
+  top: -100px;
+  z-index: 100;
+  padding: var(--el-space-2) var(--el-space-4);
+  background: var(--el-action);
+  color: var(--el-fg-inverse);
+  border-radius: var(--el-radius-s);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+  text-decoration: none;
+  transition: top var(--el-duration-fast) var(--el-ease);
+}
+
+.skipLink:focus-visible {
+  top: var(--el-space-2);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.header {
+  border-bottom: 1px solid var(--el-border-subtle);
+  background: var(--el-bg-canvas);
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--el-space-4);
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: 0 var(--el-space-6);
+  min-height: 64px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  color: var(--el-fg-1);
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-1);
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-3);
+  border-radius: var(--el-radius-s);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+}
+
+.footer {
+  margin-top: var(--el-space-16);
+  border-top: 1px solid var(--el-border-default);
+  background: var(--el-bg-subtle);
+}
+
+.footerInner {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6);
+  display: grid;
+  gap: var(--el-space-4);
+}
+
+.disclaimer {
+  margin: 0;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  max-width: 68ch;
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-4);
+}
+
+.footerLink {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+@media (max-width: 640px) {
+  .headerInner,
+  .footerInner {
+    padding-left: var(--el-space-4);
+    padding-right: var(--el-space-4);
+  }
+}
