@@ -1,0 +1,71 @@
+/* KRDS infobox — 흰 배경 + 1px 동색 보더 + 아이콘 원. 주 강조색은 쓰지 않는다. */
+
+.box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--el-space-4);
+  align-items: start;
+  padding: var(--el-space-5);
+  border: 1px solid;
+  border-radius: var(--el-radius-l);
+  background: var(--el-bg-canvas);
+}
+
+.info {
+  border-color: var(--el-info);
+}
+
+.warning {
+  border-color: var(--el-warning);
+}
+
+.danger {
+  border-color: var(--el-danger);
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--el-radius-pill);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.info .mark {
+  background: var(--el-info-10);
+  color: var(--el-info-70);
+}
+
+.warning .mark {
+  background: var(--el-warning-10);
+  color: var(--el-warning-70);
+}
+
+.danger .mark {
+  background: var(--el-danger-10);
+  color: var(--el-danger-70);
+}
+
+.body {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.title {
+  font-size: var(--el-text-heading-xs);
+}
+
+.text {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  max-width: 60ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  margin-top: var(--el-space-1);
+}

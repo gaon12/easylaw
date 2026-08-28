@@ -63,7 +63,7 @@ export const home = {
 
 export const search = {
   title: "검색 결과",
-  resultsForCaseNumber: (canonical: string) => `${canonical} 사건을 찾았어요.`,
+  searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
   resultsForKeyword: (query: string) => `사건번호 형식이 아니라서 "${query}"로 찾아봤어요.`,
   emptyQuery: "찾을 사건번호나 내용을 입력해 주세요.",
   notFoundTitle: "공개된 판결문 중에는 없어요",
@@ -72,9 +72,15 @@ export const search = {
   unknownCode: (code: string) => `"${code}"는 저희가 아는 사건부호가 아니에요. 다시 확인해 주세요.`,
   yearOutOfRange: "사건번호의 연도가 맞지 않는 것 같아요. 다시 확인해 주세요.",
   codeHelpTitle: "사건번호는 이렇게 생겼어요",
+  codeSeparator: " · ",
   codeHelpBody: "연도 + 사건부호 + 번호 순서예요. 예를 들면 2019도12345처럼요.",
   explanationReady: "설명 준비됨",
   retry: "사건번호 다시 확인하기",
+  uploadCta: "판결문 올리기",
+  apiUnavailableTitle: "지금은 판례를 찾아볼 수 없어요",
+  apiUnavailableBody:
+    "판례 조회 기능이 아직 연결되지 않았어요. 받으신 판결문을 올리면 바로 쉽게 바꿔 드릴게요.",
+  apiErrorTitle: "판례를 가져오지 못했어요",
 } as const;
 
 export const viewer = {
@@ -107,6 +113,13 @@ export const viewer = {
   outdatedHint: (generatedAt: string) => `${generatedAt}에 만든 설명이에요.`,
   blockedForKids: "이 사건은 어린이용 설명을 제공하지 않아요.",
   summaryTitle: "판결 한눈에 보기",
+  sourceLabel: "출처:",
+  seeSearchResult: "검색 결과 보기",
+  sourceLinkLabel: "국가법령정보센터에서 원문 보기",
+  notAvailableTitle: "이 사건의 판결문을 아직 볼 수 없어요",
+  notAvailableBody: "공개된 판결문이 없거나 지금은 가져올 수 없어요.",
+  generatorOffTitle: "설명 만들기가 아직 준비되지 않았어요",
+  generatorOffBody: "지금은 원문만 보여 드릴 수 있어요. 설명 만들기는 곧 열어 드릴게요.",
   fields: {
     caseNo: "사건번호",
     court: "법원",

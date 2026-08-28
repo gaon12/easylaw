@@ -1,0 +1,112 @@
+/* 뷰어 구성 요소. `DESIGN.md` §6~§7 */
+
+.summary {
+  display: grid;
+  gap: var(--el-space-3);
+  padding: var(--el-space-6);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-xl);
+  background: var(--el-bg-canvas);
+}
+
+.caseName {
+  font-size: var(--el-text-heading-m);
+}
+
+.fields {
+  display: grid;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: var(--el-space-4);
+  padding: var(--el-space-3) 0;
+  border-top: 1px solid var(--el-border-subtle);
+}
+
+.field:first-child {
+  border-top: 0;
+}
+
+.fieldLabel {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.fieldValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.source {
+  font-size: var(--el-text-body-xs);
+  color: var(--el-fg-2);
+}
+
+/* 레벨 스위처 — KRDS pill 탭. 데스크톱 48px, 모바일 56px. */
+.levels {
+  display: flex;
+  gap: var(--el-space-1);
+  padding: var(--el-space-1);
+  background: var(--el-bg-subtle);
+  border-radius: var(--el-radius-m);
+  overflow-x: auto;
+}
+
+.level {
+  flex: 1;
+  min-width: 5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 var(--el-space-3);
+  border-radius: var(--el-radius-s);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.level:hover {
+  color: var(--el-fg-1);
+}
+
+.levelActive {
+  background: var(--el-bg-canvas);
+  color: var(--el-action-hover);
+  box-shadow: var(--el-shadow-1);
+}
+
+/* 원문 패널 */
+.original {
+  display: grid;
+  gap: var(--el-space-3);
+  max-width: 76ch;
+}
+
+.paragraph {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.sentence {
+  margin: 0;
+}
+
+.notice {
+  color: var(--el-fg-2);
+}
+
+@media (max-width: 640px) {
+  .field {
+    grid-template-columns: 1fr;
+    gap: var(--el-space-1);
+  }
+
+  .level {
+    min-width: 4.5rem;
+    min-height: 56px;
+  }
+}

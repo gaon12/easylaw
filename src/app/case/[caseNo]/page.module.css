@@ -1,0 +1,39 @@
+.page {
+  max-width: var(--el-container-viewer);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+}
+
+.panels {
+  display: grid;
+  gap: var(--el-space-8);
+}
+
+.panel {
+  display: grid;
+  gap: var(--el-space-4);
+  align-content: start;
+}
+
+.panelTitle {
+  font-size: var(--el-text-heading-s);
+}
+
+.notice {
+  color: var(--el-fg-2);
+}
+
+@media (min-width: 1024px) {
+  /* 2단 대조. DESIGN.md §8 — 좌: 변환본, 우: 원문. */
+  .panels {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
+  }
+}
