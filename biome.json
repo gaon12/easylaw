@@ -88,7 +88,8 @@
                     },
                     "formats": ["camelCase", "snake_case", "CONSTANT_CASE"]
                   }
-                ]
+                ],
+                "requireAscii": false
               }
             }
           }
@@ -131,6 +132,9 @@
           },
           "complexity": {
             "noExcessiveLinesPerFunction": "off"
+          },
+          "performance": {
+            "useTopLevelRegex": "off"
           }
         }
       }
