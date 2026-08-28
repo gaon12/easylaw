@@ -42,3 +42,5 @@ next-env.d.ts
 
 # dev docs
 /.dev/
+# local databases
+/data/
