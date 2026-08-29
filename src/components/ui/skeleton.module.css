@@ -1,0 +1,44 @@
+/*
+ * 스켈레톤. 움직이지 않는다 — 이유는 컴포넌트 주석에 적었다.
+ *
+ * 높이를 rem으로 잡아 글자 크기 설정(5단계)을 따라 함께 커진다. 픽셀로 박으면
+ * 가장 크게 설정한 사람의 화면에서 자리표시자만 작게 남아 실제 콘텐츠와 어긋난다.
+ */
+
+.line {
+  display: block;
+  height: 1.0625rem;
+  border-radius: var(--el-radius-xs);
+  background: var(--el-bg-subtle);
+}
+
+.full {
+  width: 100%;
+}
+
+.long {
+  width: 88%;
+}
+
+.medium {
+  width: 60%;
+}
+
+.short {
+  width: 38%;
+}
+
+.paragraph {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.card {
+  display: grid;
+  gap: var(--el-space-4);
+  padding: var(--el-space-6);
+  border: 1px solid var(--el-border-subtle);
+  border-radius: var(--el-radius-l);
+}
+
+/* 선명한 화면 모드에서는 표면 색이 뒤집히므로 자리표시자도 함께 뒤집힌다(토큰 참조). */

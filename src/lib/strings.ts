@@ -17,6 +17,8 @@ export const site = {
   name: "EasyLaw",
   tagline: "판결문을 읽는 사람에 맞게 바꿔 드려요",
   skipToContent: "본문으로 건너뛰기",
+  /** 스켈레톤이 떠 있는 동안 스크린리더에 알리는 이름. */
+  loading: "불러오는 중이에요",
   nav: {
     menuLabel: "주요 메뉴",
     home: "홈",
