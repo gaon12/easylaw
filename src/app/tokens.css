@@ -114,7 +114,12 @@
   --el-text-heading-m: 1.5rem; /* 24 */
   --el-text-heading-s: 1.1875rem; /* 19 */
   --el-text-heading-xs: 1.0625rem; /* 17 */
-  --el-text-body-xl: 1.3125rem; /* 21 — L4 이지리드 본문 */
+  /*
+   * L4 본문은 **어떤 배율에서도 21px 아래로 내려가지 않는다**(`DESIGN.md` §10).
+   * `작게`(0.9배)에서 rem만 쓰면 18.9px가 되는데, 국제 Easy-Read 관행의 하한(14pt≈18.7px)에
+   * 겨우 걸치는 값이라 단계가 의미를 잃는다. 하한을 값 안에 넣어 둔다.
+   */
+  --el-text-body-xl: max(21px, 1.3125rem); /* 21 — L4 이지리드 본문 */
   --el-text-body-l: 1.1875rem; /* 19 — L3 어린이 본문 */
   --el-text-body-m: 1.0625rem; /* 17 — 기본 본문 */
   --el-text-body-s: 0.9375rem; /* 15 */
@@ -165,6 +170,32 @@
 
   /* 글자 크기 배율 — /settings의 5단계가 이 값을 바꾼다 */
   --el-text-scale: 1;
+}
+
+/*
+ * 글자 크기 5단. 배율은 `DESIGN.md` §10의 권장값이다.
+ *
+ * 배율을 여기에만 두는 이유: 자바스크립트는 `data-text-size` 속성만 바꾸고 실제 값은
+ * 모른다. 값을 양쪽에 두면 언젠가 한쪽만 바뀐다.
+ */
+:root[data-text-size="s"] {
+  --el-text-scale: 0.9;
+}
+
+:root[data-text-size="m"] {
+  --el-text-scale: 1;
+}
+
+:root[data-text-size="l"] {
+  --el-text-scale: 1.15;
+}
+
+:root[data-text-size="xl"] {
+  --el-text-scale: 1.3;
+}
+
+:root[data-text-size="xxl"] {
+  --el-text-scale: 1.5;
 }
 
 /*
