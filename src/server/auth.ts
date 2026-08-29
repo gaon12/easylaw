@@ -1,25 +1,17 @@
 import "server-only";
-import {
-  attachCredentials,
-  deleteUserIfEmpty,
-  findUserByEmail,
-  touchUser,
-} from "@/db/app/repository";
+import { createUser, findUserByEmail, touchUser } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { type CredentialProblem, normalizeEmail, validateNewCredentials } from "@/lib/credentials";
 import { RateLimiter } from "@/lib/rate-limit";
-import { currentSession, endSession, ensureOwnerId, startSession } from "./owner";
+import { endSession, startSession } from "./owner";
 import { hashPassword, verifyPassword } from "./password";
 
 /**
  * 가입과 로그인. `PAGES.md` §17 · `CONVENTIONS.md` §7
  *
- * 가입은 **새 사람이 되는 일이 아니라 지금 쓰던 계정에 이메일을 붙이는 일**이다.
- * 그래서 가입 전에 올린 문서가 그대로 따라온다.
- *
- * 로그인은 다르다. 다른 계정으로 갈아타는 것이므로 그 전에 익명으로 올린 문서는 따라오지
- * 않는다. 같은 컴퓨터를 여러 사람이 쓸 수 있어서, 로그인했다는 이유로 그 브라우저에 있던
- * 문서를 계정으로 옮기면 남의 문서를 가져가는 일이 된다. 화면에서 이 점을 미리 알린다.
+ * 문서를 올리려면 계정이 있어야 한다. 판결문에는 이름·주민등록번호·주소가 그대로 들어
+ * 있어서, 그 문서의 주인이 누구인지가 쿠키 하나에 달려 있으면 안 되기 때문이다.
+ * 쿠키는 지워지고, 기기는 바뀌고, 같은 컴퓨터를 여러 사람이 쓴다.
  */
 
 /** 15분(밀리초) 안에 10번 틀리면 잠시 막는다. */
@@ -53,14 +45,12 @@ async function signUp(rawEmail: string, rawPassword: string): Promise<AuthResult
   }
 
   const { email, password } = validated.credentials;
-  // 지금 쓰던 (익명) 계정을 그대로 쓴다. 새로 만들면 올린 문서가 남의 것이 된다.
-  const userId = await ensureOwnerId();
-
-  if (!attachCredentials(appDb(), userId, email, hashPassword(password))) {
+  const userId = createUser(appDb(), email, hashPassword(password));
+  if (userId === undefined) {
     return { ok: false, problem: "email_taken" };
   }
 
-  await startSession(userId, true);
+  await startSession(userId);
   return { ok: true };
 }
 
@@ -89,15 +79,8 @@ async function signIn(rawEmail: string, password: string): Promise<AuthResult> {
   }
 
   loginLimiter.succeed(email);
-
-  // 갈아타기 전, 쓰던 익명 계정이 빈 껍데기면 치운다. 문서가 있으면 건드리지 않는다.
-  const previous = await currentSession();
-  if (previous !== undefined && previous.userId !== account.id) {
-    deleteUserIfEmpty(db, previous.userId);
-  }
-
   touchUser(db, account.id);
-  await startSession(account.id, true);
+  await startSession(account.id);
   return { ok: true };
 }
 

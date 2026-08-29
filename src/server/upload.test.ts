@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  createAnonymousUser,
+  createUser,
   findUploadForOwner,
   listMaskCounts,
   listUploadSpans,
@@ -35,7 +35,11 @@ function input(overrides: Partial<Parameters<typeof ingestUpload>[1]> = {}) {
 
 beforeEach(() => {
   ({ db } = createTestAppDb());
-  ownerId = createAnonymousUser(db);
+  const id = createUser(db, "owner@example.com", "hash");
+  if (id === undefined) {
+    throw new Error("계정을 만들지 못했다");
+  }
+  ownerId = id;
 });
 
 describe("ingestUpload", () => {

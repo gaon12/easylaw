@@ -43,15 +43,27 @@ interface SaveResult {
 const newId = (): string => crypto.randomUUID();
 
 /**
- * 가입하지 않은 소유자를 만든다.
+ * 계정을 만든다. 이미 그 이메일이 있으면 undefined.
  *
- * 업로드를 하려면 주인이 있어야 하는데, 주인이 되기 위해 가입을 요구하면 대부분
- * 거기서 그만둔다. 나중에 가입하면 **이 행에** 이메일이 채워지므로 문서가 그대로 따라온다.
+ * UNIQUE 위반 예외를 화면까지 올려 보내지 않는다 — 예외가 올라가면 "문제가 생겼어요"
+ * 말고는 할 말이 없어지는데, 여기서는 "이미 가입된 이메일이에요"라고 말할 수 있다.
+ *
+ * 이메일은 소문자로 정규화된 값만 들어온다고 본다. 정규화는 부르는 쪽의 몫이다.
  */
-function createAnonymousUser(db: AppDb): string {
-  const id = newId();
-  db.insert(user).values({ id, lastSeenAt: new Date() }).run();
-  return id;
+function createUser(db: AppDb, email: string, passwordHash: string): string | undefined {
+  return db.transaction((tx) => {
+    const taken = tx.select({ id: user.id }).from(user).where(eq(user.email, email)).get();
+    if (taken !== undefined) {
+      return;
+    }
+
+    const id = newId();
+    tx.insert(user).values({ id, email, passwordHash, lastSeenAt: new Date() }).run();
+    tx.insert(auditLog)
+      .values({ id: newId(), actor: id, action: "user.signed_up", target: id })
+      .run();
+    return id;
+  });
 }
 
 /** 이메일은 소문자로 정규화된 값만 들어온다고 본다. 정규화는 부르는 쪽의 몫이다. */
@@ -61,57 +73,6 @@ function findUserByEmail(db: AppDb, email: string) {
 
 function findUserById(db: AppDb, userId: string) {
   return db.select().from(user).where(eq(user.id, userId)).get();
-}
-
-/**
- * 지금 쓰고 있는 (가입하지 않은) 계정에 이메일과 비밀번호를 붙인다.
- *
- * 새 사용자를 만들지 않는 것이 핵심이다. 만들면 가입 전에 올린 문서가 남의 것이 된다.
- * 이미 그 이메일이 있으면 아무것도 하지 않고 false를 돌려준다 — UNIQUE 위반 예외를
- * 화면까지 올려 보내면 "문제가 생겼어요" 말고는 할 말이 없어진다.
- */
-function attachCredentials(
-  db: AppDb,
-  userId: string,
-  email: string,
-  passwordHash: string,
-): boolean {
-  return db.transaction((tx) => {
-    const taken = tx.select({ id: user.id }).from(user).where(eq(user.email, email)).get();
-    if (taken !== undefined) {
-      return false;
-    }
-
-    tx.update(user).set({ email, passwordHash }).where(eq(user.id, userId)).run();
-    tx.insert(auditLog)
-      .values({ id: newId(), actor: userId, action: "user.signed_up", target: userId })
-      .run();
-    return true;
-  });
-}
-
-/**
- * 가입하지 않았고 올린 문서도 없는 계정을 지운다.
- *
- * 로그인하면 그 전까지 쓰던 익명 계정은 더 이상 닿을 수 없다. 문서가 하나도 없다면
- * 그냥 빈 행이므로 치운다. 문서가 있으면 **건드리지 않는다** — 같은 컴퓨터를 여러 사람이
- * 쓸 수 있어서, 로그인했다는 이유로 남의 문서를 옮기거나 지우면 안 된다.
- */
-function deleteUserIfEmpty(db: AppDb, userId: string): boolean {
-  return db.transaction((tx) => {
-    const account = tx.select().from(user).where(eq(user.id, userId)).get();
-    if (account === undefined || account.email !== null) {
-      return false;
-    }
-
-    const owned = tx.select({ id: upload.id }).from(upload).where(eq(upload.userId, userId)).get();
-    if (owned !== undefined) {
-      return false;
-    }
-
-    tx.delete(user).where(eq(user.id, userId)).run();
-    return true;
-  });
 }
 
 function touchUser(db: AppDb, userId: string): void {
@@ -312,17 +273,15 @@ function deleteExpiredUploads(db: AppDb, now: Date = new Date()): number {
 }
 
 export {
-  attachCredentials,
-  createAnonymousUser,
   createSession,
   deleteExpiredSessions,
   deleteExpiredUploads,
   deleteSession,
   deleteSessionsForUser,
   deleteUpload,
-  deleteUserIfEmpty,
   findLiveSession,
   findUploadForOwner,
+  createUser,
   findUserByEmail,
   findUserById,
   listMaskCounts,

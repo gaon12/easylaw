@@ -2,9 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
 import {
-  attachCredentials,
-  createAnonymousUser,
   createSession,
+  createUser,
   deleteExpiredSessions,
   deleteExpiredUploads,
   deleteSession,
@@ -24,11 +23,24 @@ let close: () => void;
 
 beforeEach(() => {
   ({ db, close } = createTestAppDb());
+  userSeq = 0;
 });
 
 afterEach(() => {
   close();
 });
+
+let userSeq = 0;
+
+/** 테스트용 계정 하나. 이메일은 매번 다르게 만든다. */
+function makeUser(): string {
+  userSeq += 1;
+  const id = createUser(db, `user${userSeq}@example.com`, "hash");
+  if (id === undefined) {
+    throw new Error("계정을 만들지 못했다");
+  }
+  return id;
+}
 
 function uploadInput(userId: string, overrides: Partial<UploadInput> = {}): UploadInput {
   return {
@@ -48,30 +60,18 @@ function uploadInput(userId: string, overrides: Partial<UploadInput> = {}): Uplo
   };
 }
 
-describe("사용자", () => {
-  it("가입하지 않은 사용자를 만든다", () => {
-    const id = createAnonymousUser(db);
-    expect(findUserByEmail(db, "a@example.com")).toBeUndefined();
-    expect(id).not.toBe("");
+describe("계정", () => {
+  it("이메일로 계정을 만들고 찾는다", () => {
+    const id = createUser(db, "hong@example.com", "hash");
+    expect(findUserByEmail(db, "hong@example.com")?.id).toBe(id);
   });
 
-  it("가입은 지금 계정에 이메일을 붙인다 — 새 사용자를 만들지 않는다", () => {
-    // 새로 만들면 가입 전에 올린 문서가 남의 것이 된다.
-    const id = createAnonymousUser(db);
-    saveUpload(db, uploadInput(id));
-
-    expect(attachCredentials(db, id, "a@example.com", "hash")).toBe(true);
-    expect(findUserByEmail(db, "a@example.com")?.id).toBe(id);
-    expect(listUploadsForOwner(db, id)).toHaveLength(1);
-  });
-
-  it("이미 쓰는 이메일이면 가입시키지 않는다", () => {
-    const first = createAnonymousUser(db);
-    const second = createAnonymousUser(db);
-    attachCredentials(db, first, "a@example.com", "hash");
-
-    expect(attachCredentials(db, second, "a@example.com", "hash2")).toBe(false);
-    expect(findUserByEmail(db, "a@example.com")?.id).toBe(first);
+  it("이미 쓰는 이메일이면 만들지 않는다", () => {
+    const first = createUser(db, "hong@example.com", "hash");
+    expect(createUser(db, "hong@example.com", "hash2")).toBeUndefined();
+    // 기존 계정의 비밀번호가 덮이면 안 된다.
+    expect(findUserByEmail(db, "hong@example.com")?.id).toBe(first);
+    expect(findUserByEmail(db, "hong@example.com")?.passwordHash).toBe("hash");
   });
 });
 
@@ -79,20 +79,20 @@ describe("세션", () => {
   const future = new Date("2999-01-01T00:00:00Z");
 
   it("살아 있는 세션을 토큰 해시로 찾는다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const id = createSession(db, userId, "token-hash", future);
     expect(findLiveSession(db, "token-hash")?.id).toBe(id);
   });
 
   it("만료된 세션은 찾지 못한다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     createSession(db, userId, "old", new Date("2020-01-01T00:00:00Z"));
     expect(findLiveSession(db, "old")).toBeUndefined();
   });
 
   it("한 사용자가 기기마다 세션을 가질 수 있다", () => {
     // 사용자 행에 토큰 하나를 두면 다른 기기에서 로그인할 때마다 앞의 기기가 튕긴다.
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     createSession(db, userId, "phone", future);
     createSession(db, userId, "laptop", future);
 
@@ -101,7 +101,7 @@ describe("세션", () => {
   });
 
   it("로그아웃은 그 기기의 세션만 닫는다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const phone = createSession(db, userId, "phone", future);
     createSession(db, userId, "laptop", future);
 
@@ -111,7 +111,7 @@ describe("세션", () => {
   });
 
   it("만료된 세션을 치운다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     createSession(db, userId, "old", new Date("2020-01-01T00:00:00Z"));
     createSession(db, userId, "live", future);
 
@@ -122,7 +122,7 @@ describe("세션", () => {
 
 describe("saveUpload", () => {
   it("문서·문장·마스킹 요약을 함께 저장한다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const { id, duplicate } = saveUpload(db, uploadInput(userId));
 
     expect(duplicate).toBe(false);
@@ -135,13 +135,13 @@ describe("saveUpload", () => {
   });
 
   it("건수가 0인 종류는 저장하지 않는다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const { id } = saveUpload(db, uploadInput(userId, { maskCounts: { name: 0 } }));
     expect(listMaskCounts(db, id)).toEqual([]);
   });
 
   it("같은 문서를 다시 올리면 기존 문서를 돌려준다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const first = saveUpload(db, uploadInput(userId));
     const again = saveUpload(db, uploadInput(userId, { title: "다른 이름" }));
 
@@ -150,8 +150,8 @@ describe("saveUpload", () => {
   });
 
   it("사용자가 다르면 같은 내용도 각자 저장한다", () => {
-    const a = createAnonymousUser(db);
-    const b = createAnonymousUser(db);
+    const a = makeUser();
+    const b = makeUser();
     saveUpload(db, uploadInput(a));
     const second = saveUpload(db, uploadInput(b));
 
@@ -163,8 +163,8 @@ describe("saveUpload", () => {
 
 describe("소유자 격리", () => {
   it("남의 문서는 조회되지 않는다", () => {
-    const owner = createAnonymousUser(db);
-    const stranger = createAnonymousUser(db);
+    const owner = makeUser();
+    const stranger = makeUser();
     const { id } = saveUpload(db, uploadInput(owner));
 
     expect(findUploadForOwner(db, id, owner)).toBeDefined();
@@ -172,8 +172,8 @@ describe("소유자 격리", () => {
   });
 
   it("남의 문서는 지워지지 않는다", () => {
-    const owner = createAnonymousUser(db);
-    const stranger = createAnonymousUser(db);
+    const owner = makeUser();
+    const stranger = makeUser();
     const { id } = saveUpload(db, uploadInput(owner));
 
     expect(deleteUpload(db, id, stranger)).toBe(false);
@@ -181,8 +181,8 @@ describe("소유자 격리", () => {
   });
 
   it("목록에는 자기 문서만 나온다", () => {
-    const owner = createAnonymousUser(db);
-    const stranger = createAnonymousUser(db);
+    const owner = makeUser();
+    const stranger = makeUser();
     saveUpload(db, uploadInput(owner));
     saveUpload(db, uploadInput(stranger, { docHash: "hash-b" }));
 
@@ -194,7 +194,7 @@ describe("소유자 격리", () => {
 
 describe("삭제", () => {
   it("문서를 지우면 문장과 마스킹 요약도 사라진다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const { id } = saveUpload(db, uploadInput(userId));
 
     expect(deleteUpload(db, id, userId)).toBe(true);
@@ -204,7 +204,7 @@ describe("삭제", () => {
   });
 
   it("보관 기간이 지난 문서를 지운다", () => {
-    const userId = createAnonymousUser(db);
+    const userId = makeUser();
     const past = new Date("2020-01-01T00:00:00Z");
     const future = new Date("2999-01-01T00:00:00Z");
 
