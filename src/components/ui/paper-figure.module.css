@@ -1,0 +1,40 @@
+/*
+ * 종이 캐릭터. 색은 토큰만 쓴다 — 선명한 화면 모드에서 함께 반전되어야 한다.
+ * 하드코딩한 색을 하나라도 넣으면 그 모드에서 그림만 남는다.
+ */
+
+.figure {
+  width: 120px;
+  height: 132px;
+  /* 글자 크기 설정(5단계)을 따라 함께 커진다. 그림만 작게 남으면 짝이 맞지 않는다. */
+  max-width: 100%;
+}
+
+.sheet {
+  fill: var(--el-bg-canvas);
+  stroke: var(--el-fg-2);
+}
+
+.fold {
+  stroke: var(--el-fg-2);
+}
+
+/* 본문 줄은 배경이지 주인공이 아니다. 한 단계 연하게. */
+.rule {
+  stroke: var(--el-border-default);
+}
+
+.eye {
+  fill: var(--el-fg-1);
+}
+
+.mouth {
+  stroke: var(--el-fg-1);
+}
+
+/* 반창고. 이 그림에서 유일한 색이라 여기가 시선을 받는다. */
+.plaster {
+  fill: var(--el-action-weak);
+  stroke: var(--el-action);
+  stroke-width: 2;
+}
