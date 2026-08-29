@@ -1,10 +1,7 @@
-.page {
-  max-width: var(--el-container);
-  margin: 0 auto;
-  padding: var(--el-space-12) var(--el-space-6) 0;
-  display: grid;
-  gap: var(--el-space-16);
-}
+/*
+ * 홈. 구간 나누기는 `Section` 띠가 맡는다(`DESIGN.md` §5.1).
+ * 여기에는 띠 **안쪽** 배치만 둔다 — 바깥 여백과 컨테이너 폭을 두 곳에서 정하면 어긋난다.
+ */
 
 .hero {
   display: grid;
@@ -23,12 +20,15 @@
   line-height: var(--el-leading-body);
 }
 
+/*
+ * 검색 카드는 subtle 띠 위의 흰 면이다. 보더를 두지 않는다 —
+ * 배경 색이 이미 경계를 만들고 있어서 선을 더하면 겹친다(§5.1).
+ */
 .searchCard {
   display: grid;
   gap: var(--el-space-3);
   padding: var(--el-space-6);
   background: var(--el-bg-canvas);
-  border: 1px solid var(--el-border-default);
   border-radius: var(--el-radius-xl);
   box-shadow: var(--el-shadow-2);
   max-width: 640px;
@@ -73,29 +73,42 @@
   font-size: var(--el-text-body-s);
 }
 
-.section {
-  display: grid;
-  gap: var(--el-space-4);
-}
-
 .sectionTitle {
   font-size: var(--el-text-heading-m);
 }
 
 .sectionBody {
   color: var(--el-fg-2);
-  max-width: 60ch;
+  max-width: 56ch;
 }
 
-.uploadCard {
+/* 올리기 안내와 개인정보 취급은 나란히 읽힌다 — 무엇을 주면 어떻게 다뤄지는지가 붙어 있어야 한다. */
+.uploadRow {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--el-space-8);
+  align-items: start;
+}
+
+.upload {
   display: grid;
   gap: var(--el-space-4);
   justify-items: start;
-  padding: var(--el-space-6);
-  background: var(--el-bg-subtle);
+  align-content: start;
+}
+
+/* canvas 띠 위의 흰 면이므로 1px 보더로 경계를 만든다(§5.1). */
+.privacy {
+  display: grid;
+  gap: var(--el-space-3);
+  align-content: start;
+  padding: var(--el-space-5);
   border: 1px solid var(--el-border-default);
   border-radius: var(--el-radius-l);
-  max-width: 640px;
+}
+
+.privacyTitle {
+  font-size: var(--el-text-heading-xs);
 }
 
 .privacyList {
@@ -117,12 +130,12 @@
   gap: var(--el-space-4);
 }
 
+/* muted 띠 위의 흰 카드. 여기서는 보더를 두지 않는다 — 표면 차이가 이미 카드를 세운다. */
 .audienceCard {
   display: grid;
   gap: var(--el-space-2);
   align-content: start;
   padding: var(--el-space-5);
-  border: 1px solid var(--el-border-default);
   border-radius: var(--el-radius-m);
   background: var(--el-bg-canvas);
 }
@@ -137,17 +150,17 @@
 }
 
 @media (max-width: 1023px) {
+  .uploadRow {
+    grid-template-columns: 1fr;
+    gap: var(--el-space-6);
+  }
+
   .audienceGrid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 640px) {
-  .page {
-    padding: var(--el-space-8) var(--el-space-4) 0;
-    gap: var(--el-space-12);
-  }
-
   .heroTitle {
     font-size: 1.75rem;
   }
