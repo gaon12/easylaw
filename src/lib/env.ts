@@ -15,6 +15,9 @@ import { z } from "zod";
 const DEFAULT_DAILY_GENERATION_LIMIT = 200;
 
 const schema = z.object({
+  /** 실행 환경. 쿠키의 `secure` 플래그처럼 환경에 따라 달라지는 것이 여기에 걸린다. */
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+
   /** 공개 코퍼스 DB 경로. */
   CORPUS_DB_PATH: z.string().min(1).default("data/corpus.sqlite"),
 
@@ -70,6 +73,11 @@ function env(): Env {
   return cached;
 }
 
+/** 운영 환경인가. HTTPS 전용 쿠키처럼 환경에 따라 갈리는 판단에 쓴다. */
+function isProduction(): boolean {
+  return env().NODE_ENV === "production";
+}
+
 /** 법제처 API를 쓸 수 있는 상태인가. 꺼져 있으면 조회 대신 안내를 보여 준다. */
 function hasLawApi(): boolean {
   return env().LAW_API_OC !== undefined;
@@ -81,5 +89,5 @@ function hasLlm(): boolean {
   return config.LLM_API_KEY !== undefined && config.LLM_BASE_URL !== undefined;
 }
 
-export { env, hasLawApi, hasLlm };
+export { env, hasLawApi, hasLlm, isProduction };
 export type { Env };
