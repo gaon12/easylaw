@@ -286,6 +286,54 @@ export const auth = {
   },
 } as const;
 
+/**
+ * 화면 설정. `PAGES.md` §17 · `DESIGN.md` §10
+ *
+ * 컨트롤 구성은 KRDS가 자기 사이트에서 쓰는 "글자·화면 표시 설정" 패널을 그대로 따랐다.
+ * 이 화면의 1차 사용자는 글자가 작아 못 읽거나 대비가 낮아 못 읽는 사람이다.
+ * 그래서 **저장 버튼을 누르기 전에 이미 바뀌어 있어야 한다** — 바뀐 것을 보고 고르는
+ * 화면이지, 고른 뒤에 확인하는 화면이 아니다.
+ */
+export const settings = {
+  title: "화면 설정",
+  intro: "이 브라우저에만 저장돼요. 로그인하지 않으셔도 쓰실 수 있어요.",
+  liveHint: "고르시면 바로 화면에 적용돼요.",
+
+  textSizeLabel: "글자 크기",
+  /** 크기 견본에 쓰는 글자. 다국어에서는 그 언어의 대표 글자로 바뀐다. */
+  sampleGlyph: "가",
+  textSizes: {
+    s: "작게",
+    m: "보통",
+    l: "조금 크게",
+    xl: "크게",
+    xxl: "가장 크게",
+  },
+
+  displayLabel: "화면 표시 모드",
+  displays: {
+    light: "기본",
+    more: "선명하게",
+    system: "시스템 설정",
+  },
+  displayHints: {
+    light: "밝은 배경에 검은 글씨예요.",
+    more: "어두운 배경에 흰 글씨로 또렷하게 보여 드려요.",
+    system: "쓰시는 기기의 설정을 따라가요.",
+  },
+
+  previewLabel: "이렇게 보여요",
+  previewSentences: ["구청의 결정은 잘못됐어요.", "당신은 다시 신청할 수 있어요."],
+  previewNote: "쉬운말 단계의 글자 크기예요. 가장 크게 보여 드리는 단계예요.",
+
+  reset: "처음 설정으로 되돌리기",
+  resetDone: "처음 설정으로 되돌렸어요.",
+
+  laterTitle: "곧 더해질 설정",
+  laterPoints: ["기본으로 열 단계 고르기", "음성으로 읽어 주기와 읽는 속도", "난독증 지원 글꼴"],
+  laterNote: "아직 준비 중이에요. 준비되면 여기에 더해 드릴게요.",
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
