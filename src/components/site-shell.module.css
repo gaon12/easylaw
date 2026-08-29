@@ -71,6 +71,47 @@
   color: var(--el-fg-1);
 }
 
+/* 서비스 메뉴와 계정 메뉴는 성격이 다르다. 가는 선 하나로 갈라 둔다. */
+.navDivider {
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--el-space-2);
+  background: var(--el-border-default);
+}
+
+.navCta {
+  font-weight: 700;
+  color: var(--el-fg-link);
+}
+
+.account {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 로그아웃은 폼 버튼이다. 옆의 링크들과 같아 보여야 한다. */
+.navButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-3);
+  border: 0;
+  border-radius: var(--el-radius-s);
+  background: none;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+}
+
+.navButton:hover {
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
+}
+
 .main {
   flex: 1;
   width: 100%;

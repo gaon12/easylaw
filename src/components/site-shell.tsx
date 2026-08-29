@@ -1,7 +1,46 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { disclaimer, site } from "@/lib/strings";
+import { logOut } from "@/app/signup/actions";
+import { auth, disclaimer, site } from "@/lib/strings";
+import { currentSession } from "@/server/owner";
 import styles from "./site-shell.module.css";
+
+/**
+ * 헤더의 계정 영역.
+ *
+ * 로그인 여부는 세션 쿠키를 읽어야 알 수 있고, 그래서 **모든 페이지가 요청 시점
+ * 렌더가 된다.** 홈처럼 정적으로 만들 수 있던 화면까지 포함해서다. 그 대가를 알고
+ * 감수한다 — 로그인해 놓고도 헤더가 로그인 상태를 모르는 화면이 더 나쁘다.
+ * 나중에 Cache Components(PPR)를 켜면 이 부분만 스트리밍으로 떼어낼 수 있다.
+ */
+async function AccountNav() {
+  const session = await currentSession();
+
+  if (session?.email == null) {
+    return (
+      <>
+        <Link className={styles.navLink} href="/login">
+          {auth.logInTitle}
+        </Link>
+        <Link className={`${styles.navLink} ${styles.navCta}`} href="/signup">
+          {auth.signUpTitle}
+        </Link>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <span className={styles.account}>{session.email}</span>
+      {/* 로그아웃은 상태를 바꾸는 동작이라 링크가 아니라 폼이어야 한다. */}
+      <form action={logOut}>
+        <button className={styles.navButton} type="submit">
+          {auth.logOut}
+        </button>
+      </form>
+    </>
+  );
+}
 
 /**
  * 모든 페이지의 셸. `PAGES.md` §1.1
@@ -31,6 +70,8 @@ function SiteShell({ children }: { children: ReactNode }) {
             <Link className={styles.navLink} href="/help">
               {site.nav.help}
             </Link>
+            <span className={styles.navDivider} />
+            <AccountNav />
           </nav>
         </div>
       </header>

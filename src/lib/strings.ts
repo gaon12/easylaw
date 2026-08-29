@@ -229,6 +229,63 @@ export const demo = {
   },
 } as const;
 
+/**
+ * 가입·로그인. `PAGES.md` §17
+ *
+ * 이 화면의 문구가 반드시 말해야 하는 것: **가입하면 지금까지 올린 문서가 그대로
+ * 따라온다는 것**, 그리고 **로그인은 그렇지 않다는 것**. 둘을 구분해 두지 않으면
+ * 사용자는 문서가 사라졌다고 생각한다.
+ *
+ * 오류 문구는 이메일이 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다.
+ * 구분해 알려 주면 로그인 창이 가입 여부를 조회하는 도구가 된다.
+ */
+export const auth = {
+  signUpTitle: "회원가입",
+  signUpIntro:
+    "이메일과 비밀번호만 있으면 돼요. 지금 이 브라우저에 올려 두신 문서는 그대로 따라와요.",
+  signUpSubmit: "가입할게요",
+  signUpSubmitting: "가입하고 있어요…",
+  signUpDone: "가입했어요. 이제 다른 기기에서도 문서를 여실 수 있어요.",
+  toLogin: "이미 가입하셨나요? 로그인",
+
+  logInTitle: "로그인",
+  logInIntro: "가입하실 때 쓰신 이메일과 비밀번호를 넣어 주세요.",
+  logInSubmit: "로그인",
+  logInSubmitting: "확인하고 있어요…",
+  toSignUp: "아직 계정이 없으신가요? 회원가입",
+  logInCarryOver:
+    "가입 없이 이 브라우저에 올려 두신 문서가 있다면, 로그인 대신 회원가입을 하세요. 로그인은 다른 계정으로 갈아타는 것이라 그 문서는 따라오지 않아요.",
+
+  emailLabel: "이메일",
+  emailPlaceholder: "hong@example.com",
+  passwordLabel: "비밀번호",
+  passwordHint: (min: number) =>
+    `${min}자 이상이면 돼요. 대문자나 특수문자는 요구하지 않아요 — 길수록 안전해요.`,
+
+  logOut: "로그아웃",
+  signedInAs: (email: string) => `${email} 계정으로 보고 있어요.`,
+
+  whyTitle: "가입하면 무엇이 달라지나요",
+  whyPoints: [
+    "다른 기기에서도 올린 문서를 여실 수 있어요.",
+    "쿠키를 지우셔도 문서를 되찾을 수 있어요.",
+    "이메일과 비밀번호만 받아요. 이름이나 전화번호는 묻지 않아요.",
+  ],
+
+  errors: {
+    email_required: "이메일을 넣어 주세요.",
+    email_invalid: "이메일 형식이 아닌 것 같아요. 다시 확인해 주시겠어요?",
+    email_taken: "이미 가입된 이메일이에요. 로그인해 주시겠어요?",
+    password_required: "비밀번호를 넣어 주세요.",
+    password_too_short: "비밀번호가 짧아요. 조금 더 길게 만들어 주세요.",
+    password_too_long: "비밀번호가 너무 길어요. 조금 줄여 주시겠어요?",
+    password_too_common: "너무 흔한 비밀번호예요. 다른 것으로 바꿔 주세요.",
+    password_contains_email: "비밀번호에 이메일 앞부분이 들어 있어요. 다른 것으로 바꿔 주세요.",
+    credentials_invalid: "이메일이나 비밀번호가 맞지 않아요. 다시 확인해 주시겠어요?",
+    too_many_attempts: "여러 번 틀리셨어요. 잠시 뒤에 다시 해 주시겠어요?",
+  },
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
