@@ -2,15 +2,12 @@ import Link from "next/link";
 import { logIn } from "@/app/signup/actions";
 import styles from "@/app/signup/page.module.css";
 import { AuthForm } from "@/components/auth/auth-form";
-import { Infobox } from "@/components/ui/infobox";
 import { auth } from "@/lib/strings";
 
 /**
  * 로그인. `PAGES.md` §17
  *
- * 로그인은 **다른 계정으로 갈아타는 것**이라, 가입 없이 이 브라우저에 올려 둔 문서는
- * 따라오지 않는다. 같은 컴퓨터를 여러 사람이 쓸 수 있어서 자동으로 옮기지 않는다 —
- * 옮기면 남의 문서를 가져가는 일이 된다. 그래서 그 사실을 폼 위에서 미리 알린다.
+ * 폼은 가입 화면과 같은 컴포넌트를 쓴다. 다른 것은 문구와 `autoComplete` 값뿐이다.
  */
 export default function LogInPage() {
   return (
@@ -19,8 +16,6 @@ export default function LogInPage() {
         <h1 className={styles.title}>{auth.logInTitle}</h1>
         <p className={styles.intro}>{auth.logInIntro}</p>
       </header>
-
-      <Infobox title={auth.toSignUp}>{auth.logInCarryOver}</Infobox>
 
       <AuthForm
         action={logIn}

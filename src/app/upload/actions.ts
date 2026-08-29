@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { appDb } from "@/db/client";
 import type { RejectReason } from "@/lib/text/prepare";
-import { ensureOwnerId } from "@/server/owner";
+import { currentOwnerId } from "@/server/owner";
 import { ingestUpload, isRetentionChoice } from "@/server/upload";
 
 /**
@@ -13,7 +13,7 @@ import { ingestUpload, isRetentionChoice } from "@/server/upload";
  * 그래서 들어오는 값을 전부 다시 검사한다 — 화면에서 select로 골랐다는 사실은 보증이 아니다.
  */
 
-type ErrorCode = RejectReason | "file_unreadable";
+type ErrorCode = RejectReason | "file_unreadable" | "sign_in_required";
 
 interface UploadState {
   readonly error?: ErrorCode;
@@ -46,8 +46,14 @@ async function createUpload(_previous: UploadState, formData: FormData): Promise
   const retentionRaw = field(formData, "retention");
   const retention = isRetentionChoice(retentionRaw) ? retentionRaw : "30";
 
-  // 소유자는 여기서 만든다. 서버 컴포넌트에서는 쿠키를 심을 수 없다.
-  const ownerId = await ensureOwnerId();
+  /*
+   * 로그인 확인을 **여기서 다시 한다.** 화면에 폼이 보였다는 것은 권한의 증거가 아니다 —
+   * 서버 액션은 폼을 거치지 않고도 호출된다(Next 문서 "Security").
+   */
+  const ownerId = await currentOwnerId();
+  if (ownerId === undefined) {
+    return { error: "sign_in_required", text: pasted };
+  }
 
   const result = ingestUpload(appDb(), {
     ownerId,

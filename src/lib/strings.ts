@@ -116,11 +116,14 @@ export const upload = {
   },
   submit: "올리고 정리하기",
   submitting: "정리하고 있어요…",
+  signInTitle: "판결문을 올리려면 로그인이 필요해요",
+  signInBody:
+    "판결문에는 이름·주민등록번호·주소가 그대로 들어 있어요. 그 문서를 누가 올렸고 누구만 볼 수 있는지가 확실해야 해서, 계정을 만들어 주셔야 해요.",
   privacyTitle: "올리기 전에 알아 두실 것",
   privacyPoints: [
     "이름·주민등록번호·전화번호·주소는 올리는 즉시 가려요. 가리기 전 원문은 저장하지 않아요.",
     "가리기는 완벽하지 않아요. 정리된 문서를 한 번 확인해 주세요.",
-    "이 브라우저에서만 열 수 있어요. 쿠키를 지우거나 다른 기기로 옮기면 되찾을 수 없어요.",
+    "올리신 문서는 내 계정에서만 보여요. 다른 기기에서 로그인하셔도 그대로 있어요.",
   ],
   errors: {
     empty: "판결문 내용을 넣어 주세요.",
@@ -128,6 +131,7 @@ export const upload = {
     too_long: "문서가 너무 길어요. 나눠서 올려 주시겠어요?",
     no_sentences: "문장을 찾지 못했어요. 글자가 제대로 붙여졌는지 확인해 주세요.",
     file_unreadable: "파일을 읽지 못했어요. 내용을 직접 붙여 넣어 주시겠어요?",
+    sign_in_required: "로그인이 풀렸어요. 다시 로그인하시면 넣으신 내용 그대로 올려 드릴게요.",
   },
   duplicateNotice: "이미 올리신 문서예요. 그 문서를 열었어요.",
 } as const;
@@ -163,14 +167,15 @@ export const doc = {
   deleteBody: "지우면 되돌릴 수 없어요. 문장과 가린 기록까지 모두 사라져요.",
   deleteSubmit: "지울게요",
   notFoundTitle: "문서를 찾을 수 없어요",
-  notFoundBody:
-    "주소가 잘못됐거나, 다른 브라우저에서 올리신 문서일 수 있어요. 쿠키를 지우면 되찾을 수 없어요.",
+  notFoundBody: "주소가 잘못됐거나, 다른 계정으로 올리신 문서일 수 있어요.",
 } as const;
 
 /** 내 문서함. `PAGES.md` §15 */
 export const cases = {
   title: "내 문서함",
-  intro: "이 브라우저에서 올리신 문서예요.",
+  intro: "올리신 판결문이에요.",
+  signInTitle: "로그인하시면 올리신 문서를 보실 수 있어요",
+  signInBody: "문서는 계정에 저장돼요. 로그인하시면 어느 기기에서든 그대로 열려요.",
   emptyTitle: "아직 올리신 문서가 없어요",
   emptyBody: "받으신 판결문을 올리면 개인정보를 가린 뒤 정리해 드려요.",
   uploadCta: "판결문 올리기",
@@ -241,8 +246,7 @@ export const demo = {
  */
 export const auth = {
   signUpTitle: "회원가입",
-  signUpIntro:
-    "이메일과 비밀번호만 있으면 돼요. 지금 이 브라우저에 올려 두신 문서는 그대로 따라와요.",
+  signUpIntro: "이메일과 비밀번호만 있으면 돼요. 이름이나 전화번호는 묻지 않아요.",
   signUpSubmit: "가입할게요",
   signUpSubmitting: "가입하고 있어요…",
   signUpDone: "가입했어요. 이제 다른 기기에서도 문서를 여실 수 있어요.",
@@ -253,8 +257,6 @@ export const auth = {
   logInSubmit: "로그인",
   logInSubmitting: "확인하고 있어요…",
   toSignUp: "아직 계정이 없으신가요? 회원가입",
-  logInCarryOver:
-    "가입 없이 이 브라우저에 올려 두신 문서가 있다면, 로그인 대신 회원가입을 하세요. 로그인은 다른 계정으로 갈아타는 것이라 그 문서는 따라오지 않아요.",
 
   emailLabel: "이메일",
   emailPlaceholder: "hong@example.com",
@@ -267,8 +269,8 @@ export const auth = {
 
   whyTitle: "가입하면 무엇이 달라지나요",
   whyPoints: [
-    "다른 기기에서도 올린 문서를 여실 수 있어요.",
-    "쿠키를 지우셔도 문서를 되찾을 수 있어요.",
+    "받으신 판결문을 올려서 쉬운 말로 바꿔 보실 수 있어요.",
+    "다른 기기에서 로그인하셔도 올리신 문서가 그대로 있어요.",
     "이메일과 비밀번호만 받아요. 이름이나 전화번호는 묻지 않아요.",
   ],
 
@@ -428,7 +430,7 @@ export const outcomes = {
 export const errors = {
   notFoundTitle: "찾는 문서가 없어요",
   notFoundBody:
-    "주소가 바뀌었거나 문서가 지워졌을 수 있어요. 올리신 문서라면 다른 브라우저에서 올리신 것일 수도 있어요.",
+    "주소가 바뀌었거나 문서가 지워졌을 수 있어요. 올리신 문서를 찾고 계시다면 로그인하셨는지 확인해 주세요.",
   genericTitle: "문제가 생겼어요",
   genericBody: "저희 쪽 문제예요. 잠시 뒤에 다시 해 보시면 될 때가 많아요.",
   /** 오류 식별자. 문의할 때 이 값이 있으면 서버 기록에서 바로 찾을 수 있다. */
