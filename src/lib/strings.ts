@@ -66,6 +66,100 @@ export const home = {
   ],
 } as const;
 
+/**
+ * 업로드. `PAGES.md` §4
+ *
+ * 이 화면의 문구는 두 가지를 반드시 말한다.
+ * 1. **개인정보를 가린다는 것** — 판결문에는 이름·주민번호·주소가 그대로 들어 있다.
+ * 2. **쿠키를 지우면 문서를 되찾을 수 없다는 것** — 로그인이 없는 대가다.
+ *    나중에 문서를 잃고 놀라는 것보다 지금 아는 편이 낫다.
+ */
+export const upload = {
+  title: "판결문 올리기",
+  intro: "받으신 판결문을 붙여 넣으면 개인정보를 가린 뒤 문장 단위로 정리해 드려요.",
+  textLabel: "판결문 내용",
+  textPlaceholder: "판결문 전체를 붙여 넣어 주세요.",
+  fileLabel: "또는 텍스트 파일 고르기",
+  fileHint: "지금은 글자로 된 파일(.txt)만 받아요. PDF는 아직 준비 중이에요.",
+  fileChosen: (name: string) => `${name} 파일을 골랐어요. 붙여 넣으신 내용 대신 이 파일을 써요.`,
+  titleLabel: "문서 이름 (안 적으셔도 돼요)",
+  titlePlaceholder: "예: 우리 집 보증금 사건",
+  caseNoLabel: "사건번호 (아시면 적어 주세요)",
+  caseNoPlaceholder: "2019가단12345",
+  retentionLabel: "얼마나 보관할까요?",
+  /** 화면에 나오는 순서. 객체 키 순서에 기대지 않는다. */
+  retentionOrder: ["7", "30", "90", "keep"],
+  retentionDefault: "30",
+  retentionOptions: {
+    "7": "7일 뒤 자동 삭제",
+    "30": "30일 뒤 자동 삭제",
+    "90": "90일 뒤 자동 삭제",
+    keep: "내가 지울 때까지",
+  },
+  submit: "올리고 정리하기",
+  submitting: "정리하고 있어요…",
+  privacyTitle: "올리기 전에 알아 두실 것",
+  privacyPoints: [
+    "이름·주민등록번호·전화번호·주소는 올리는 즉시 가려요. 가리기 전 원문은 저장하지 않아요.",
+    "가리기는 완벽하지 않아요. 정리된 문서를 한 번 확인해 주세요.",
+    "이 브라우저에서만 열 수 있어요. 쿠키를 지우거나 다른 기기로 옮기면 되찾을 수 없어요.",
+  ],
+  errors: {
+    empty: "판결문 내용을 넣어 주세요.",
+    too_short: "판결문이라기에는 너무 짧아요. 전체를 붙여 넣어 주셨는지 확인해 주세요.",
+    too_long: "문서가 너무 길어요. 나눠서 올려 주시겠어요?",
+    no_sentences: "문장을 찾지 못했어요. 글자가 제대로 붙여졌는지 확인해 주세요.",
+    file_unreadable: "파일을 읽지 못했어요. 내용을 직접 붙여 넣어 주시겠어요?",
+  },
+  duplicateNotice: "이미 올리신 문서예요. 그 문서를 열었어요.",
+} as const;
+
+/**
+ * 내 문서 뷰어. `PAGES.md` §5
+ *
+ * 공개 판례 뷰어와 문구를 나눠 둔다 — 여기서는 "내 문서"라고 부르고, 보관 기한과
+ * 삭제가 항상 함께 보여야 한다.
+ */
+export const doc = {
+  maskTitle: "가린 개인정보",
+  maskEmpty: "가릴 개인정보를 찾지 못했어요. 문서를 한 번 확인해 주세요.",
+  maskHint: "무엇을 몇 개 가렸는지만 알려 드려요. 가린 내용은 저장하지 않아요.",
+  maskCount: (label: string, count: number) => `${label} ${count}개`,
+  maskKinds: {
+    resident_registration_number: "주민등록번호",
+    phone: "전화번호",
+    email: "이메일",
+    account: "계좌번호",
+    card: "카드번호",
+    vehicle: "차량번호",
+    address: "주소",
+    name: "이름",
+  },
+  retentionKeep: "직접 지우실 때까지 보관해요.",
+  retentionUntil: (date: string, days: number) => `${date}에 자동으로 지워요. ${days}일 남았어요.`,
+  retentionToday: "오늘 중에 자동으로 지워요.",
+  charCount: (count: number) => `${count.toLocaleString("ko-KR")}자`,
+  metaSeparator: " · ",
+  uploadedAt: (date: string) => `${date}에 올리셨어요.`,
+  deleteTitle: "이 문서 지우기",
+  deleteBody: "지우면 되돌릴 수 없어요. 문장과 가린 기록까지 모두 사라져요.",
+  deleteSubmit: "지울게요",
+  notFoundTitle: "문서를 찾을 수 없어요",
+  notFoundBody:
+    "주소가 잘못됐거나, 다른 브라우저에서 올리신 문서일 수 있어요. 쿠키를 지우면 되찾을 수 없어요.",
+} as const;
+
+/** 내 문서함. `PAGES.md` §15 */
+export const cases = {
+  title: "내 문서함",
+  intro: "이 브라우저에서 올리신 문서예요.",
+  emptyTitle: "아직 올리신 문서가 없어요",
+  emptyBody: "받으신 판결문을 올리면 개인정보를 가린 뒤 정리해 드려요.",
+  uploadCta: "판결문 올리기",
+  open: "열어 보기",
+  count: (count: number) => `문서 ${count}개`,
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
