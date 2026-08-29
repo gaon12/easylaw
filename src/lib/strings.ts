@@ -368,11 +368,26 @@ export const outcomes = {
   unknown: "결과를 아직 확인하지 못했어요",
 } as const;
 
+/**
+ * 오류 화면. `DESIGN.md` §9
+ *
+ * 오류는 **원인과 다음 단계를 함께** 적고 사용자를 막다른 곳에 두지 않는다.
+ * 사과를 늘어놓지 않고, 느낌표를 쓰지 않고, 무엇을 하면 되는지를 말한다.
+ *
+ * 화면이 차갑지 않도록 그림을 하나 두되(`PaperFigure`) 문구는 담담하게 둔다 —
+ * 판결문을 다루다 막힌 사람에게 명랑한 말투는 도움이 아니라 소음이다.
+ */
 export const errors = {
   notFoundTitle: "찾는 문서가 없어요",
-  notFoundBody: "주소가 바뀌었거나 문서가 지워졌을 수 있어요.",
+  notFoundBody:
+    "주소가 바뀌었거나 문서가 지워졌을 수 있어요. 올리신 문서라면 다른 브라우저에서 올리신 것일 수도 있어요.",
   genericTitle: "문제가 생겼어요",
-  genericBody: "잠시 뒤에 다시 해 보시겠어요? 계속 안 되면 알려 주세요.",
+  genericBody: "저희 쪽 문제예요. 잠시 뒤에 다시 해 보시면 될 때가 많아요.",
+  /** 오류 식별자. 문의할 때 이 값이 있으면 서버 기록에서 바로 찾을 수 있다. */
+  errorCode: (digest: string) => `오류 번호: ${digest}`,
+  errorCodeHint: "문의하실 때 이 번호를 함께 알려 주시면 빨리 찾을 수 있어요.",
   backHome: "처음으로 가기",
-  retry: "다시 시도",
+  toSearch: "사건번호로 찾아보기",
+  toUpload: "판결문 올리기",
+  retry: "다시 해 보기",
 } as const;

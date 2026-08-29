@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
+import { PaperFigure } from "@/components/ui/paper-figure";
 import { listUploadsForOwner } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
@@ -47,6 +48,8 @@ export default async function CasesPage() {
 
       {rows.length === 0 ? (
         <div className={styles.empty}>
+          {/* 빈 화면은 초대다. 그림 하나가 "고장난 게 아니라 아직 비어 있다"를 말해 준다. */}
+          <PaperFigure mood="empty" />
           <h2 className={styles.emptyTitle}>{cases.emptyTitle}</h2>
           <p className={styles.intro}>{cases.emptyBody}</p>
           <ButtonLink href="/upload" size="m">

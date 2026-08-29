@@ -1,0 +1,61 @@
+/*
+ * 오류·빈 상태 화면 공용. `DESIGN.md` §5.1
+ *
+ * 가운데 정렬한다. 이 화면들에는 읽을 것이 몇 줄뿐이라 왼쪽 정렬하면 넓은 화면에서
+ * 글이 구석에 붙는다. 본문 화면과 다른 규칙을 쓰는 유일한 자리다.
+ */
+
+.page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--el-space-20) var(--el-space-6);
+  display: grid;
+  gap: var(--el-space-4);
+  justify-items: center;
+  text-align: center;
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.body {
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+  max-width: 40ch;
+}
+
+/* 오류 번호. 문의할 때 옮겨 적어야 하므로 골라 잡기 쉽게 둔다. */
+.code {
+  display: grid;
+  gap: var(--el-space-1);
+  padding: var(--el-space-3) var(--el-space-4);
+  background: var(--el-bg-subtle);
+  border-radius: var(--el-radius-m);
+}
+
+.codeValue {
+  font-size: var(--el-text-body-s);
+  font-variant-numeric: tabular-nums;
+  /* 번호는 통째로 골라야 한다. 한 글자씩 끌지 않도록. */
+  user-select: all;
+}
+
+.codeHint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-3);
+  justify-content: center;
+  padding-top: var(--el-space-2);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-12) var(--el-space-4);
+  }
+}

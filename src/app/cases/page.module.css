@@ -24,11 +24,13 @@
   font-size: var(--el-text-body-s);
 }
 
+/* 비어 있는 상태만 가운데로 모은다. 목록이 생기면 왼쪽 정렬로 돌아간다. */
 .empty {
   display: grid;
   gap: var(--el-space-4);
-  justify-items: start;
-  padding: var(--el-space-8);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-10) var(--el-space-8);
   border: 1px dashed var(--el-border-default);
   border-radius: var(--el-radius-l);
 }
