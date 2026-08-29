@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lintRendition, type RenditionSentence } from "@/lib/rendition/lint";
-import { demo } from "./strings";
+import { demo, help } from "./strings";
 
 /**
  * 랜딩 데모의 예시 문장이 **우리가 만든 작성 규칙을 스스로 지키는지** 검사한다.
@@ -28,5 +28,29 @@ describe("랜딩 데모 예시", () => {
   it("원문 예시는 실제 판결문 문체 그대로다", () => {
     // 이 대비가 데모의 전부다. 원문이 이미 쉬우면 보여 줄 것이 없다.
     expect(demo.bodies.L0.join(" ")).toContain("피고");
+  });
+});
+
+describe("이용 안내의 쉬운 말 버전", () => {
+  it("L4 문장 규칙을 지킨다", () => {
+    // 쉬운 말로 쓰겠다고 적어 놓고 정작 그 문장이 규칙을 어기면 안내문을 믿을 수 없다.
+    const lines = help.plain.flatMap((section) => section.body);
+    const issues = lintRendition("L4", sentences(lines));
+
+    // 안내문은 판결문 변환본이 아니라서 필수 섹션 규칙은 해당하지 않는다.
+    expect(issues.filter((issue) => issue.rule !== "missing_section")).toEqual([]);
+  });
+
+  it("두 버전이 같은 것을 다룬다", () => {
+    // 쉬운 말 버전이 자세한 설명보다 적게 다루면 그건 요약이지 다른 말로 쓴 것이 아니다.
+    expect(help.plain.length).toBeGreaterThanOrEqual(help.full.length);
+  });
+
+  it("자세한 설명은 존댓말로 쓴다", () => {
+    // UI 전체가 해요체다(`DESIGN.md` §9). 안내문만 평서체로 새면 목소리가 갈린다.
+    const endings = help.full.flatMap((section) => section.body);
+    for (const sentence of endings) {
+      expect(sentence.trimEnd().endsWith("요.") || sentence.trimEnd().endsWith("에요.")).toBe(true);
+    }
   });
 });
