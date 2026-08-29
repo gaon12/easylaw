@@ -31,7 +31,7 @@ async function AccountNav() {
 
   return (
     <>
-      <span className={styles.account}>{session.email}</span>
+      <span className={styles.accountEmail}>{session.email}</span>
       {/* 로그아웃은 상태를 바꾸는 동작이라 링크가 아니라 폼이어야 한다. */}
       <form action={logOut}>
         <button className={styles.navButton} type="submit">
@@ -55,12 +55,18 @@ function SiteShell({ children }: { children: ReactNode }) {
         {site.skipToContent}
       </a>
 
+      {/*
+        헤더는 좁은 화면에서 두 줄이 된다. 계정 영역이 붙으면서 한 줄에 들어갈 수 없게 됐다.
+        접었다 펴는 메뉴로 감추지 않는다 — 링크가 다섯 개뿐이라 감출 만큼 많지 않고,
+        감추면 한 번 더 눌러야 한다. 여는 동작 하나가 늘어나는 것보다 두 줄이 낫다.
+      */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link className={styles.brand} href="/">
             {site.name}
           </Link>
-          <nav className={styles.nav} aria-label={site.nav.home}>
+
+          <nav aria-label={site.nav.menuLabel} className={styles.nav}>
             <Link className={styles.navLink} href="/cases">
               {site.nav.cases}
             </Link>
@@ -70,9 +76,11 @@ function SiteShell({ children }: { children: ReactNode }) {
             <Link className={styles.navLink} href="/help">
               {site.nav.help}
             </Link>
-            <span className={styles.navDivider} />
-            <AccountNav />
           </nav>
+
+          <div className={styles.account}>
+            <AccountNav />
+          </div>
         </div>
       </header>
 
@@ -81,9 +89,15 @@ function SiteShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
+      {/*
+        푸터의 두 고지는 **닫을 수 없다**(`DESIGN.md` §2).
+        판결문을 다루는 서비스가 관공서처럼 보이면 사용자가 공적 효력을 오인하는데,
+        그건 미학 문제가 아니라 안전 문제다. AI가 만든 설명이라는 사실도 같은 이유로 상시 노출한다.
+      */}
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <p className={styles.disclaimer}>{disclaimer.notGovernment}</p>
+          <p className={styles.disclaimer}>{disclaimer.aiGenerated}</p>
           <ul className={styles.footerLinks}>
             <li>
               <Link className={styles.footerLink} href="/privacy">
@@ -101,6 +115,7 @@ function SiteShell({ children }: { children: ReactNode }) {
               </Link>
             </li>
           </ul>
+          <p className={styles.attribution}>{disclaimer.attribution}</p>
         </div>
       </footer>
     </div>

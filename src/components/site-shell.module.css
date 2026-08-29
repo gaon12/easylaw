@@ -28,10 +28,16 @@
   background: var(--el-bg-canvas);
 }
 
+/*
+ * 넓은 화면에서는 한 줄: [브랜드] [메뉴] [계정].
+ * 좁은 화면에서는 두 줄로 접힌다 — 아래 미디어 쿼리에서 영역만 다시 배치한다.
+ * 마크업은 하나다. 화면 크기마다 다른 마크업을 두면 둘이 어긋난다.
+ */
 .headerInner {
-  display: flex;
+  display: grid;
+  grid-template-areas: "brand nav account";
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: var(--el-space-4);
   max-width: var(--el-container);
   margin: 0 auto;
@@ -40,6 +46,7 @@
 }
 
 .brand {
+  grid-area: brand;
   display: inline-flex;
   align-items: center;
   min-height: var(--el-touch-target);
@@ -50,9 +57,20 @@
 }
 
 .nav {
+  grid-area: nav;
   display: flex;
   align-items: center;
   gap: var(--el-space-1);
+  /* 서비스 메뉴는 왼쪽 브랜드에 붙는다. 계정 영역과 섞이지 않게. */
+  justify-content: flex-start;
+}
+
+.account {
+  grid-area: account;
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-1);
+  justify-content: flex-end;
 }
 
 .navLink {
@@ -71,20 +89,13 @@
   color: var(--el-fg-1);
 }
 
-/* 서비스 메뉴와 계정 메뉴는 성격이 다르다. 가는 선 하나로 갈라 둔다. */
-.navDivider {
-  width: 1px;
-  height: 20px;
-  margin: 0 var(--el-space-2);
-  background: var(--el-border-default);
-}
-
 .navCta {
   font-weight: 700;
   color: var(--el-fg-link);
 }
 
-.account {
+/* 로그인한 계정. 긴 이메일이 헤더를 밀어내지 않도록 잘라 준다. */
+.accountEmail {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
   max-width: 20ch;
@@ -151,6 +162,48 @@
 .footerLink {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-xs);
+}
+
+/* 출처 표기. 작게 두되 지우지 않는다 — KRDS 이용 조건이 요구하는 유일한 의무다. */
+.attribution {
+  margin: 0;
+  padding-top: var(--el-space-3);
+  border-top: 1px solid var(--el-border-default);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  max-width: 68ch;
+}
+
+@media (max-width: 720px) {
+  /*
+   * 두 줄로 접는다. 위: 브랜드와 계정, 아래: 서비스 메뉴.
+   * 계정을 위로 올리는 이유는 로그인 여부가 이 화면에서 가장 먼저 알아야 할 상태이기 때문이다.
+   */
+  .headerInner {
+    grid-template-areas:
+      "brand account"
+      "nav nav";
+    grid-template-columns: auto 1fr;
+    gap: var(--el-space-2) var(--el-space-4);
+    padding-top: var(--el-space-2);
+    padding-bottom: var(--el-space-2);
+  }
+
+  /* 메뉴가 넘치면 가로로 스크롤한다. 감추지 않는다 — 있는 줄 모르면 없는 것과 같다. */
+  .nav {
+    overflow-x: auto;
+    margin: 0 calc(var(--el-space-4) * -1);
+    padding: 0 var(--el-space-4);
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .accountEmail {
+    max-width: 12ch;
+  }
 }
 
 @media (max-width: 640px) {
