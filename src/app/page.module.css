@@ -3,21 +3,40 @@
  * 여기에는 띠 **안쪽** 배치만 둔다 — 바깥 여백과 컨테이너 폭을 두 곳에서 정하면 어긋난다.
  */
 
+/*
+ * 히어로는 두 칸이다. 왼쪽이 말하고 오른쪽이 보여 준다.
+ * 데모 쪽을 조금 넓게 잡았다 — 판결문 문장이 들어가는 칸이라 좁으면 줄이 잘게 끊긴다.
+ */
 .hero {
   display: grid;
-  gap: var(--el-space-4);
-  max-width: 40ch;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  gap: var(--el-space-12);
+  align-items: start;
+}
+
+.heroText {
+  display: grid;
+  gap: var(--el-space-5);
+  align-content: start;
+}
+
+/* 데모 카드는 히어로 안에서 살짝 내려 앉는다. 제목과 같은 선에서 시작하면 둘이 경쟁한다. */
+.heroDemo {
+  padding-top: var(--el-space-4);
 }
 
 .heroTitle {
   font-size: var(--el-text-display-s);
   letter-spacing: -0.02em;
+  /* 제목은 두세 줄로 끊어 읽히는 편이 낫다. 한 줄로 길게 흐르면 첫 화면이 밋밋해진다. */
+  max-width: 15ch;
 }
 
 .heroBody {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-l);
   line-height: var(--el-leading-body);
+  max-width: 36ch;
 }
 
 /*
@@ -31,7 +50,6 @@
   background: var(--el-bg-canvas);
   border-radius: var(--el-radius-xl);
   box-shadow: var(--el-shadow-2);
-  max-width: 640px;
 }
 
 .searchLabel {
@@ -140,6 +158,17 @@
   background: var(--el-bg-canvas);
 }
 
+/* 데모의 단계 칩과 같은 모양. 카드와 데모가 같은 것을 가리킨다는 신호다. */
+.audienceLevel {
+  justify-self: start;
+  padding: var(--el-space-1) var(--el-space-3);
+  border-radius: var(--el-radius-pill);
+  background: var(--el-action-weak);
+  color: var(--el-action-hover);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+}
+
 .audienceTitle {
   font-size: var(--el-text-heading-xs);
 }
@@ -149,7 +178,46 @@
   font-size: var(--el-text-body-s);
 }
 
+/* 왜 만들었는지. 페이지의 마지막이자 가장 조용한 구간이다. */
+.origin {
+  display: grid;
+  gap: var(--el-space-3);
+  max-width: 62ch;
+}
+
+.originLead {
+  font-size: var(--el-text-body-l);
+  font-weight: 700;
+  line-height: var(--el-leading-body);
+}
+
+.originBody {
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+}
+
+/* 출처는 작게, 그러나 반드시. 확인할 수 없는 주장은 랜딩에 두지 않는다. */
+.originSource {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  padding-top: var(--el-space-2);
+  border-top: 1px solid var(--el-border-subtle);
+}
+
 @media (max-width: 1023px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--el-space-8);
+  }
+
+  .heroDemo {
+    padding-top: 0;
+  }
+
+  .heroTitle {
+    max-width: 24ch;
+  }
+
   .uploadRow {
     grid-template-columns: 1fr;
     gap: var(--el-space-6);

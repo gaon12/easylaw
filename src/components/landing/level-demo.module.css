@@ -1,0 +1,169 @@
+/*
+ * 레벨 데모. 자바스크립트 없이 라디오 + `:has()`로만 단계를 바꾼다.
+ *
+ * `:has()`를 모르는 브라우저에서는 규칙이 통째로 무시되고 첫 패널(원문)만 남는다.
+ * 단계 전환은 못 하지만 화면이 깨지지는 않는다 — 그 정도가 이 자리에서 감수할 수 있는 손실이다.
+ */
+
+.demo {
+  display: grid;
+  gap: var(--el-space-4);
+  padding: var(--el-space-6);
+  background: var(--el-bg-canvas);
+  border-radius: var(--el-radius-xl);
+  box-shadow: var(--el-shadow-3);
+}
+
+.head {
+  display: grid;
+  gap: var(--el-space-1);
+}
+
+.title {
+  font-size: var(--el-text-heading-s);
+  font-weight: 700;
+}
+
+.hint,
+.caption {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.caption {
+  padding-top: var(--el-space-1);
+  border-top: 1px solid var(--el-border-subtle);
+}
+
+/* fieldset의 기본 테두리·여백을 걷어낸다. 여기서는 묶음의 의미만 필요하다. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-4);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-pill);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+  transition:
+    background var(--el-duration-fast) var(--el-ease),
+    color var(--el-duration-fast) var(--el-ease),
+    border-color var(--el-duration-fast) var(--el-ease);
+}
+
+.tab:hover {
+  border-color: var(--el-fg-3);
+  color: var(--el-fg-1);
+}
+
+/* 선택된 칩. 색만으로 알리지 않도록 글자 굵기도 함께 바꾼다. */
+.tab:has(input:checked) {
+  background: var(--el-action);
+  border-color: var(--el-action);
+  color: var(--el-fg-inverse);
+}
+
+.tabText {
+  font-weight: 700;
+}
+
+/* 입력이 숨겨져 있으므로 포커스 링을 라벨이 대신 받는다. */
+.tab:has(input:focus-visible) {
+  outline: 2px solid var(--el-border-focus);
+  outline-offset: 2px;
+}
+
+.panels {
+  display: grid;
+  /*
+   * 패널들을 같은 칸에 겹쳐 둔다. 높이가 가장 긴 패널에 맞춰 고정되므로
+   * 단계를 바꿔도 카드가 들썩이지 않는다 — 아래 있는 검색창이 움직이면 안 된다.
+   */
+  grid-template-areas: "stack";
+  align-items: start;
+}
+
+.panel {
+  grid-area: stack;
+  display: grid;
+  gap: var(--el-space-3);
+  /* 보이지 않는 패널도 자리는 차지해야 높이가 유지된다. */
+  visibility: hidden;
+}
+
+.note {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.body {
+  display: grid;
+  gap: var(--el-space-2);
+  padding: var(--el-space-4);
+  background: var(--el-bg-subtle);
+  border-radius: var(--el-radius-m);
+}
+
+/* 레벨마다 본문 규격이 다르다(`DESIGN.md` §4). 데모에서도 그 차이를 그대로 보여 준다. */
+.bodyL0,
+.bodyL1,
+.bodyL2 {
+  font-size: var(--el-text-body-m);
+  line-height: var(--el-leading-body);
+}
+
+.bodyL3 {
+  font-size: var(--el-text-body-l);
+  line-height: var(--el-leading-body);
+}
+
+.bodyL4 {
+  font-size: var(--el-text-body-xl);
+  line-height: var(--el-leading-loose);
+}
+
+/* 원문은 법원이 쓴 그대로다. 읽기 어렵다는 사실 자체가 이 데모의 출발점이다. */
+.bodyL0 {
+  color: var(--el-fg-1);
+}
+
+.line {
+  margin: 0;
+}
+
+/* `:has()`가 없을 때의 기본값 — 원문만 보인다. */
+.p0 {
+  visibility: visible;
+}
+
+.demo:has(input:checked) .p0 {
+  visibility: hidden;
+}
+
+.demo:has(.t0 input:checked) .p0,
+.demo:has(.t1 input:checked) .p1,
+.demo:has(.t2 input:checked) .p2,
+.demo:has(.t3 input:checked) .p3,
+.demo:has(.t4 input:checked) .p4 {
+  visibility: visible;
+}
+
+@media (max-width: 640px) {
+  .demo {
+    padding: var(--el-space-4);
+  }
+
+  .tab {
+    padding: 0 var(--el-space-3);
+  }
+}
