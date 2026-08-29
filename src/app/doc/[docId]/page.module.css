@@ -1,0 +1,82 @@
+/*
+ * 내 문서 뷰어. 읽는 화면이라 배경 띠를 쓰지 않는다(`DESIGN.md` §5.1).
+ * 위계는 1px 보더와 여백이 만든다.
+ */
+
+.page {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-8);
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.meta,
+.hint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 보관 기한은 약속이다. 흐리게 두지 않는다. */
+.retention {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.sectionTitle {
+  font-size: var(--el-text-heading-xs);
+}
+
+.masks,
+.panel,
+.danger {
+  display: grid;
+  gap: var(--el-space-3);
+  align-content: start;
+}
+
+.masks {
+  padding: var(--el-space-5);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-l);
+  background: var(--el-bg-subtle);
+}
+
+.maskList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+}
+
+/* 가린 종류와 건수. 배지 하나가 "무엇을 몇 개" 한 쌍을 담는다. */
+.maskItem {
+  padding: var(--el-space-1) var(--el-space-3);
+  border-radius: var(--el-radius-pill);
+  background: var(--el-bg-canvas);
+  border: 1px solid var(--el-border-default);
+  font-size: var(--el-text-body-s);
+}
+
+/* 삭제는 되돌릴 수 없다. 본문과 확실히 떨어뜨려 실수로 누르지 않게 한다. */
+.danger {
+  justify-items: start;
+  padding: var(--el-space-5);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-l);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
+    gap: var(--el-space-6);
+  }
+}
