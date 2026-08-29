@@ -1,0 +1,126 @@
+/*
+ * 업로드. 폼 화면이라 배경 띠를 쓰지 않는다(`DESIGN.md` §5.1) —
+ * 입력에 집중해야 하는 화면에서 배경이 바뀌면 시선이 흩어진다.
+ */
+
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+  max-width: 56ch;
+}
+
+.privacyList {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.privacyItem::before {
+  content: "·";
+  margin-right: var(--el-space-2);
+  color: var(--el-fg-3);
+}
+
+.form {
+  display: grid;
+  gap: var(--el-space-5);
+  justify-items: start;
+  padding: var(--el-space-6);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-l);
+}
+
+.field {
+  display: grid;
+  gap: var(--el-space-2);
+  width: 100%;
+}
+
+.label {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.hint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.input,
+.select {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+}
+
+.textarea {
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+  resize: vertical;
+  line-height: var(--el-leading-body);
+  /* 판결문은 줄바꿈이 의미를 갖는다. 폼에서도 원문 모양을 유지한다. */
+  white-space: pre-wrap;
+}
+
+.input:hover,
+.select:hover,
+.textarea:hover {
+  border-color: var(--el-fg-3);
+}
+
+.file {
+  width: 100%;
+  padding: var(--el-space-3) 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--el-space-4);
+  width: 100%;
+}
+
+/* 오류는 색만으로 알리지 않는다. 왼쪽 굵은 선과 문장이 함께 의미를 전한다. */
+.error {
+  width: 100%;
+  padding: var(--el-space-3) var(--el-space-4);
+  border-left: 4px solid var(--el-danger);
+  background: var(--el-danger-10);
+  color: var(--el-fg-1);
+  border-radius: var(--el-radius-s);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+
+  .form {
+    padding: var(--el-space-4);
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
