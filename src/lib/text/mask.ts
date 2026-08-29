@@ -218,8 +218,8 @@ function maskPersonalData(source: string): MaskResult {
 }
 
 /** 종류별 건수. 업로드 결과 화면에 그대로 보여 준다. */
-function summarizeHits(hits: readonly MaskHit[]): Record<string, number> {
-  const counts: Record<string, number> = {};
+function summarizeHits(hits: readonly MaskHit[]): Partial<Record<MaskKind, number>> {
+  const counts: Partial<Record<MaskKind, number>> = {};
   for (const hit of hits) {
     counts[hit.kind] = (counts[hit.kind] ?? 0) + 1;
   }
