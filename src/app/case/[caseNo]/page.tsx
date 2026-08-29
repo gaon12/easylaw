@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ButtonLink } from "@/components/ui/button";
 import { Infobox } from "@/components/ui/infobox";
+import { PaperFigure } from "@/components/ui/paper-figure";
 import { LevelTabs } from "@/components/viewer/level-tabs";
 import { toLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
@@ -12,16 +13,23 @@ import { viewer } from "@/lib/strings";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import styles from "./page.module.css";
 
-/** 설명이 아직 없을 때 보여 줄 안내. 생성기가 꺼져 있으면 그 사실을 숨기지 않는다. */
+/**
+ * 설명이 아직 없을 때. 생성기가 꺼져 있으면 그 사실을 숨기지 않는다.
+ *
+ * 지금은 이 상태가 사용자가 가장 자주 보는 화면이라(LLM이 아직 연결되지 않았다)
+ * 안내 상자 하나로 끝내지 않고 자리를 갖춘 빈 상태로 그린다. 옆 칸에는 원문이 있으니
+ * "아무것도 없는 화면"은 아니라는 것도 함께 보여야 한다.
+ */
 function RenditionPlaceholder() {
   const ready = hasLlm();
   return (
-    <Infobox
-      title={ready ? viewer.generateHint : viewer.generatorOffTitle}
-      tone={ready ? "info" : "warning"}
-    >
-      {ready ? viewer.generateCta : viewer.generatorOffBody}
-    </Infobox>
+    <div className={styles.empty}>
+      <PaperFigure mood="empty" />
+      <h3 className={styles.emptyTitle}>
+        {ready ? viewer.generateHint : viewer.generatorOffTitle}
+      </h3>
+      <p className={styles.emptyBody}>{ready ? viewer.generateBody : viewer.generatorOffBody}</p>
+    </div>
   );
 }
 
@@ -82,7 +90,11 @@ export default async function CasePage(props: {
         sourceUrl={row?.sourceUrl ?? null}
       />
 
-      <LevelTabs caseNoCanonical={summary.caseNoCanonical} current={level} />
+      <div className={styles.levels}>
+        <LevelTabs caseNoCanonical={summary.caseNoCanonical} current={level} />
+        {/* 고른 단계가 어떤 말로 쓰는지 한 줄로 알린다. 탭 이름만으로는 알 수 없다. */}
+        <p className={styles.levelNote}>{viewer.levelNotes[level]}</p>
+      </div>
 
       <div className={styles.panels}>
         {level === "L0" ? null : (

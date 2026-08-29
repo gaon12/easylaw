@@ -6,6 +6,17 @@
   gap: var(--el-space-6);
 }
 
+/* 레벨 탭과 그 설명 한 줄. */
+.levels {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.levelNote {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
 .panels {
   display: grid;
   gap: var(--el-space-8);
@@ -17,7 +28,16 @@
   align-content: start;
 }
 
+/*
+ * 패널 제목을 위에 붙여 둔다. 2단 대조에서 길게 스크롤하면 지금 보는 칸이 설명인지
+ * 원문인지 헷갈린다. 배경을 깔아 본문이 제목 뒤로 비쳐 지나가지 않게 한다.
+ */
 .panelTitle {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--el-space-2) 0;
+  background: var(--el-bg-canvas);
   font-size: var(--el-text-heading-s);
 }
 
@@ -25,10 +45,37 @@
   color: var(--el-fg-2);
 }
 
+/* 설명이 아직 없는 칸. 옆의 원문과 높이를 맞추지 않는다 — 없는 것을 크게 그릴 이유가 없다. */
+.empty {
+  display: grid;
+  gap: var(--el-space-3);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-8) var(--el-space-5);
+  border: 1px dashed var(--el-border-default);
+  border-radius: var(--el-radius-l);
+}
+
+.emptyTitle {
+  font-size: var(--el-text-heading-xs);
+}
+
+.emptyBody {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  max-width: 40ch;
+}
+
 @media (min-width: 1024px) {
-  /* 2단 대조. DESIGN.md §8 — 좌: 변환본, 우: 원문. */
+  /*
+   * 2단 대조. `DESIGN.md` §8 — 좌: 변환본, 우: 원문.
+   * 두 칸이 각자 스크롤되지 않고 문서 전체가 함께 흐른다. 문장을 짚어 가며 대조할 때
+   * 한쪽만 움직이면 짝이 어긋나기 때문이다.
+   */
   .panels {
     grid-template-columns: 1fr 1fr;
+    gap: var(--el-space-10);
+    align-items: start;
   }
 }
 

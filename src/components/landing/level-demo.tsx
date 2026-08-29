@@ -44,7 +44,7 @@ function LevelDemo() {
       <div className={styles.panels}>
         {LEVEL_ORDER.map((level, index) => (
           <div className={`${styles.panel} ${styles[`p${index}`]}`} key={level}>
-            <p className={styles.note}>{demo.notes[level]}</p>
+            <p className={styles.note}>{viewer.levelNotes[level]}</p>
             <div className={`${styles.body} ${styles[`body${level}`]}`}>
               {demo.bodies[level].map((line) => (
                 <p className={styles.line} key={line}>
