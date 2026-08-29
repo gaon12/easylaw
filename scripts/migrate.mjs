@@ -23,6 +23,11 @@ const DATABASES = [
     path: process.env.CORPUS_DB_PATH ?? "data/corpus.sqlite",
     migrations: "drizzle/corpus",
   },
+  {
+    name: "app",
+    path: process.env.APP_DB_PATH ?? "data/app.sqlite",
+    migrations: "drizzle/app",
+  },
 ];
 
 for (const target of DATABASES) {

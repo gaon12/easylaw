@@ -5,6 +5,7 @@ import process from "node:process";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { env } from "@/lib/env";
+import { appSchema } from "./app/schema";
 import { corpusSchema } from "./corpus/schema";
 
 /**
@@ -45,5 +46,19 @@ function corpusDb(): CorpusDb {
   return cachedCorpus;
 }
 
-export { corpusDb, createCorpusDb, openDatabase };
-export type { CorpusDb };
+type AppDb = ReturnType<typeof createAppDb>;
+
+function createAppDb(path: string = env().APP_DB_PATH) {
+  return drizzle(openDatabase(path), { schema: appSchema });
+}
+
+let cachedApp: AppDb | undefined;
+
+/** 사용자 문서 DB. `corpus`와 **다른 파일**이다. 두 연결을 한 함수에서 쓰지 않는다. */
+function appDb(): AppDb {
+  cachedApp ??= createAppDb();
+  return cachedApp;
+}
+
+export { appDb, corpusDb, createAppDb, createCorpusDb, openDatabase };
+export type { AppDb, CorpusDb };

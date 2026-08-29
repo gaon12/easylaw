@@ -1,4 +1,5 @@
 import "server-only";
+import { resolve } from "node:path";
 import process from "node:process";
 import { z } from "zod";
 
@@ -16,6 +17,12 @@ const DEFAULT_DAILY_GENERATION_LIMIT = 200;
 const schema = z.object({
   /** 공개 코퍼스 DB 경로. */
   CORPUS_DB_PATH: z.string().min(1).default("data/corpus.sqlite"),
+
+  /**
+   * 사용자 문서 DB 경로. 코퍼스와 **다른 파일**이어야 한다(`PRODUCT.md` §6.1).
+   * 같은 파일을 가리키면 분리의 의미가 사라지므로 아래에서 막는다.
+   */
+  APP_DB_PATH: z.string().min(1).default("data/app.sqlite"),
 
   /**
    * 법제처 OPEN API 인증키(OC). 발급받은 본인만 쓸 수 있으므로 서버에만 둔다.
@@ -51,6 +58,12 @@ function env(): Env {
       .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
       .join("\n  ");
     throw new Error(`환경변수 설정이 잘못되었습니다.\n  ${detail}`);
+  }
+
+  if (resolve(parsed.data.CORPUS_DB_PATH) === resolve(parsed.data.APP_DB_PATH)) {
+    // 여기서 막지 않으면 사용자 업로드가 공개 코퍼스와 같은 파일에 쌓인다.
+    // 설정 실수 한 번으로 §6.1의 격리가 통째로 무너지는 자리라 기동 시점에 죽인다.
+    throw new Error("CORPUS_DB_PATH와 APP_DB_PATH는 서로 다른 파일이어야 합니다.");
   }
 
   cached = parsed.data;

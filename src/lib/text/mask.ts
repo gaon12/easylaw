@@ -10,15 +10,24 @@
  * 사람이 한 번 더 확인하는 단계를 반드시 둔다.
  */
 
-type MaskKind =
-  | "resident_registration_number"
-  | "phone"
-  | "email"
-  | "account"
-  | "card"
-  | "vehicle"
-  | "address"
-  | "name";
+/**
+ * 가리는 개인정보의 종류.
+ *
+ * 타입이 아니라 **값**으로 둔다. DB 스키마(`app`의 `upload_mask.kind`)가 이 목록을 그대로
+ * 쓰기 때문이다. 두 곳에 따로 적으면 한쪽만 늘어난 채로 저장이 조용히 실패한다.
+ */
+const MASK_KINDS = [
+  "resident_registration_number",
+  "phone",
+  "email",
+  "account",
+  "card",
+  "vehicle",
+  "address",
+  "name",
+] as const;
+
+type MaskKind = (typeof MASK_KINDS)[number];
 
 interface MaskRule {
   readonly kind: MaskKind;
@@ -217,5 +226,5 @@ function summarizeHits(hits: readonly MaskHit[]): Record<string, number> {
   return counts;
 }
 
-export { maskPersonalData, summarizeHits };
+export { MASK_KINDS, maskPersonalData, summarizeHits };
 export type { MaskHit, MaskKind, MaskResult };
