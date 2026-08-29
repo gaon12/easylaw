@@ -6,7 +6,12 @@
  * 2. 문체 규칙(`DESIGN.md` §9 — 해요체, 단정 금지, 챗봇 톤 금지)을 한 파일에서 감시하기 위해.
  *
  * 레벨별 본문 문구는 여기 두지 않는다. 그건 생성 결과이지 UI 카피가 아니다.
+ *
+ * 값이 끼어드는 문구에서는 **조사를 박아 두지 않는다**. `pickJosa`가 받침을 보고 고른다 —
+ * `"도"는`과 `"가합"은`은 다르고, 사용자가 넣은 말이 무엇으로 끝날지는 알 수 없다.
  */
+
+import { pickJosa } from "./korean";
 
 export const site = {
   name: "EasyLaw",
@@ -64,12 +69,14 @@ export const home = {
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
-  resultsForKeyword: (query: string) => `사건번호 형식이 아니라서 "${query}"로 찾아봤어요.`,
+  resultsForKeyword: (query: string) =>
+    `사건번호 형식이 아니라서 "${query}"${pickJosa(query, "으로/로")} 찾아봤어요.`,
   emptyQuery: "찾을 사건번호나 내용을 입력해 주세요.",
   notFoundTitle: "공개된 판결문 중에는 없어요",
   notFoundBody:
     "1심·2심 판결문은 대부분 공개되지 않아요. 받으신 판결문을 올리면 바로 쉽게 바꿔 드릴게요.",
-  unknownCode: (code: string) => `"${code}"는 저희가 아는 사건부호가 아니에요. 다시 확인해 주세요.`,
+  unknownCode: (code: string) =>
+    `"${code}"${pickJosa(code, "은/는")} 저희가 아는 사건부호가 아니에요. 다시 확인해 주세요.`,
   yearOutOfRange: "사건번호의 연도가 맞지 않는 것 같아요. 다시 확인해 주세요.",
   codeHelpTitle: "사건번호는 이렇게 생겼어요",
   codeSeparator: " · ",
