@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  createUser,
+  createAnonymousUser,
   findUploadForOwner,
   listMaskCounts,
   listUploadSpans,
@@ -35,7 +35,7 @@ function input(overrides: Partial<Parameters<typeof ingestUpload>[1]> = {}) {
 
 beforeEach(() => {
   ({ db } = createTestAppDb());
-  ownerId = createUser(db, "owner-key-hash");
+  ownerId = createAnonymousUser(db);
 });
 
 describe("ingestUpload", () => {
