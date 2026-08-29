@@ -25,26 +25,61 @@ const timestampNow = (name: string) =>
 /**
  * 문서의 주인.
  *
- * 로그인은 아직 없다. 첫 업로드 때 브라우저에 무작위 토큰을 쿠키로 주고, 여기에는
- * 그 토큰의 **해시만** 저장한다. DB가 유출돼도 토큰 자체는 복원되지 않는다.
- * 나중에 로그인을 붙이면 같은 행에 `email`이 채워지고 익명 문서가 그대로 이어진다.
+ * **가입하지 않아도 주인이 된다.** 첫 업로드 때 익명 사용자 행이 만들어지고,
+ * 나중에 가입하면 그 행에 `email`과 `password_hash`가 채워진다. 새 사용자를 만들지
+ * 않으므로 가입 전에 올린 문서가 그대로 따라온다 — 가입 때문에 문서를 잃으면
+ * 아무도 가입하지 않는다.
+ *
+ * 이메일은 **소문자로 정규화해서** 저장한다. `A@b.com`과 `a@b.com`으로 각각 가입되면
+ * 사용자는 둘 중 어느 것으로 가입했는지 알 수 없다.
  */
 const user = sqliteTable(
   "user",
   {
     id: text("id").primaryKey(),
-    /** 로그인 전에는 null이다. */
+    /** 가입 전에는 null이다. 소문자로 정규화된 값만 들어온다. */
     email: text("email"),
-    /** 소유 증명 토큰의 SHA-256. 원문 토큰은 저장하지 않는다. */
-    ownerKeyHash: text("owner_key_hash").notNull(),
+    /** `scrypt$N$r$p$salt$hash`. 가입 전에는 null이다(`src/lib/password.ts`). */
+    passwordHash: text("password_hash"),
     /** 접근성 프로필 등 사용자 설정(JSON). */
     settings: text("settings", { mode: "json" }),
     createdAt: timestampNow("created_at"),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }),
   },
+  (table) => [unique("user_email_unique").on(table.email)],
+);
+
+/**
+ * 로그인 세션이자 익명 소유 증명.
+ *
+ * 쿠키에는 무작위 토큰이 들어가고 여기에는 그 토큰의 **SHA-256만** 저장한다.
+ * DB가 유출돼도 남의 세션을 흉내 낼 수 없다.
+ *
+ * 사용자 행이 아니라 별도 테이블에 두는 이유는 **기기가 여럿이기 때문**이다.
+ * 사용자 행에 토큰 한 개를 두면 다른 기기에서 로그인할 때마다 앞의 기기가 튕긴다.
+ * 로그아웃도 이 행 하나를 지우는 일이 된다.
+ */
+const session = sqliteTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** 쿠키 토큰의 SHA-256. 원문 토큰은 저장하지 않는다. */
+    tokenHash: text("token_hash").notNull(),
+    /**
+     * 이 시각이 지나면 쓸 수 없다. 쓸 때마다 뒤로 민다.
+     * 익명 세션은 길게(문서 소유권이 걸려 있다), 로그인 세션은 짧게 잡는다.
+     */
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: timestampNow("created_at"),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }),
+  },
   (table) => [
-    unique("user_owner_key_unique").on(table.ownerKeyHash),
-    unique("user_email_unique").on(table.email),
+    unique("session_token_unique").on(table.tokenHash),
+    index("session_user_idx").on(table.userId),
+    index("session_expires_idx").on(table.expiresAt),
   ],
 );
 
@@ -153,10 +188,11 @@ const auditLog = sqliteTable(
 /** drizzle 클라이언트에 넘길 스키마 묶음. 네임스페이스 import 대신 명시적으로 모은다. */
 const appSchema = {
   auditLog,
+  session,
   upload,
   uploadMask,
   uploadSpan,
   user,
 };
 
-export { appSchema, auditLog, upload, uploadMask, uploadSpan, user };
+export { appSchema, auditLog, session, upload, uploadMask, uploadSpan, user };

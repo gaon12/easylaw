@@ -2,11 +2,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
 import {
-  createUser,
+  attachCredentials,
+  createAnonymousUser,
+  createSession,
+  deleteExpiredSessions,
   deleteExpiredUploads,
+  deleteSession,
   deleteUpload,
+  findLiveSession,
   findUploadForOwner,
-  findUserByOwnerKeyHash,
+  findUserByEmail,
   listMaskCounts,
   listUploadSpans,
   listUploadsForOwner,
@@ -44,20 +49,80 @@ function uploadInput(userId: string, overrides: Partial<UploadInput> = {}): Uplo
 }
 
 describe("사용자", () => {
-  it("소유 토큰 해시로 찾는다", () => {
-    const id = createUser(db, "hash-of-token");
-    expect(findUserByOwnerKeyHash(db, "hash-of-token")?.id).toBe(id);
+  it("가입하지 않은 사용자를 만든다", () => {
+    const id = createAnonymousUser(db);
+    expect(findUserByEmail(db, "a@example.com")).toBeUndefined();
+    expect(id).not.toBe("");
   });
 
-  it("모르는 해시는 찾지 못한다", () => {
-    createUser(db, "hash-of-token");
-    expect(findUserByOwnerKeyHash(db, "other")).toBeUndefined();
+  it("가입은 지금 계정에 이메일을 붙인다 — 새 사용자를 만들지 않는다", () => {
+    // 새로 만들면 가입 전에 올린 문서가 남의 것이 된다.
+    const id = createAnonymousUser(db);
+    saveUpload(db, uploadInput(id));
+
+    expect(attachCredentials(db, id, "a@example.com", "hash")).toBe(true);
+    expect(findUserByEmail(db, "a@example.com")?.id).toBe(id);
+    expect(listUploadsForOwner(db, id)).toHaveLength(1);
+  });
+
+  it("이미 쓰는 이메일이면 가입시키지 않는다", () => {
+    const first = createAnonymousUser(db);
+    const second = createAnonymousUser(db);
+    attachCredentials(db, first, "a@example.com", "hash");
+
+    expect(attachCredentials(db, second, "a@example.com", "hash2")).toBe(false);
+    expect(findUserByEmail(db, "a@example.com")?.id).toBe(first);
+  });
+});
+
+describe("세션", () => {
+  const future = new Date("2999-01-01T00:00:00Z");
+
+  it("살아 있는 세션을 토큰 해시로 찾는다", () => {
+    const userId = createAnonymousUser(db);
+    const id = createSession(db, userId, "token-hash", future);
+    expect(findLiveSession(db, "token-hash")?.id).toBe(id);
+  });
+
+  it("만료된 세션은 찾지 못한다", () => {
+    const userId = createAnonymousUser(db);
+    createSession(db, userId, "old", new Date("2020-01-01T00:00:00Z"));
+    expect(findLiveSession(db, "old")).toBeUndefined();
+  });
+
+  it("한 사용자가 기기마다 세션을 가질 수 있다", () => {
+    // 사용자 행에 토큰 하나를 두면 다른 기기에서 로그인할 때마다 앞의 기기가 튕긴다.
+    const userId = createAnonymousUser(db);
+    createSession(db, userId, "phone", future);
+    createSession(db, userId, "laptop", future);
+
+    expect(findLiveSession(db, "phone")).toBeDefined();
+    expect(findLiveSession(db, "laptop")).toBeDefined();
+  });
+
+  it("로그아웃은 그 기기의 세션만 닫는다", () => {
+    const userId = createAnonymousUser(db);
+    const phone = createSession(db, userId, "phone", future);
+    createSession(db, userId, "laptop", future);
+
+    deleteSession(db, phone);
+    expect(findLiveSession(db, "phone")).toBeUndefined();
+    expect(findLiveSession(db, "laptop")).toBeDefined();
+  });
+
+  it("만료된 세션을 치운다", () => {
+    const userId = createAnonymousUser(db);
+    createSession(db, userId, "old", new Date("2020-01-01T00:00:00Z"));
+    createSession(db, userId, "live", future);
+
+    expect(deleteExpiredSessions(db, new Date("2021-01-01T00:00:00Z"))).toBe(1);
+    expect(findLiveSession(db, "live")).toBeDefined();
   });
 });
 
 describe("saveUpload", () => {
   it("문서·문장·마스킹 요약을 함께 저장한다", () => {
-    const userId = createUser(db, "k1");
+    const userId = createAnonymousUser(db);
     const { id, duplicate } = saveUpload(db, uploadInput(userId));
 
     expect(duplicate).toBe(false);
@@ -70,13 +135,13 @@ describe("saveUpload", () => {
   });
 
   it("건수가 0인 종류는 저장하지 않는다", () => {
-    const userId = createUser(db, "k1");
+    const userId = createAnonymousUser(db);
     const { id } = saveUpload(db, uploadInput(userId, { maskCounts: { name: 0 } }));
     expect(listMaskCounts(db, id)).toEqual([]);
   });
 
   it("같은 문서를 다시 올리면 기존 문서를 돌려준다", () => {
-    const userId = createUser(db, "k1");
+    const userId = createAnonymousUser(db);
     const first = saveUpload(db, uploadInput(userId));
     const again = saveUpload(db, uploadInput(userId, { title: "다른 이름" }));
 
@@ -85,8 +150,8 @@ describe("saveUpload", () => {
   });
 
   it("사용자가 다르면 같은 내용도 각자 저장한다", () => {
-    const a = createUser(db, "k1");
-    const b = createUser(db, "k2");
+    const a = createAnonymousUser(db);
+    const b = createAnonymousUser(db);
     saveUpload(db, uploadInput(a));
     const second = saveUpload(db, uploadInput(b));
 
@@ -98,8 +163,8 @@ describe("saveUpload", () => {
 
 describe("소유자 격리", () => {
   it("남의 문서는 조회되지 않는다", () => {
-    const owner = createUser(db, "k1");
-    const stranger = createUser(db, "k2");
+    const owner = createAnonymousUser(db);
+    const stranger = createAnonymousUser(db);
     const { id } = saveUpload(db, uploadInput(owner));
 
     expect(findUploadForOwner(db, id, owner)).toBeDefined();
@@ -107,8 +172,8 @@ describe("소유자 격리", () => {
   });
 
   it("남의 문서는 지워지지 않는다", () => {
-    const owner = createUser(db, "k1");
-    const stranger = createUser(db, "k2");
+    const owner = createAnonymousUser(db);
+    const stranger = createAnonymousUser(db);
     const { id } = saveUpload(db, uploadInput(owner));
 
     expect(deleteUpload(db, id, stranger)).toBe(false);
@@ -116,8 +181,8 @@ describe("소유자 격리", () => {
   });
 
   it("목록에는 자기 문서만 나온다", () => {
-    const owner = createUser(db, "k1");
-    const stranger = createUser(db, "k2");
+    const owner = createAnonymousUser(db);
+    const stranger = createAnonymousUser(db);
     saveUpload(db, uploadInput(owner));
     saveUpload(db, uploadInput(stranger, { docHash: "hash-b" }));
 
@@ -129,7 +194,7 @@ describe("소유자 격리", () => {
 
 describe("삭제", () => {
   it("문서를 지우면 문장과 마스킹 요약도 사라진다", () => {
-    const userId = createUser(db, "k1");
+    const userId = createAnonymousUser(db);
     const { id } = saveUpload(db, uploadInput(userId));
 
     expect(deleteUpload(db, id, userId)).toBe(true);
@@ -139,7 +204,7 @@ describe("삭제", () => {
   });
 
   it("보관 기간이 지난 문서를 지운다", () => {
-    const userId = createUser(db, "k1");
+    const userId = createAnonymousUser(db);
     const past = new Date("2020-01-01T00:00:00Z");
     const future = new Date("2999-01-01T00:00:00Z");
 
