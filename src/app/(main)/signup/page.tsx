@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
+import styles from "@/components/auth/auth-page.module.css";
 import { auth } from "@/lib/strings";
-import { createAccount } from "./actions";
-import styles from "./page.module.css";
+import { createAccount } from "@/server/auth-actions";
 
 /**
  * 회원가입. `PAGES.md` §17

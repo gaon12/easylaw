@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { logOut } from "@/app/signup/actions";
 import { auth, disclaimer, site } from "@/lib/strings";
+import { logOut } from "@/server/auth-actions";
 import { currentSession } from "@/server/owner";
 import styles from "./site-shell.module.css";
 

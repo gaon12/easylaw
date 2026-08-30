@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { logIn } from "@/app/signup/actions";
-import styles from "@/app/signup/page.module.css";
 import { AuthForm } from "@/components/auth/auth-form";
+import styles from "@/components/auth/auth-page.module.css";
 import { auth } from "@/lib/strings";
+import { logIn } from "@/server/auth-actions";
 
 /**
  * 로그인. `PAGES.md` §17
