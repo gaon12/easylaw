@@ -1,3 +1,4 @@
+import { LevelBody } from "./level-body";
 import styles from "./viewer.module.css";
 
 interface Span {
@@ -21,7 +22,8 @@ function OriginalPanel({ spans }: { spans: readonly Span[] }) {
   }
 
   return (
-    <div className={styles.original}>
+    // 원문은 L0 규격이다 — 76ch, 17px / 1.55(`DESIGN.md` §7).
+    <LevelBody level="L0">
       {[...paragraphs.entries()].map(([paraIdx, sentences]) => (
         <div className={styles.paragraph} key={paraIdx}>
           {sentences.map((span) => (
@@ -31,7 +33,7 @@ function OriginalPanel({ spans }: { spans: readonly Span[] }) {
           ))}
         </div>
       ))}
-    </div>
+    </LevelBody>
   );
 }
 

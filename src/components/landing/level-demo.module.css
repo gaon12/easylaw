@@ -114,29 +114,6 @@
   border-radius: var(--el-radius-m);
 }
 
-/* 레벨마다 본문 규격이 다르다(`DESIGN.md` §4). 데모에서도 그 차이를 그대로 보여 준다. */
-.bodyL0,
-.bodyL1,
-.bodyL2 {
-  font-size: var(--el-text-body-m);
-  line-height: var(--el-leading-body);
-}
-
-.bodyL3 {
-  font-size: var(--el-text-body-l);
-  line-height: var(--el-leading-body);
-}
-
-.bodyL4 {
-  font-size: var(--el-text-body-xl);
-  line-height: var(--el-leading-loose);
-}
-
-/* 원문은 법원이 쓴 그대로다. 읽기 어렵다는 사실 자체가 이 데모의 출발점이다. */
-.bodyL0 {
-  color: var(--el-fg-1);
-}
-
 .line {
   margin: 0;
 }
