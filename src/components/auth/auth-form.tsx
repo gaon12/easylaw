@@ -1,10 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import type { AuthState } from "@/app/signup/actions";
 import { Button } from "@/components/ui/button";
 import { PASSWORD_MIN } from "@/lib/credentials";
 import { auth } from "@/lib/strings";
+import type { AuthState } from "@/server/auth-actions";
 import styles from "./auth-form.module.css";
 
 type AuthAction = (previous: AuthState, formData: FormData) => Promise<AuthState>;

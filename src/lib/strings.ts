@@ -539,6 +539,86 @@ export const legal = {
   licenseNote: "각 라이선스 전문은 해당 프로젝트의 저장소에서 보실 수 있어요.",
 } as const;
 
+/**
+ * 설치 마법사. 서버를 처음 띄운 사람이 보는 화면이다.
+ *
+ * 읽는 사람이 다르다 — 여기까지 온 사람은 이 서비스를 **설치하는 사람**이지 판결문을
+ * 읽으러 온 사람이 아니다. 그래도 문체는 같게 간다(해요체). 화면마다 목소리가 달라지면
+ * 같은 서비스로 보이지 않는다.
+ *
+ * 건너뛸 수 있는 것과 없는 것을 분명히 나눈다. 관리자 계정은 없으면 아무것도 못 하므로
+ * 필수, 외부 연결은 없어도 서비스가 돌아가므로 선택이다.
+ */
+export const setup = {
+  title: "EasyLaw 설치",
+  stepLabel: (current: number, total: number) => `${total}단계 중 ${current}단계`,
+
+  accountTitle: "관리자 계정을 만들어 주세요",
+  accountIntro:
+    "이 서버를 관리할 계정이에요. 서비스 설정을 바꾸고, 나중에 다른 사람의 문서를 다루는 기능이 생기면 그 권한도 여기에 붙어요.",
+  accountSubmit: "계정 만들고 다음으로",
+  accountSubmitting: "만들고 있어요…",
+
+  connectionsTitle: "외부 연결을 설정해 주세요",
+  connectionsIntro:
+    "지금 넣지 않으셔도 돼요. 나중에 관리자 화면에서 넣으실 수 있어요. 넣지 않으면 그 기능만 꺼진 채로 서비스가 돌아가요.",
+  connectionsSubmit: "저장하고 다음으로",
+  connectionsSubmitting: "저장하고 있어요…",
+
+  lawApiTitle: "판례 조회",
+  lawApiBody:
+    "법제처 국가법령정보 공동활용에서 받은 인증키(OC)예요. 없으면 사건번호로 공개 판례를 찾는 기능이 꺼져요. 올린 판결문을 보는 기능은 그대로 동작해요.",
+  lawApiLabel: "법제처 인증키(OC)",
+  lawApiPlaceholder: "발급받으신 OC 값",
+
+  llmTitle: "설명 만들기",
+  llmBody:
+    "판결문을 쉬운 말로 바꾸는 데 쓰는 AI 연결이에요. 없으면 원문만 보여 드리고 설명 만들기 버튼이 꺼져요.",
+  llmBaseUrlLabel: "API 주소",
+  llmBaseUrlPlaceholder: "https://api.example.com/v1",
+  llmApiKeyLabel: "API 키",
+  llmModelLabel: "모델 이름",
+  limitLabel: "하루 설명 생성 상한",
+  limitHint: "설명 만들기 버튼은 곧 지출이에요. 하루에 몇 번까지 허용할지 정해요.",
+
+  doneTitle: "설치가 끝났어요",
+  doneIntro: "이제 서비스를 쓰실 수 있어요. 아래 설정은 관리자 화면에서 언제든 바꾸실 수 있어요.",
+  doneSubmit: "시작하기",
+  configured: "설정됨",
+  notConfigured: "설정 안 됨",
+  optionalNote: "선택 항목이에요. 비워 두시면 그 기능만 꺼져요.",
+
+  /** 설정 항목의 사람이 읽는 이름. 저장소 키를 화면에 그대로 내보내지 않는다. */
+  settingNames: {
+    law_api_oc: "법제처 인증키",
+    llm_base_url: "AI API 주소",
+    llm_api_key: "AI API 키",
+    llm_model: "AI 모델",
+    generation_daily_limit: "하루 생성 상한",
+  },
+  closedTitle: "설치는 이미 끝났어요",
+  closedBody: "설치 마법사는 처음 한 번만 열려요. 설정을 바꾸시려면 관리자 화면으로 가세요.",
+  toAdmin: "관리자 화면으로",
+} as const;
+
+/**
+ * 관리자 화면. 설치 뒤에 설정을 바꾸는 유일한 통로다.
+ *
+ * 마법사에서 넣은 값을 나중에 못 고치면, 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
+ */
+export const admin = {
+  title: "관리자 설정",
+  intro: "서비스 설정을 바꾸실 수 있어요. 이 화면은 관리자만 볼 수 있어요.",
+  save: "저장",
+  saving: "저장하고 있어요…",
+  saved: "저장했어요.",
+  secretSet: "설정돼 있어요. 새 값을 넣으면 바뀌고, 비워 두면 그대로예요.",
+  secretUnset: "아직 설정하지 않으셨어요.",
+  secretClear: "지우려면 여기에 공백 한 칸을 넣고 저장해 주세요.",
+  deniedTitle: "관리자만 볼 수 있어요",
+  deniedBody: "이 화면은 서버를 설치한 계정으로만 들어오실 수 있어요.",
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,

@@ -1,5 +1,5 @@
 import "server-only";
-import { createUser, findUserByEmail, touchUser } from "@/db/app/repository";
+import { createUser, findUserByEmail, touchUser, type UserRole } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { type CredentialProblem, normalizeEmail, validateNewCredentials } from "@/lib/credentials";
 import { RateLimiter } from "@/lib/rate-limit";
@@ -38,14 +38,18 @@ type AuthResult = { readonly ok: true } | { readonly ok: false; readonly problem
  * 성공하면 **세션을 새로 연다.** 권한이 바뀌는 순간 세션 식별자가 바뀌어야
  * 세션 고정(session fixation) 공격이 통하지 않는다.
  */
-async function signUp(rawEmail: string, rawPassword: string): Promise<AuthResult> {
+async function signUp(
+  rawEmail: string,
+  rawPassword: string,
+  role: UserRole = "member",
+): Promise<AuthResult> {
   const validated = validateNewCredentials(rawEmail, rawPassword);
   if (!validated.ok) {
     return { ok: false, problem: validated.problem };
   }
 
   const { email, password } = validated.credentials;
-  const userId = createUser(appDb(), email, hashPassword(password));
+  const userId = createUser(appDb(), email, hashPassword(password), role);
   if (userId === undefined) {
     return { ok: false, problem: "email_taken" };
   }

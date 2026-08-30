@@ -40,7 +40,14 @@ interface SaveResult {
   duplicate: boolean;
 }
 
+type UserRole = (typeof user.role.enumValues)[number];
+
 const newId = (): string => crypto.randomUUID();
+
+/** 관리자가 하나라도 있는가. 설치 마법사의 첫 단계를 다시 열지 말지 여기서 갈린다. */
+function hasAdmin(db: AppDb): boolean {
+  return db.select({ id: user.id }).from(user).where(eq(user.role, "admin")).get() !== undefined;
+}
 
 /**
  * 계정을 만든다. 이미 그 이메일이 있으면 undefined.
@@ -50,7 +57,12 @@ const newId = (): string => crypto.randomUUID();
  *
  * 이메일은 소문자로 정규화된 값만 들어온다고 본다. 정규화는 부르는 쪽의 몫이다.
  */
-function createUser(db: AppDb, email: string, passwordHash: string): string | undefined {
+function createUser(
+  db: AppDb,
+  email: string,
+  passwordHash: string,
+  role: UserRole = "member",
+): string | undefined {
   return db.transaction((tx) => {
     const taken = tx.select({ id: user.id }).from(user).where(eq(user.email, email)).get();
     if (taken !== undefined) {
@@ -58,7 +70,7 @@ function createUser(db: AppDb, email: string, passwordHash: string): string | un
     }
 
     const id = newId();
-    tx.insert(user).values({ id, email, passwordHash, lastSeenAt: new Date() }).run();
+    tx.insert(user).values({ id, email, passwordHash, role, lastSeenAt: new Date() }).run();
     tx.insert(auditLog)
       .values({ id: newId(), actor: id, action: "user.signed_up", target: id })
       .run();
@@ -284,6 +296,7 @@ export {
   createUser,
   findUserByEmail,
   findUserById,
+  hasAdmin,
   listMaskCounts,
   listUploadSpans,
   listUploadsForOwner,
@@ -291,4 +304,4 @@ export {
   touchSession,
   touchUser,
 };
-export type { SaveResult, SpanInput, UploadInput };
+export type { SaveResult, SpanInput, UploadInput, UserRole };

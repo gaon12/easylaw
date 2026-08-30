@@ -8,6 +8,7 @@ import {
   findLiveSession,
   findUserById,
   touchSession,
+  type UserRole,
 } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { isProduction } from "@/lib/env";
@@ -48,6 +49,8 @@ interface CurrentSession {
   readonly userId: string;
   /** 가입한 계정인가. 화면의 로그인/로그아웃 표시가 이 값을 본다. */
   readonly email: string | null;
+  /** 관리자만 서비스 설정을 바꿀 수 있다. */
+  readonly role: UserRole;
 }
 
 /**
@@ -69,7 +72,12 @@ async function currentSession(): Promise<CurrentSession | undefined> {
   }
 
   const account = findUserById(db, row.userId);
-  return { sessionId: row.id, userId: row.userId, email: account?.email ?? null };
+  return {
+    sessionId: row.id,
+    userId: row.userId,
+    email: account?.email ?? null,
+    role: account?.role ?? "member",
+  };
 }
 
 /** 문서 조회에 쓰는 축약형. 소유자 판정에는 사용자 id만 있으면 된다. */
