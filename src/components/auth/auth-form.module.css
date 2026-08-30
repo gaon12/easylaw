@@ -1,12 +1,8 @@
 /* 가입·로그인 폼. 폼 화면이라 배경 띠를 쓰지 않는다(`DESIGN.md` §5.1). */
 
+/* 폼 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
 .form {
-  display: grid;
   gap: var(--el-space-5);
-  justify-items: stretch;
-  padding: var(--el-space-6);
-  border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-l);
 }
 
 .field {
@@ -35,14 +31,6 @@
 
 .input:hover {
   border-color: var(--el-fg-3);
-}
-
-/* 오류는 색만으로 알리지 않는다. 왼쪽 굵은 선과 문장이 함께 의미를 전한다. */
-.error {
-  padding: var(--el-space-3) var(--el-space-4);
-  border-left: 4px solid var(--el-danger);
-  background: var(--el-danger-10);
-  border-radius: var(--el-radius-s);
 }
 
 @media (max-width: 640px) {

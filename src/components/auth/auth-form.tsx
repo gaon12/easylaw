@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { PASSWORD_MIN } from "@/lib/credentials";
 import { auth } from "@/lib/strings";
 import type { AuthState } from "@/server/auth-actions";
@@ -32,45 +34,47 @@ function AuthForm({ action, submitLabel, submittingLabel, mode }: AuthFormProps)
   const message = state.problem === undefined ? undefined : auth.errors[state.problem];
 
   return (
-    <form action={formAction} className={styles.form}>
-      {message === undefined ? null : (
-        <p aria-live="polite" className={styles.error} role="alert">
-          {message}
-        </p>
-      )}
+    <form action={formAction}>
+      <Card className={styles.form}>
+        {message === undefined ? null : (
+          <div aria-live="polite" role="alert">
+            <Alert title={message} tone="danger" />
+          </div>
+        )}
 
-      <label className={styles.field}>
-        <span className={styles.label}>{auth.emailLabel}</span>
-        <input
-          autoComplete="email"
-          className={styles.input}
-          defaultValue={state.email}
-          inputMode="email"
-          name="email"
-          placeholder={auth.emailPlaceholder}
-          required={true}
-          type="email"
-        />
-      </label>
+        <label className={styles.field}>
+          <span className={styles.label}>{auth.emailLabel}</span>
+          <input
+            autoComplete="email"
+            className={styles.input}
+            defaultValue={state.email}
+            inputMode="email"
+            name="email"
+            placeholder={auth.emailPlaceholder}
+            required={true}
+            type="email"
+          />
+        </label>
 
-      <label className={styles.field}>
-        <span className={styles.label}>{auth.passwordLabel}</span>
-        <input
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          className={styles.input}
-          minLength={mode === "signup" ? PASSWORD_MIN : undefined}
-          name="password"
-          required={true}
-          type="password"
-        />
-        {mode === "signup" ? (
-          <span className={styles.hint}>{auth.passwordHint(PASSWORD_MIN)}</span>
-        ) : null}
-      </label>
+        <label className={styles.field}>
+          <span className={styles.label}>{auth.passwordLabel}</span>
+          <input
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            className={styles.input}
+            minLength={mode === "signup" ? PASSWORD_MIN : undefined}
+            name="password"
+            required={true}
+            type="password"
+          />
+          {mode === "signup" ? (
+            <span className={styles.hint}>{auth.passwordHint(PASSWORD_MIN)}</span>
+          ) : null}
+        </label>
 
-      <Button disabled={pending} size="l" type="submit">
-        {pending ? submittingLabel : submitLabel}
-      </Button>
+        <Button disabled={pending} size="l" type="submit">
+          {pending ? submittingLabel : submitLabel}
+        </Button>
+      </Card>
     </form>
   );
 }
