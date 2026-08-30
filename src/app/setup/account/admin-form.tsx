@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { PASSWORD_MIN } from "@/lib/credentials";
 import { auth, setup } from "@/lib/strings";
 import { createAdmin, type SetupState } from "@/server/setup-actions";
@@ -29,43 +31,45 @@ function AdminForm() {
   const message = problemMessage(state.problem);
 
   return (
-    <form action={formAction} className={styles.form}>
-      {message === undefined ? null : (
-        <p aria-live="polite" className={styles.error} role="alert">
-          {message}
-        </p>
-      )}
+    <form action={formAction}>
+      <Card className={styles.form}>
+        {message === undefined ? null : (
+          <div aria-live="polite" role="alert">
+            <Alert title={message} tone="danger" />
+          </div>
+        )}
 
-      <label className={styles.field}>
-        <span className={styles.label}>{auth.emailLabel}</span>
-        <input
-          autoComplete="email"
-          className={styles.input}
-          defaultValue={state.email}
-          inputMode="email"
-          name="email"
-          placeholder={auth.emailPlaceholder}
-          required={true}
-          type="email"
-        />
-      </label>
+        <label className={styles.field}>
+          <span className={styles.label}>{auth.emailLabel}</span>
+          <input
+            autoComplete="email"
+            className={styles.input}
+            defaultValue={state.email}
+            inputMode="email"
+            name="email"
+            placeholder={auth.emailPlaceholder}
+            required={true}
+            type="email"
+          />
+        </label>
 
-      <label className={styles.field}>
-        <span className={styles.label}>{auth.passwordLabel}</span>
-        <input
-          autoComplete="new-password"
-          className={styles.input}
-          minLength={PASSWORD_MIN}
-          name="password"
-          required={true}
-          type="password"
-        />
-        <span className={styles.hint}>{auth.passwordHint(PASSWORD_MIN)}</span>
-      </label>
+        <label className={styles.field}>
+          <span className={styles.label}>{auth.passwordLabel}</span>
+          <input
+            autoComplete="new-password"
+            className={styles.input}
+            minLength={PASSWORD_MIN}
+            name="password"
+            required={true}
+            type="password"
+          />
+          <span className={styles.hint}>{auth.passwordHint(PASSWORD_MIN)}</span>
+        </label>
 
-      <Button disabled={pending} size="l" type="submit">
-        {pending ? setup.accountSubmitting : setup.accountSubmit}
-      </Button>
+        <Button disabled={pending} size="l" type="submit">
+          {pending ? setup.accountSubmitting : setup.accountSubmit}
+        </Button>
+      </Card>
     </form>
   );
 }

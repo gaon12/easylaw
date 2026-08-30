@@ -1,7 +1,10 @@
 /*
- * 설치 진행 표시줄. 설치 화면에는 메뉴가 없으므로 그 자리를 이것이 대신한다.
+ * 설치 진행 표시줄. `DESIGN.md` §6 — `step-indicator`
  *
- * 상태를 색으로만 알리지 않는다 — 번호 칸의 채움과 글자 굵기가 함께 의미를 전한다.
+ * 규격의 숫자를 그대로 쓴다: **36px 원 + 2px 커넥터**,
+ * 완료는 `primary-50` 채움, 현재는 `primary-10` 배경 + `primary-50` 보더.
+ *
+ * 커넥터가 핵심이다. 원만 늘어놓으면 칩 세 개로 보이고, 선이 이어져야 "단계"로 읽힌다.
  */
 
 .rail {
@@ -10,63 +13,103 @@
 
 .list {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--el-space-2) var(--el-space-5);
+  align-items: flex-start;
 }
 
+/*
+ * 한 칸. 커넥터를 `::before`로 그려 원과 원 사이를 잇는다.
+ * flex 비율을 같게 줘서 칸 너비가 글자 길이에 따라 들쭉날쭉해지지 않게 한다.
+ */
 .item {
-  display: flex;
-  align-items: center;
+  position: relative;
+  flex: 1 1 0;
+  display: grid;
+  justify-items: center;
   gap: var(--el-space-2);
-  font-size: var(--el-text-body-s);
+  text-align: center;
+  min-width: 0;
 }
 
-/* 번호 칸. 지름을 rem으로 잡아 글자 크기 설정을 따라 함께 커진다. */
+/* 커넥터. 앞 칸의 원 중심에서 이 칸의 원 중심까지 잇는다. 첫 칸에는 없다. */
+.item::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  right: 50%;
+  left: -50%;
+  height: 2px;
+  background: var(--el-border-default);
+}
+
+.item:first-child::before {
+  content: none;
+}
+
+/* 이미 지나온 구간은 채워서 어디까지 왔는지 보이게 한다. */
+.done::before,
+.current::before {
+  background: var(--el-action);
+}
+
+/* 36px 원. 규격에 적힌 크기 그대로다. */
 .marker {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 36px;
+  height: 36px;
   border-radius: var(--el-radius-pill);
-  border: 1px solid var(--el-border-default);
-  font-size: var(--el-text-body-xs);
+  border: 2px solid var(--el-border-default);
+  background: var(--el-bg-canvas);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
 
+/* 완료 — primary-50 채움. */
 .done .marker {
-  background: var(--el-fg-2);
-  border-color: var(--el-fg-2);
-  color: var(--el-bg-canvas);
-}
-
-.current .marker {
   background: var(--el-action);
   border-color: var(--el-action);
   color: var(--el-fg-inverse);
 }
 
-.upcoming .marker {
+/* 현재 — primary-10 배경 + primary-50 보더. 채움과 확실히 구분된다. */
+.current .marker {
+  background: var(--el-action-weak);
+  border-color: var(--el-action);
+  color: var(--el-action-hover);
+}
+
+.name {
+  font-size: var(--el-text-body-xs);
   color: var(--el-fg-2);
+  line-height: var(--el-leading-tight);
 }
 
 .current .name {
+  color: var(--el-fg-1);
   font-weight: 700;
 }
 
-.upcoming .name {
-  color: var(--el-fg-2);
-}
-
 @media (max-width: 520px) {
-  .list {
-    gap: var(--el-space-2) var(--el-space-3);
+  /*
+   * 좁은 화면에서는 지금 단계의 이름만 남긴다. 다섯 개를 다 넣으면 글자가 두세 줄로
+   * 접혀 원보다 이름이 커진다. 남은 단계는 번호와 선으로 충분히 읽힌다.
+   */
+  .done .name,
+  .upcoming .name {
+    display: none;
   }
 
-  /* 좁은 화면에서는 번호만 남긴다. 이름까지 넣으면 두 줄로 접혀 오히려 읽기 어렵다. */
-  .upcoming .name,
-  .done .name {
-    display: none;
+  .marker {
+    width: 32px;
+    height: 32px;
+  }
+
+  .item::before {
+    top: 15px;
   }
 }

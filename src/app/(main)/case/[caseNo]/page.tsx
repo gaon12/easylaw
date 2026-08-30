@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
+import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
-import { Infobox } from "@/components/ui/infobox";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { LevelTabs } from "@/components/viewer/level-tabs";
 import { toLevel } from "@/components/viewer/levels";
@@ -10,7 +10,7 @@ import { corpusDb } from "@/db/client";
 import { findJudgmentByCaseNo, listSpans } from "@/db/corpus/repository";
 import { viewer } from "@/lib/strings";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
-import { llmConfig } from "@/server/settings";
+import { llmConfig, siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
 
 /**
@@ -56,7 +56,7 @@ export default async function CasePage(props: {
     // 조회는 됐지만 공개본이 없거나 API가 막힌 경우. 자세한 안내는 검색 화면이 맡는다.
     return (
       <div className={styles.page}>
-        <Infobox
+        <Alert
           actions={
             <ButtonLink href={`/search?q=${encodeURIComponent(decoded)}`}>
               {viewer.seeSearchResult}
@@ -66,7 +66,7 @@ export default async function CasePage(props: {
           tone="warning"
         >
           {viewer.notAvailableBody}
-        </Infobox>
+        </Alert>
       </div>
     );
   }
@@ -88,6 +88,7 @@ export default async function CasePage(props: {
         decidedAt={summary.decidedAt}
         outcome={row?.outcome ?? "unknown"}
         sourceUrl={row?.sourceUrl ?? null}
+        timeZone={siteTimeZone()}
       />
 
       <div className={styles.levels}>

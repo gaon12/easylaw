@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Infobox } from "@/components/ui/infobox";
 import { OriginalPanel } from "@/components/viewer/original-panel";
 import { findUploadForOwner, listMaskCounts, listUploadSpans } from "@/db/app/repository";
@@ -70,7 +72,7 @@ export default async function DocPage(props: {
         <p className={styles.retention}>{retentionNotice(row.retentionUntil, timeZone)}</p>
       </header>
 
-      <section className={styles.masks}>
+      <Card as="section" padding="tight">
         <h2 className={styles.sectionTitle}>{doc.maskTitle}</h2>
         {masks.length === 0 ? (
           <p className={styles.hint}>{doc.maskEmpty}</p>
@@ -78,22 +80,25 @@ export default async function DocPage(props: {
           <>
             <ul className={styles.maskList}>
               {masks.map((mask) => (
-                <li className={styles.maskItem} key={mask.kind}>
-                  {doc.maskCount(doc.maskKinds[mask.kind], mask.count)}
+                <li key={mask.kind}>
+                  {/* 무엇을 몇 개 가렸는지는 상태다 — 배지로 말한다(`DESIGN.md` §6). */}
+                  <Badge tone="grounded">
+                    {doc.maskCount(doc.maskKinds[mask.kind], mask.count)}
+                  </Badge>
                 </li>
               ))}
             </ul>
             <p className={styles.hint}>{doc.maskHint}</p>
           </>
         )}
-      </section>
+      </Card>
 
       <section className={styles.panel}>
         <h2 className={styles.sectionTitle}>{viewer.originalPanel}</h2>
         <OriginalPanel spans={spans} />
       </section>
 
-      <section className={styles.danger}>
+      <Card as="section" className={styles.danger} padding="tight">
         <h2 className={styles.sectionTitle}>{doc.deleteTitle}</h2>
         <p className={styles.hint}>{doc.deleteBody}</p>
         <form action={deleteDoc}>
@@ -102,7 +107,7 @@ export default async function DocPage(props: {
             {doc.deleteSubmit}
           </Button>
         </form>
-      </section>
+      </Card>
     </div>
   );
 }

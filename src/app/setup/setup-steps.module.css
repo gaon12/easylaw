@@ -20,12 +20,9 @@
   gap: var(--el-space-2);
 }
 
+/* 폼 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
 .form {
-  display: grid;
   gap: var(--el-space-6);
-  padding: var(--el-space-6);
-  border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-l);
 }
 
 /* 항목 묶음. 판례 조회와 설명 만들기는 서로 다른 결정이라 시각적으로도 나눈다. */
@@ -77,40 +74,9 @@
   border-color: var(--el-fg-3);
 }
 
-.error {
-  padding: var(--el-space-3) var(--el-space-4);
-  border-left: 4px solid var(--el-danger);
-  background: var(--el-danger-10);
-  border-radius: var(--el-radius-s);
-}
-
 .optional {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-xs);
-}
-
-/* 완료 화면의 설정 요약. 무엇이 켜졌고 무엇이 꺼졌는지 한눈에 보여 준다. */
-.summary {
-  display: grid;
-  border-top: 1px solid var(--el-border-subtle);
-}
-
-.summaryRow {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--el-space-4);
-  padding: var(--el-space-3) 0;
-  border-bottom: 1px solid var(--el-border-subtle);
-}
-
-.summaryKey {
-  color: var(--el-fg-2);
-  font-size: var(--el-text-body-s);
-}
-
-.summaryValue {
-  font-size: var(--el-text-body-s);
-  font-weight: 700;
 }
 
 /* ── 환경 점검 ─────────────────────────────────────────── */
@@ -120,31 +86,7 @@
   gap: var(--el-space-3);
 }
 
-/*
- * 검사 하나. 상태를 색으로만 알리지 않는다(`DESIGN.md` §10) —
- * 왼쪽 굵은 선과 오른쪽 상태 글자가 함께 의미를 전한다.
- */
-.check {
-  display: grid;
-  gap: var(--el-space-1);
-  padding: var(--el-space-4);
-  border-radius: var(--el-radius-m);
-  border-left: 4px solid var(--el-border-strong);
-  background: var(--el-bg-canvas);
-}
-
-.ok {
-  border-left-color: var(--el-success);
-}
-
-.warn {
-  border-left-color: var(--el-warning);
-}
-
-.fail {
-  border-left-color: var(--el-danger);
-}
-
+/* 검사 하나는 `Card`가 그린다. 상태는 카드가 아니라 안쪽 배지가 말한다(`DESIGN.md` §11). */
 .checkHead {
   display: flex;
   flex-wrap: wrap;
@@ -155,23 +97,6 @@
 
 .checkLabel {
   font-weight: 700;
-}
-
-.checkLevel {
-  font-size: var(--el-text-body-xs);
-  font-weight: 700;
-}
-
-.ok .checkLevel {
-  color: var(--el-grounded-fg);
-}
-
-.warn .checkLevel {
-  color: var(--el-needs-check-fg);
-}
-
-.fail .checkLevel {
-  color: var(--el-ungrounded-fg);
 }
 
 /* 실제로 읽힌 값. 경로나 버전이라 자릿수가 흔들리면 안 된다. */

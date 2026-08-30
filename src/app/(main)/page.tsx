@@ -1,5 +1,6 @@
 import { LevelDemo } from "@/components/landing/level-demo";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { home, viewer } from "@/lib/strings";
 import styles from "./page.module.css";
@@ -24,24 +25,26 @@ export default function HomePage() {
             <p className={styles.heroBody}>{home.heroBody}</p>
 
             {/* 검색은 평범한 GET 폼이다. 자바스크립트 없이도 동작해야 한다. */}
-            <form action="/search" className={styles.searchCard} method="get">
-              {/* label이 input을 감싸면 id/htmlFor 없이도 연결된다 — 서버 컴포넌트에서 useId를 쓸 수 없다. */}
-              <label className={styles.searchLabel}>
-                <span className={styles.searchLabelText}>{home.searchLabel}</span>
-                <span className={styles.searchRow}>
-                  <input
-                    autoComplete="off"
-                    className={styles.searchInput}
-                    name="q"
-                    placeholder={home.searchPlaceholder}
-                    type="search"
-                  />
-                  <Button size="m" type="submit">
-                    {home.searchSubmit}
-                  </Button>
-                </span>
-              </label>
-              <p className={styles.searchHint}>{home.searchHint}</p>
+            <form action="/search" method="get">
+              <Card className={styles.searchCard} tone="elevated">
+                {/* label이 input을 감싸면 id/htmlFor 없이도 연결된다 — 서버 컴포넌트에서 useId를 쓸 수 없다. */}
+                <label className={styles.searchLabel}>
+                  <span className={styles.searchLabelText}>{home.searchLabel}</span>
+                  <span className={styles.searchRow}>
+                    <input
+                      autoComplete="off"
+                      className={styles.searchInput}
+                      name="q"
+                      placeholder={home.searchPlaceholder}
+                      type="search"
+                    />
+                    <Button size="m" type="submit">
+                      {home.searchSubmit}
+                    </Button>
+                  </span>
+                </label>
+                <p className={styles.searchHint}>{home.searchHint}</p>
+              </Card>
             </form>
           </div>
 
@@ -61,7 +64,7 @@ export default function HomePage() {
             </ButtonLink>
           </div>
 
-          <div className={styles.privacy}>
+          <Card className={styles.privacy} padding="tight">
             <h3 className={styles.privacyTitle}>{home.privacyTitle}</h3>
             <ul className={styles.privacyList}>
               {home.privacyPoints.map((point) => (
@@ -70,7 +73,7 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         </div>
       </Section>
 

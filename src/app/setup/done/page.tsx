@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { StructuredList } from "@/components/ui/structured-list";
 import { appDb } from "@/db/client";
 import { setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
@@ -44,19 +47,28 @@ export default async function SetupDonePage() {
         <p className={styles.intro}>{setup.doneIntro}</p>
       </header>
 
-      <dl className={styles.summary}>
-        {SHOWN.map((key) => {
-          const view = settings.find((entry) => entry.key === key);
-          return (
-            <div className={styles.summaryRow} key={key}>
-              <dt className={styles.summaryKey}>{setup.settingNames[key]}</dt>
-              <dd className={styles.summaryValue}>
-                {view?.configured ? (view.value ?? setup.configured) : setup.notConfigured}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
+      <Card>
+        <StructuredList
+          rows={SHOWN.map((key) => {
+            const view = settings.find((entry) => entry.key === key);
+            const configured = view?.configured ?? false;
+            return {
+              label: setup.settingNames[key],
+              /*
+                켜졌는지 꺼졌는지는 상태다 — 배지로 말한다(`DESIGN.md` §11: 아이콘 + 라벨 + 색).
+                값이 있는 항목(시간대 같은 것)은 값 자체가 더 유용하므로 값을 보여 준다.
+              */
+              value:
+                view?.value ??
+                (configured ? (
+                  <Badge tone="grounded">{setup.configured}</Badge>
+                ) : (
+                  <Badge tone="neutral">{setup.notConfigured}</Badge>
+                )),
+            };
+          })}
+        />
+      </Card>
 
       <form action={finishSetup}>
         <Button size="l" type="submit">

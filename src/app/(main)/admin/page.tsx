@@ -1,5 +1,6 @@
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Infobox } from "@/components/ui/infobox";
+import { Card } from "@/components/ui/card";
 import { appDb } from "@/db/client";
 import { admin, setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
@@ -86,9 +87,9 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
   if (session?.role !== "admin") {
     return (
       <div className={styles.page}>
-        <Infobox title={admin.deniedTitle} tone="warning">
+        <Alert title={admin.deniedTitle} tone="warning">
           {admin.deniedBody}
-        </Infobox>
+        </Alert>
       </div>
     );
   }
@@ -105,47 +106,49 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
       </header>
 
       {searchParams.saved === undefined ? null : (
-        <p aria-live="polite" className={styles.saved}>
-          {admin.saved}
-        </p>
+        <div aria-live="polite">
+          <Alert title={admin.saved} tone="success" />
+        </div>
       )}
 
-      <form action={saveSettings} className={styles.form}>
-        {EDITABLE.map((key) =>
-          key === "time_zone" ? (
-            <TimeZoneField key={key} timeZone={siteTimeZone(db)} zones={zones} />
-          ) : (
-            <TextField
-              configured={settings.find((entry) => entry.key === key)?.configured ?? false}
-              name={key}
-              key={key}
-              secret={SECRET_KEYS.has(key)}
-              value={settings.find((entry) => entry.key === key)?.value}
-            />
-          ),
-        )}
+      <form action={saveSettings}>
+        <Card className={styles.form}>
+          {EDITABLE.map((key) =>
+            key === "time_zone" ? (
+              <TimeZoneField key={key} timeZone={siteTimeZone(db)} zones={zones} />
+            ) : (
+              <TextField
+                configured={settings.find((entry) => entry.key === key)?.configured ?? false}
+                name={key}
+                key={key}
+                secret={SECRET_KEYS.has(key)}
+                value={settings.find((entry) => entry.key === key)?.value}
+              />
+            ),
+          )}
 
-        {/*
+          {/*
           https 설정은 값을 적는 칸이 아니라 켜고 끄는 것이라 따로 그린다.
           잘못 켜면 로그인이 조용히 막히므로 경고를 함께 둔다.
         */}
-        <label className={styles.checkboxRow}>
-          <input
-            className={styles.checkbox}
-            defaultChecked={shouldUseSecureCookies(db)}
-            name="secure_cookies"
-            type="checkbox"
-            value="true"
-          />
-          <span className={styles.label}>{setup.httpsLabel}</span>
-        </label>
-        <p className={styles.hint}>{setup.httpsWarn}</p>
+          <label className={styles.checkboxRow}>
+            <input
+              className={styles.checkbox}
+              defaultChecked={shouldUseSecureCookies(db)}
+              name="secure_cookies"
+              type="checkbox"
+              value="true"
+            />
+            <span className={styles.label}>{setup.httpsLabel}</span>
+          </label>
+          <p className={styles.hint}>{setup.httpsWarn}</p>
 
-        <p className={styles.hint}>{admin.secretClear}</p>
+          <p className={styles.hint}>{admin.secretClear}</p>
 
-        <Button size="m" type="submit">
-          {admin.save}
-        </Button>
+          <Button size="m" type="submit">
+            {admin.save}
+          </Button>
+        </Card>
       </form>
     </div>
   );

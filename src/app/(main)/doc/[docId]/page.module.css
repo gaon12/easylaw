@@ -36,19 +36,11 @@
   font-size: var(--el-text-heading-xs);
 }
 
-.masks,
 .panel,
 .danger {
   display: grid;
   gap: var(--el-space-3);
   align-content: start;
-}
-
-.masks {
-  padding: var(--el-space-5);
-  border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-l);
-  background: var(--el-bg-subtle);
 }
 
 .maskList {
@@ -57,21 +49,9 @@
   gap: var(--el-space-2);
 }
 
-/* 가린 종류와 건수. 배지 하나가 "무엇을 몇 개" 한 쌍을 담는다. */
-.maskItem {
-  padding: var(--el-space-1) var(--el-space-3);
-  border-radius: var(--el-radius-pill);
-  background: var(--el-bg-canvas);
-  border: 1px solid var(--el-border-default);
-  font-size: var(--el-text-body-s);
-}
-
 /* 삭제는 되돌릴 수 없다. 본문과 확실히 떨어뜨려 실수로 누르지 않게 한다. */
 .danger {
   justify-items: start;
-  padding: var(--el-space-5);
-  border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-l);
 }
 
 @media (max-width: 640px) {

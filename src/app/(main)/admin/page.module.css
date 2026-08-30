@@ -23,22 +23,9 @@
   font-size: var(--el-text-body-s);
 }
 
-/* 저장 결과. 화면이 그대로면 눌렀는지 안 눌렀는지 알 수 없다. */
-.saved {
-  padding: var(--el-space-3) var(--el-space-4);
-  border-left: 4px solid var(--el-success);
-  background: var(--el-success-10);
-  border-radius: var(--el-radius-s);
-  font-size: var(--el-text-body-s);
-}
-
+/* 폼 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
 .form {
-  display: grid;
   gap: var(--el-space-5);
-  justify-items: stretch;
-  padding: var(--el-space-6);
-  border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-l);
 }
 
 .field {

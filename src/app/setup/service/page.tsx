@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Infobox } from "@/components/ui/infobox";
+import { Card } from "@/components/ui/card";
 import { appDb } from "@/db/client";
 import { setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
@@ -37,51 +38,53 @@ export default async function ServicePage() {
         <p className={styles.intro}>{setup.serviceIntro}</p>
       </header>
 
-      <form action={saveService} className={styles.form}>
-        <fieldset className={styles.group}>
-          <legend className={styles.groupTitle}>{setup.timeZoneTitle}</legend>
-          <p className={styles.groupBody}>{setup.timeZoneBody}</p>
+      <form action={saveService}>
+        <Card className={styles.form}>
+          <fieldset className={styles.group}>
+            <legend className={styles.groupTitle}>{setup.timeZoneTitle}</legend>
+            <p className={styles.groupBody}>{setup.timeZoneBody}</p>
 
-          <label className={styles.field}>
-            <span className={styles.label}>{setup.timeZoneLabel}</span>
-            <select className={styles.input} defaultValue={siteTimeZone(db)} name="time_zone">
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
-            <span className={styles.hint}>{setup.timeZoneHint}</span>
-          </label>
-        </fieldset>
+            <label className={styles.field}>
+              <span className={styles.label}>{setup.timeZoneLabel}</span>
+              <select className={styles.input} defaultValue={siteTimeZone(db)} name="time_zone">
+                {zones.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </select>
+              <span className={styles.hint}>{setup.timeZoneHint}</span>
+            </label>
+          </fieldset>
 
-        <fieldset className={styles.group}>
-          <legend className={styles.groupTitle}>{setup.httpsTitle}</legend>
-          <p className={styles.groupBody}>{setup.httpsBody}</p>
+          <fieldset className={styles.group}>
+            <legend className={styles.groupTitle}>{setup.httpsTitle}</legend>
+            <p className={styles.groupBody}>{setup.httpsBody}</p>
 
-          {/*
+            {/*
             켜면 http에서 로그인이 조용히 막힌다. 되돌리기 어려운 실수라 경고를 체크박스
             **위**에 둔다 — 아래 두면 이미 누른 뒤에 읽는다.
           */}
-          <Infobox title={setup.httpsLabel} tone="warning">
-            {setup.httpsWarn}
-          </Infobox>
+            <Alert title={setup.httpsLabel} tone="warning">
+              {setup.httpsWarn}
+            </Alert>
 
-          <label className={styles.checkboxRow}>
-            <input
-              className={styles.checkbox}
-              defaultChecked={shouldUseSecureCookies(db)}
-              name="secure_cookies"
-              type="checkbox"
-              value="true"
-            />
-            <span className={styles.label}>{setup.httpsLabel}</span>
-          </label>
-        </fieldset>
+            <label className={styles.checkboxRow}>
+              <input
+                className={styles.checkbox}
+                defaultChecked={shouldUseSecureCookies(db)}
+                name="secure_cookies"
+                type="checkbox"
+                value="true"
+              />
+              <span className={styles.label}>{setup.httpsLabel}</span>
+            </label>
+          </fieldset>
 
-        <Button size="l" type="submit">
-          {setup.serviceSubmit}
-        </Button>
+          <Button size="l" type="submit">
+            {setup.serviceSubmit}
+          </Button>
+        </Card>
       </form>
     </>
   );

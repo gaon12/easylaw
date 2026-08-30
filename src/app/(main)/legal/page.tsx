@@ -1,4 +1,5 @@
 import { Article } from "@/components/ui/article";
+import { StructuredList } from "@/components/ui/structured-list";
 import { legal } from "@/lib/strings";
 import styles from "./page.module.css";
 
@@ -25,15 +26,12 @@ export default function LegalPage() {
 
       <section className={styles.section}>
         <h2 className={styles.heading}>{legal.licensesTitle}</h2>
-        <ul className={styles.licenses}>
-          {legal.licenses.map((entry) => (
-            <li className={styles.license} key={entry.name}>
-              <span className={styles.licenseName}>{entry.name}</span>
-              <span className={styles.licenseVersion}>{entry.version}</span>
-              <span className={styles.licenseTerms}>{entry.license}</span>
-            </li>
-          ))}
-        </ul>
+        <StructuredList
+          rows={legal.licenses.map((entry) => ({
+            label: entry.name,
+            value: legal.licenseLine(entry.version, entry.license),
+          }))}
+        />
         <p className={styles.note}>{legal.licenseNote}</p>
       </section>
     </Article>

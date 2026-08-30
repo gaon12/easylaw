@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { upload } from "@/lib/strings";
 import { createUpload, type UploadState } from "./actions";
 import styles from "./page.module.css";
@@ -18,69 +20,72 @@ function UploadForm() {
   const message = state.error === undefined ? undefined : upload.errors[state.error];
 
   return (
-    <form action={formAction} className={styles.form}>
-      {message === undefined ? null : (
-        // 오류는 폼 맨 위에 둔다. 제출 버튼 옆에만 두면 긴 폼에서는 보이지 않는다.
-        <p aria-live="polite" className={styles.error} role="alert">
-          {message}
-        </p>
-      )}
+    <form action={formAction}>
+      <Card className={styles.form}>
+        {message === undefined ? null : (
+          // 오류는 폼 맨 위에 둔다. 제출 버튼 옆에만 두면 긴 폼에서는 보이지 않는다.
+          <div aria-live="polite" role="alert">
+            <Alert title={message} tone="danger" />
+          </div>
+        )}
 
-      <label className={styles.field}>
-        <span className={styles.label}>{upload.textLabel}</span>
-        <textarea
-          className={styles.textarea}
-          defaultValue={state.text}
-          name="text"
-          placeholder={upload.textPlaceholder}
-          rows={14}
-        />
-      </label>
-
-      <label className={styles.field}>
-        <span className={styles.label}>{upload.fileLabel}</span>
-        <input accept=".txt,text/plain" className={styles.file} name="file" type="file" />
-        <span className={styles.hint}>{upload.fileHint}</span>
-      </label>
-
-      <div className={styles.row}>
         <label className={styles.field}>
-          <span className={styles.label}>{upload.titleLabel}</span>
-          <input
-            autoComplete="off"
-            className={styles.input}
-            name="title"
-            placeholder={upload.titlePlaceholder}
-            type="text"
+          <span className={styles.label}>{upload.textLabel}</span>
+          <textarea
+            className={styles.textarea}
+            defaultValue={state.text}
+            name="text"
+            placeholder={upload.textPlaceholder}
+            rows={14}
           />
         </label>
 
-        <label className={styles.field}>
-          <span className={styles.label}>{upload.caseNoLabel}</span>
-          <input
-            autoComplete="off"
-            className={styles.input}
-            name="caseNo"
-            placeholder={upload.caseNoPlaceholder}
-            type="text"
-          />
+        {/* 점선 드롭존(`DESIGN.md` §6 `file-upload`). 라벨이 입력을 감싸 전체가 클릭 영역이 된다. */}
+        <label className={styles.dropzone}>
+          <span className={styles.dropzoneLabel}>{upload.fileLabel}</span>
+          <input accept=".txt,text/plain" className={styles.file} name="file" type="file" />
+          <span className={styles.hint}>{upload.fileHint}</span>
         </label>
-      </div>
 
-      <label className={styles.field}>
-        <span className={styles.label}>{upload.retentionLabel}</span>
-        <select className={styles.select} defaultValue={upload.retentionDefault} name="retention">
-          {upload.retentionOrder.map((key) => (
-            <option key={key} value={key}>
-              {upload.retentionOptions[key]}
-            </option>
-          ))}
-        </select>
-      </label>
+        <div className={styles.row}>
+          <label className={styles.field}>
+            <span className={styles.label}>{upload.titleLabel}</span>
+            <input
+              autoComplete="off"
+              className={styles.input}
+              name="title"
+              placeholder={upload.titlePlaceholder}
+              type="text"
+            />
+          </label>
 
-      <Button disabled={pending} size="l" type="submit">
-        {pending ? upload.submitting : upload.submit}
-      </Button>
+          <label className={styles.field}>
+            <span className={styles.label}>{upload.caseNoLabel}</span>
+            <input
+              autoComplete="off"
+              className={styles.input}
+              name="caseNo"
+              placeholder={upload.caseNoPlaceholder}
+              type="text"
+            />
+          </label>
+        </div>
+
+        <label className={styles.field}>
+          <span className={styles.label}>{upload.retentionLabel}</span>
+          <select className={styles.select} defaultValue={upload.retentionDefault} name="retention">
+            {upload.retentionOrder.map((key) => (
+              <option key={key} value={key}>
+                {upload.retentionOptions[key]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <Button disabled={pending} size="l" type="submit">
+          {pending ? upload.submitting : upload.submit}
+        </Button>
+      </Card>
     </form>
   );
 }

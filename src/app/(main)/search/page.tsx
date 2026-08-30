@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Infobox } from "@/components/ui/infobox";
 import { CASE_CODES } from "@/lib/case-number/codes";
 import { search } from "@/lib/strings";
@@ -53,7 +55,7 @@ async function SearchPage(props: { searchParams: Promise<{ q?: string | string[]
   }
 
   const codeHelp = (
-    <div className={styles.help}>
+    <Card className={styles.help} padding="tight">
       <p className={styles.helpTitle}>{search.codeHelpTitle}</p>
       <p className={styles.helpBody}>{search.codeHelpBody}</p>
       <ul className={styles.codeList}>
@@ -65,7 +67,7 @@ async function SearchPage(props: { searchParams: Promise<{ q?: string | string[]
           </li>
         ))}
       </ul>
-    </div>
+    </Card>
   );
 
   return (
@@ -75,13 +77,13 @@ async function SearchPage(props: { searchParams: Promise<{ q?: string | string[]
       {result.kind === "invalid" ? (
         <>
           <p className={styles.interpretation}>{search.resultsForKeyword(query)}</p>
-          <Infobox
+          <Alert
             actions={<ButtonLink href="/upload">{search.uploadCta}</ButtonLink>}
             title={invalidTitle(result.reason, result.code)}
             tone="warning"
           >
             {search.notFoundBody}
-          </Infobox>
+          </Alert>
         </>
       ) : null}
 
@@ -100,23 +102,23 @@ async function SearchPage(props: { searchParams: Promise<{ q?: string | string[]
       ) : null}
 
       {result.kind === "api_unavailable" ? (
-        <Infobox
+        <Alert
           actions={<ButtonLink href="/upload">{search.uploadCta}</ButtonLink>}
           title={search.apiUnavailableTitle}
           tone="warning"
         >
           {search.apiUnavailableBody}
-        </Infobox>
+        </Alert>
       ) : null}
 
       {result.kind === "api_error" ? (
-        <Infobox
+        <Alert
           actions={<ButtonLink href="/upload">{search.uploadCta}</ButtonLink>}
           title={search.apiErrorTitle}
           tone="danger"
         >
           {result.message}
-        </Infobox>
+        </Alert>
       ) : null}
 
       {codeHelp}

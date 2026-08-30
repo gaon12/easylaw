@@ -536,6 +536,7 @@ export const legal = {
     { name: "es-hangul", version: "2.4.0", license: "MIT" },
     { name: "Zod", version: "4.4.3", license: "MIT" },
   ],
+  licenseLine: (version: string, license: string) => `${version} · ${license}`,
   licenseNote: "각 라이선스 전문은 해당 프로젝트의 저장소에서 보실 수 있어요.",
 } as const;
 

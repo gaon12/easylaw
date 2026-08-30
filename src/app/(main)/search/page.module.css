@@ -44,12 +44,9 @@
   font-size: var(--el-text-heading-xs);
 }
 
+/* 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
 .help {
-  display: grid;
   gap: var(--el-space-2);
-  padding: var(--el-space-5);
-  background: var(--el-bg-subtle);
-  border-radius: var(--el-radius-m);
 }
 
 .helpTitle {

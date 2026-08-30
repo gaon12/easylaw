@@ -1,9 +1,45 @@
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Infobox } from "@/components/ui/infobox";
+import type { BadgeTone } from "@/components/ui/types";
 import { setup } from "@/lib/strings";
-import { checkEnvironment, hasBlockingIssue } from "@/server/environment";
+import { type CheckLevel, checkEnvironment, hasBlockingIssue } from "@/server/environment";
 import styles from "./setup-steps.module.css";
 import { StepRail } from "./step-rail";
+
+/** 검사 결과의 세 단계를 배지 톤으로 옮긴다. 뜻이 같은 것끼리 짝지어 둔다. */
+const BADGE_TONES: Readonly<Record<CheckLevel, BadgeTone>> = {
+  ok: "grounded",
+  warn: "needs-check",
+  fail: "ungrounded",
+};
+
+/**
+ * 점검 결과 한 줄 요약.
+ *
+ * 막히는 것 · 알아 둘 것 · 이상 없음 셋을 각각 다른 컴포넌트로 그린다.
+ * 경고와 오류는 `alert`(파스텔 배경), 이상 없음은 `infobox`(흰 배경)다 —
+ * `DESIGN.md` §6에서 둘은 다른 컴포넌트다.
+ */
+function Verdict({ blocked, warned }: { blocked: boolean; warned: boolean }) {
+  if (blocked) {
+    return (
+      <Alert title={setup.environmentFail} tone="danger">
+        {setup.environmentRecheckBody}
+      </Alert>
+    );
+  }
+  if (warned) {
+    return (
+      <Alert title={setup.environmentWarn} tone="warning">
+        {setup.environmentRecheckBody}
+      </Alert>
+    );
+  }
+  return <Infobox title={setup.environmentOk}>{setup.environmentRecheckBody}</Infobox>;
+}
 
 /**
  * 설치 1단계 — 서버 환경 점검. `PAGES.md` §17
@@ -31,30 +67,22 @@ export default function SetupPage() {
         <p className={styles.intro}>{setup.environmentIntro}</p>
       </header>
 
-      {blocked ? (
-        <Infobox title={setup.environmentFail} tone="danger">
-          {setup.environmentRecheckBody}
-        </Infobox>
-      ) : (
-        <Infobox
-          title={warned ? setup.environmentWarn : setup.environmentOk}
-          tone={warned ? "warning" : "info"}
-        >
-          {setup.environmentRecheckBody}
-        </Infobox>
-      )}
+      <Verdict blocked={blocked} warned={warned} />
 
       <ul className={styles.checks}>
         {checks.map((check) => (
-          <li className={`${styles.check} ${styles[check.level]}`} key={check.id}>
+          <Card as="li" key={check.id} padding="tight">
             <div className={styles.checkHead}>
               <span className={styles.checkLabel}>{check.label}</span>
-              {/* 상태를 색으로만 알리지 않는다(`DESIGN.md` §10). 글자로도 말한다. */}
-              <span className={styles.checkLevel}>{setup.levels[check.level]}</span>
+              {/*
+                상태는 아이콘 + 라벨 + 색 3중으로 전한다(`DESIGN.md` §11).
+                카드 자체에는 색을 입히지 않는다 — 좌측 색 보더 액센트는 §11이 금지한다.
+              */}
+              <Badge tone={BADGE_TONES[check.level]}>{setup.levels[check.level]}</Badge>
             </div>
             <p className={styles.checkValue}>{check.value}</p>
             <p className={styles.checkNote}>{check.note}</p>
-          </li>
+          </Card>
         ))}
       </ul>
 

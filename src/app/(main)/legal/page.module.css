@@ -31,47 +31,7 @@
   max-width: 62ch;
 }
 
-.licenses {
-  display: grid;
-  border-top: 1px solid var(--el-border-subtle);
-}
-
-/*
- * 이름 · 버전 · 라이선스 세 칸. `<table>`을 쓰지 않은 이유는 이 목록에 머리글이 없어도
- * 읽히기 때문이다. 표 마크업은 머리글과 셀의 관계가 의미를 가질 때만 값한다.
- */
-.license {
-  display: grid;
-  grid-template-columns: 1fr auto 10rem;
-  gap: var(--el-space-4);
-  align-items: baseline;
-  padding: var(--el-space-3) 0;
-  border-bottom: 1px solid var(--el-border-subtle);
-}
-
-.licenseName {
-  font-weight: 700;
-}
-
-.licenseVersion {
-  color: var(--el-fg-2);
-  font-size: var(--el-text-body-s);
-  font-variant-numeric: tabular-nums;
-}
-
-.licenseTerms {
-  color: var(--el-fg-2);
-  font-size: var(--el-text-body-s);
-}
-
 .note {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
-}
-
-@media (max-width: 640px) {
-  .license {
-    grid-template-columns: 1fr;
-    gap: var(--el-space-1);
-  }
 }

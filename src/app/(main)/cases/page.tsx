@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SignInRequired } from "@/components/auth/sign-in-required";
 import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { listUploadsForOwner } from "@/db/app/repository";
 import { appDb } from "@/db/client";
@@ -86,7 +87,7 @@ export default async function CasesPage() {
       <p className={styles.count}>{cases.count(rows.length)}</p>
       <ul className={styles.list}>
         {rows.map((row) => (
-          <li className={styles.card} key={row.id}>
+          <Card as="li" key={row.id} padding="tight">
             <Link className={styles.cardLink} href={`/doc/${row.id}`}>
               {row.title}
             </Link>
@@ -96,7 +97,7 @@ export default async function CasesPage() {
               {doc.charCount(row.charCount)}
             </p>
             <p className={styles.cardRetention}>{retentionLabel(row.retentionUntil, timeZone)}</p>
-          </li>
+          </Card>
         ))}
       </ul>
     </div>
