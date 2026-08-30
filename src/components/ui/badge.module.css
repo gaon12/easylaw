@@ -1,0 +1,68 @@
+/*
+ * 배지. `DESIGN.md` §6 — 13px bold, radius-xsmall.
+ * 색은 §3.4의 신뢰도 3색을 그대로 쓴다.
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--el-space-1);
+  padding: 2px var(--el-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--el-radius-xs);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+  line-height: var(--el-leading-tight);
+  white-space: nowrap;
+}
+
+/* ── outlined: 파스텔 배경 + 동색 보더 ─────────────────── */
+
+.outlined.grounded {
+  background: var(--el-grounded-bg);
+  border-color: var(--el-grounded-line);
+  color: var(--el-grounded-fg);
+}
+
+.outlined.needs-check {
+  background: var(--el-needs-check-bg);
+  border-color: var(--el-needs-check-line);
+  /* `warning`은 3.95:1이라 텍스트로 쓰지 않는다(§11). -70을 쓴다. */
+  color: var(--el-needs-check-fg);
+}
+
+.outlined.ungrounded {
+  background: var(--el-ungrounded-bg);
+  border-color: var(--el-ungrounded-line);
+  color: var(--el-ungrounded-fg);
+}
+
+.outlined.neutral {
+  background: var(--el-bg-subtle);
+  border-color: var(--el-border-default);
+  color: var(--el-fg-2);
+}
+
+/* ── solid: 화면에서 가장 무거운 사실 하나에만 ──────────── */
+
+.solid {
+  border-color: transparent;
+  color: var(--el-fg-inverse);
+}
+
+.solid.neutral {
+  background: var(--el-bg-inverse);
+}
+
+.solid.grounded {
+  background: var(--el-grounded-line);
+}
+
+.solid.needs-check {
+  /* 배경으로 쓸 때는 대비가 충분하다. 텍스트 색으로만 금지된 값이다. */
+  background: var(--el-needs-check-line);
+}
+
+.solid.ungrounded {
+  background: var(--el-ungrounded-line);
+}

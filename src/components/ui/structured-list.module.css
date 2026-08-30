@@ -1,0 +1,39 @@
+/* 라벨/값 목록. `DESIGN.md` §6 — 2열, 행마다 1px 디바이더. */
+
+.list {
+  display: grid;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: var(--el-space-4);
+  padding: var(--el-space-3) 0;
+  border-top: 1px solid var(--el-border-subtle);
+}
+
+/* 첫 행 위에는 선을 긋지 않는다. 카드 안에서 쓰면 카드 보더와 겹친다. */
+.row:first-child {
+  border-top: 0;
+}
+
+.label {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.value {
+  margin: 0;
+  min-width: 0;
+  /* 사건번호·날짜·용량은 자릿수가 흔들리면 안 된다. */
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: var(--el-space-1);
+  }
+}

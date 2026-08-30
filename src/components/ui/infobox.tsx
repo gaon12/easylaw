@@ -1,34 +1,32 @@
 import type { ReactNode } from "react";
+import { Icon } from "./icon";
 import styles from "./infobox.module.css";
 
-type InfoboxTone = "info" | "warning" | "danger";
-
 /**
- * 안내·경고 상자. `DESIGN.md` §6
+ * 법적 고지 배너. `DESIGN.md` §3.4 · §6
  *
- * 색만으로 상태를 구분하지 않는다 — 아이콘 문자와 제목이 함께 의미를 전한다.
- * 오류는 원인만 적고 끝내지 않고 다음 행동(`actions`)을 함께 준다.
+ * 규격이 좁다 — **흰 배경 + 1px `info` 보더 + `info` 아이콘 원.** 한 가지 모양뿐이다.
+ *
+ * 경고와 오류는 이것이 아니라 `Alert`가 맡는다(§6에서 `infobox`와 `alert`는 다른
+ * 컴포넌트다). 전에는 이 하나에 tone을 붙여 셋을 다 그렸는데, 그러면 파스텔 배경을 쓰는
+ * alert 규격과 흰 배경을 쓰는 infobox 규격이 한 몸에 섞인다.
  */
 function Infobox({
-  tone = "info",
   title,
   children,
   actions,
 }: {
-  tone?: InfoboxTone;
   title: string;
   children: ReactNode;
   actions?: ReactNode;
 }) {
-  const mark = tone === "info" ? "i" : "!";
-
   return (
-    <section className={`${styles.box} ${styles[tone]}`}>
-      <span aria-hidden="true" className={styles.mark}>
-        {mark}
+    <section className={styles.box}>
+      <span className={styles.mark}>
+        <Icon name="info" />
       </span>
       <div className={styles.body}>
-        <h2 className={styles.title}>{title}</h2>
+        <p className={styles.title}>{title}</p>
         <div className={styles.text}>{children}</div>
         {actions === undefined ? null : <div className={styles.actions}>{actions}</div>}
       </div>
