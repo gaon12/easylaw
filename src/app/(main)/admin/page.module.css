@@ -1,0 +1,80 @@
+/* 관리자 설정. 폼 화면이라 단일 canvas를 쓴다(`DESIGN.md` §5.1). */
+
+.page {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 저장 결과. 화면이 그대로면 눌렀는지 안 눌렀는지 알 수 없다. */
+.saved {
+  padding: var(--el-space-3) var(--el-space-4);
+  border-left: 4px solid var(--el-success);
+  background: var(--el-success-10);
+  border-radius: var(--el-radius-s);
+  font-size: var(--el-text-body-s);
+}
+
+.form {
+  display: grid;
+  gap: var(--el-space-5);
+  justify-items: stretch;
+  padding: var(--el-space-6);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-l);
+}
+
+.field {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.label {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.hint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+}
+
+.input:hover {
+  border-color: var(--el-fg-3);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+
+  .form {
+    padding: var(--el-space-4);
+  }
+}
