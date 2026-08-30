@@ -1,5 +1,5 @@
 import "server-only";
-import { env } from "@/lib/env";
+import { lawApiKey } from "@/server/settings";
 import {
   type PrecedentDetail,
   type PrecedentSummary,
@@ -104,7 +104,7 @@ function createLawApi(oc: string): LawApi {
  * 키가 없다고 서비스 전체가 죽으면 개발도 업로드 경로도 막힌다.
  */
 function lawApi(): LawApi | undefined {
-  const oc = env().LAW_API_OC;
+  const oc = lawApiKey();
   return oc === undefined ? undefined : createLawApi(oc);
 }
 

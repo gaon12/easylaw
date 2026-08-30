@@ -39,8 +39,16 @@ const user = sqliteTable(
     id: text("id").primaryKey(),
     /** 가입 전에는 null이다. 소문자로 정규화된 값만 들어온다. */
     email: text("email"),
-    /** `scrypt$N$r$p$salt$hash`. 가입 전에는 null이다(`src/lib/password.ts`). */
+    /** `scrypt$N$r$p$salt$hash`. 가입 전에는 null이다(`src/server/password.ts`). */
     passwordHash: text("password_hash"),
+    /**
+     * 권한. `admin`은 설치 마법사가 만든 첫 계정이고, 서비스 설정을 바꿀 수 있다.
+     * 컬럼 하나로 두는 이유는 지금 필요한 구분이 둘뿐이기 때문이다 —
+     * 역할 테이블은 역할이 셋 이상 생길 때 만든다.
+     */
+    role: text("role", { enum: ["admin", "member"] })
+      .notNull()
+      .default("member"),
     /** 접근성 프로필 등 사용자 설정(JSON). */
     settings: text("settings", { mode: "json" }),
     createdAt: timestampNow("created_at"),
@@ -165,6 +173,30 @@ const uploadMask = sqliteTable(
 );
 
 /**
+ * 서비스 설정.
+ *
+ * **환경변수 대신 여기에 둔다.** 환경변수는 값을 바꿀 때마다 서버를 다시 띄워야 하고,
+ * 파일을 직접 고칠 수 있는 사람만 바꿀 수 있다. 자가 호스팅하는 사람이 화면에서
+ * 법제처 키를 넣고 고칠 수 있어야 한다.
+ *
+ * 남는 것은 부팅에 반드시 필요한 값뿐이다 — 데이터베이스 경로는 이 표를 읽기 전에
+ * 알아야 하므로 환경변수로 남는다.
+ *
+ * **비밀값을 평문으로 둔다.** 암호화하려면 그 열쇠를 다시 어딘가에 둬야 하고, 결국
+ * 환경변수로 돌아간다. 그보다 중요한 사실은 이 데이터베이스에 이미 사용자의 판결문과
+ * 비밀번호 해시가 들어 있다는 것이다 — API 키 하나가 더 들어간다고 보호 수준이 달라지지
+ * 않는다. 이 파일은 비밀 파일로 다뤄야 하고, `.gitignore`가 이미 확장자로 막고 있다.
+ * 대신 **화면에는 값을 되돌려 보여 주지 않는다**(설정됨/설정 안 됨만 보여 준다).
+ */
+const setting = sqliteTable("setting", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestampNow("updated_at"),
+  /** 누가 바꿨는지. 사용자가 지워져도 남아야 하니 외래 키를 걸지 않는다. */
+  updatedBy: text("updated_by"),
+});
+
+/**
  * 감사 로그.
  *
  * 삭제는 되돌릴 수 없으므로(`PAGES.md` §17) 언제 무엇이 지워졌는지는 남아야 한다.
@@ -189,10 +221,11 @@ const auditLog = sqliteTable(
 const appSchema = {
   auditLog,
   session,
+  setting,
   upload,
   uploadMask,
   uploadSpan,
   user,
 };
 
-export { appSchema, auditLog, session, upload, uploadMask, uploadSpan, user };
+export { appSchema, auditLog, session, setting, upload, uploadMask, uploadSpan, user };

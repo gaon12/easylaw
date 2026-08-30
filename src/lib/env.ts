@@ -4,15 +4,17 @@ import process from "node:process";
 import { z } from "zod";
 
 /**
- * 서버 설정. **`process.env`를 직접 읽는 곳은 이 파일뿐이다.**
+ * 부팅 설정. **`process.env`를 직접 읽는 곳은 이 파일뿐이다.**
+ *
+ * 여기에는 **데이터베이스를 열기 전에 알아야 하는 값만** 둔다. 나머지 설정(법제처 키,
+ * LLM 연결, 생성 상한)은 데이터베이스에 있고 `src/server/settings.ts`가 다룬다 —
+ * 자가 호스팅하는 사람이 파일을 고치고 서버를 다시 띄우는 대신 화면에서 바꿀 수 있어야 한다.
+ *
+ * 포트는 여기서 읽지 않는다. Next가 `PORT`를 직접 본다.
  *
  * `.dev/CONVENTIONS.md` §7 — 비밀값은 서버 전용이다. `NEXT_PUBLIC_*`에 키를 두지 않는다.
  * `import "server-only"`가 클라이언트 번들에 이 모듈이 딸려 들어가면 빌드를 실패시킨다.
- *
- * 값 검증을 한 곳에 모으면 "환경변수를 안 넣었더니 런타임 한참 뒤에 이상하게 죽는" 문제가 사라진다.
  */
-
-const DEFAULT_DAILY_GENERATION_LIMIT = 200;
 
 const schema = z.object({
   /** 실행 환경. 쿠키의 `secure` 플래그처럼 환경에 따라 달라지는 것이 여기에 걸린다. */
@@ -26,24 +28,6 @@ const schema = z.object({
    * 같은 파일을 가리키면 분리의 의미가 사라지므로 아래에서 막는다.
    */
   APP_DB_PATH: z.string().min(1).default("data/app.sqlite"),
-
-  /**
-   * 법제처 OPEN API 인증키(OC). 발급받은 본인만 쓸 수 있으므로 서버에만 둔다.
-   * 없으면 판례 조회 기능이 꺼진 채로 동작한다 — 개발과 테스트를 막지 않기 위해서다.
-   */
-  LAW_API_OC: z.string().min(1).optional(),
-
-  /** LLM 공급자 설정. 없으면 생성 기능이 꺼진 채로 동작한다. */
-  LLM_BASE_URL: z.string().url().optional(),
-  LLM_API_KEY: z.string().min(1).optional(),
-  LLM_MODEL: z.string().min(1).default("claude-sonnet-5"),
-
-  /** 하루 총 생성 상한. 공개 서비스에서 `설명 만들기` 버튼은 곧 지출이다([F-42]). */
-  GENERATION_DAILY_LIMIT: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(DEFAULT_DAILY_GENERATION_LIMIT),
 });
 
 type Env = z.infer<typeof schema>;
@@ -78,16 +62,5 @@ function isProduction(): boolean {
   return env().NODE_ENV === "production";
 }
 
-/** 법제처 API를 쓸 수 있는 상태인가. 꺼져 있으면 조회 대신 안내를 보여 준다. */
-function hasLawApi(): boolean {
-  return env().LAW_API_OC !== undefined;
-}
-
-/** LLM 생성을 쓸 수 있는 상태인가. 꺼져 있으면 `설명 만들기`를 비활성화한다. */
-function hasLlm(): boolean {
-  const config = env();
-  return config.LLM_API_KEY !== undefined && config.LLM_BASE_URL !== undefined;
-}
-
-export { env, hasLawApi, hasLlm, isProduction };
+export { env, isProduction };
 export type { Env };

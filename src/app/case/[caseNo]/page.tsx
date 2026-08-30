@@ -8,9 +8,9 @@ import { OriginalPanel } from "@/components/viewer/original-panel";
 import { SummaryCard } from "@/components/viewer/summary-card";
 import { corpusDb } from "@/db/client";
 import { findJudgmentByCaseNo, listSpans } from "@/db/corpus/repository";
-import { hasLlm } from "@/lib/env";
 import { viewer } from "@/lib/strings";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
+import { llmConfig } from "@/server/settings";
 import styles from "./page.module.css";
 
 /**
@@ -21,7 +21,7 @@ import styles from "./page.module.css";
  * "아무것도 없는 화면"은 아니라는 것도 함께 보여야 한다.
  */
 function RenditionPlaceholder() {
-  const ready = hasLlm();
+  const ready = llmConfig() !== undefined;
   return (
     <div className={styles.empty}>
       <PaperFigure mood="empty" />
