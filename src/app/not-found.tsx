@@ -1,3 +1,4 @@
+import { SiteShell } from "@/components/site-shell";
 import { ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { errors } from "@/lib/strings";
@@ -11,19 +12,22 @@ import styles from "./status.module.css";
  */
 export default function NotFound() {
   return (
-    <div className={styles.page}>
-      <PaperFigure mood="lost" />
-      <h1 className={styles.title}>{errors.notFoundTitle}</h1>
-      <p className={styles.body}>{errors.notFoundBody}</p>
-      <div className={styles.actions}>
-        <ButtonLink href="/" size="m">
-          {errors.backHome}
-        </ButtonLink>
-        <ButtonLink href="/upload" size="m" variant="tertiary">
-          {errors.toUpload}
-        </ButtonLink>
+    // 셸을 직접 두른다. 루트 레이아웃은 문서 뼈대만 그리고, 셸은 라우트 그룹이 고른다.
+    <SiteShell>
+      <div className={styles.page}>
+        <PaperFigure mood="lost" />
+        <h1 className={styles.title}>{errors.notFoundTitle}</h1>
+        <p className={styles.body}>{errors.notFoundBody}</p>
+        <div className={styles.actions}>
+          <ButtonLink href="/" size="m">
+            {errors.backHome}
+          </ButtonLink>
+          <ButtonLink href="/upload" size="m" variant="tertiary">
+            {errors.toUpload}
+          </ButtonLink>
+        </div>
       </div>
-    </div>
+    </SiteShell>
   );
 }
 

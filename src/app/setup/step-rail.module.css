@@ -1,0 +1,72 @@
+/*
+ * 설치 진행 표시줄. 설치 화면에는 메뉴가 없으므로 그 자리를 이것이 대신한다.
+ *
+ * 상태를 색으로만 알리지 않는다 — 번호 칸의 채움과 글자 굵기가 함께 의미를 전한다.
+ */
+
+.rail {
+  width: 100%;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2) var(--el-space-5);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 번호 칸. 지름을 rem으로 잡아 글자 크기 설정을 따라 함께 커진다. */
+.marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--el-radius-pill);
+  border: 1px solid var(--el-border-default);
+  font-size: var(--el-text-body-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.done .marker {
+  background: var(--el-fg-2);
+  border-color: var(--el-fg-2);
+  color: var(--el-bg-canvas);
+}
+
+.current .marker {
+  background: var(--el-action);
+  border-color: var(--el-action);
+  color: var(--el-fg-inverse);
+}
+
+.upcoming .marker {
+  color: var(--el-fg-2);
+}
+
+.current .name {
+  font-weight: 700;
+}
+
+.upcoming .name {
+  color: var(--el-fg-2);
+}
+
+@media (max-width: 520px) {
+  .list {
+    gap: var(--el-space-2) var(--el-space-3);
+  }
+
+  /* 좁은 화면에서는 번호만 남긴다. 이름까지 넣으면 두 줄로 접혀 오히려 읽기 어렵다. */
+  .upcoming .name,
+  .done .name {
+    display: none;
+  }
+}

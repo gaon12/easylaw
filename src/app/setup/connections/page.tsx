@@ -5,7 +5,7 @@ import { currentSession } from "@/server/owner";
 import { DEFAULT_DAILY_GENERATION_LIMIT, DEFAULT_LLM_MODEL } from "@/server/settings";
 import { saveConnections } from "@/server/setup-actions";
 import styles from "../setup-steps.module.css";
-import { SETUP_STEP, SETUP_STEP_TOTAL } from "../steps";
+import { StepRail } from "../step-rail";
 
 /**
  * 설치 2단계 — 외부 연결. `PAGES.md` §17
@@ -25,8 +25,9 @@ export default async function ConnectionsPage() {
 
   return (
     <>
+      <StepRail current="connections" />
+
       <header className={styles.header}>
-        <p className={styles.step}>{setup.stepLabel(SETUP_STEP.connections, SETUP_STEP_TOTAL)}</p>
         <h1 className={styles.title}>{setup.connectionsTitle}</h1>
         <p className={styles.intro}>{setup.connectionsIntro}</p>
       </header>

@@ -551,7 +551,19 @@ export const legal = {
  */
 export const setup = {
   title: "EasyLaw 설치",
+  /** 설치 화면의 머리말. 여기 온 사람은 서비스 이용자가 아니라 서버를 세우는 사람이다. */
+  chromeLabel: "설치",
+  chromeNote: "이 서버를 처음 세우는 중이에요. 설치를 마치면 이 화면은 닫혀요.",
   stepLabel: (current: number, total: number) => `${total}단계 중 ${current}단계`,
+  /** 단계 이름. 진행 표시줄과 스크린리더가 같은 이름을 쓴다. */
+  stepNames: {
+    account: "관리자 계정",
+    connections: "외부 연결",
+    done: "완료",
+  },
+  stepsLabel: "설치 단계",
+  stepDone: "끝난 단계",
+  stepCurrent: "지금 단계",
 
   accountTitle: "관리자 계정을 만들어 주세요",
   accountIntro:

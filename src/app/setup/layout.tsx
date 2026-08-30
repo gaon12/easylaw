@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { isSetupComplete } from "@/server/settings";
-import styles from "./layout.module.css";
+import { SetupShell } from "./setup-shell";
 
 /**
  * 설치 마법사 관문. `PAGES.md` §17
@@ -16,12 +16,13 @@ import styles from "./layout.module.css";
  * 액션은 폼을 거치지 않고도 호출된다.
  *
  * 이 그룹은 `(main)` 밖에 있다. `(main)`의 레이아웃이 "설치 안 됐으면 /setup으로"를
- * 담당하므로, 그 안에 있으면 무한히 돌아간다.
+ * 담당하므로, 그 안에 있으면 무한히 돌아간다. 셸도 그래서 다르다 — 서비스 헤더의 메뉴는
+ * 전부 `(main)` 안을 가리키고, 설치 중에 누르면 이 화면으로 되튕긴다.
  */
 export default function SetupLayout({ children }: { children: ReactNode }) {
   if (isSetupComplete()) {
     notFound();
   }
 
-  return <div className={styles.wizard}>{children}</div>;
+  return <SetupShell>{children}</SetupShell>;
 }

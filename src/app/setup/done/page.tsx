@@ -6,7 +6,7 @@ import { currentSession } from "@/server/owner";
 import { listSettings } from "@/server/settings";
 import { finishSetup } from "@/server/setup-actions";
 import styles from "../setup-steps.module.css";
-import { SETUP_STEP, SETUP_STEP_TOTAL } from "../steps";
+import { StepRail } from "../step-rail";
 
 /** 요약에 보여 줄 항목. 설치 완료 표시 자체는 사용자에게 의미가 없으므로 뺀다. */
 const SHOWN = ["law_api_oc", "llm_base_url", "llm_api_key", "generation_daily_limit"] as const;
@@ -30,8 +30,9 @@ export default async function SetupDonePage() {
 
   return (
     <>
+      <StepRail current="done" />
+
       <header className={styles.header}>
-        <p className={styles.step}>{setup.stepLabel(SETUP_STEP.done, SETUP_STEP_TOTAL)}</p>
         <h1 className={styles.title}>{setup.doneTitle}</h1>
         <p className={styles.intro}>{setup.doneIntro}</p>
       </header>

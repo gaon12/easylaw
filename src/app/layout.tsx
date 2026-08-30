@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { PreferencesSync } from "@/components/preferences-sync";
-import { SiteShell } from "@/components/site-shell";
 import { PREFERENCES_SCRIPT } from "@/lib/preferences";
 import { site } from "@/lib/strings";
 import "./globals.css";
@@ -19,6 +18,14 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+/**
+ * 문서 뼈대. **셸(헤더·푸터)은 여기 없다.**
+ *
+ * 헤더와 푸터는 *서비스*의 것이지 문서의 것이 아니다. 설치 마법사는 다른 셸을 쓰고,
+ * 그래서 각 라우트 그룹이 자기 셸을 고른다(`(main)/layout.tsx`, `setup/layout.tsx`).
+ * 여기서 셸을 그리면 설치 화면에도 서비스 메뉴가 따라붙는데, 그 메뉴는 설치가 끝나기
+ * 전에는 전부 `/setup`으로 되튕겨 아무 데도 가지 못한다.
+ */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     /*
@@ -46,7 +53,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <PreferencesSync />
-        <SiteShell>{children}</SiteShell>
+        {children}
       </body>
     </html>
   );

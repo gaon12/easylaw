@@ -4,7 +4,7 @@ import { appDb } from "@/db/client";
 import { setup } from "@/lib/strings";
 import { AdminForm } from "./admin-form";
 import styles from "./setup-steps.module.css";
-import { SETUP_STEP, SETUP_STEP_TOTAL } from "./steps";
+import { StepRail } from "./step-rail";
 
 /**
  * 설치 1단계 — 관리자 계정. `PAGES.md` §17
@@ -19,8 +19,9 @@ export default function SetupPage() {
 
   return (
     <>
+      <StepRail current="account" />
+
       <header className={styles.header}>
-        <p className={styles.step}>{setup.stepLabel(SETUP_STEP.account, SETUP_STEP_TOTAL)}</p>
         <h1 className={styles.title}>{setup.accountTitle}</h1>
         <p className={styles.intro}>{setup.accountIntro}</p>
       </header>

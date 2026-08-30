@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { SiteShell } from "@/components/site-shell";
 import { isSetupComplete } from "@/server/settings";
 
 /**
@@ -15,11 +16,15 @@ import { isSetupComplete } from "@/server/settings";
  *   미들웨어 런타임에서 돌지 않는다.
  * - 루트 레이아웃에 두면 `/setup` 자신까지 걸려 무한히 돌아간다. 그래서 `/setup`은
  *   이 그룹 **밖**에 두고, 그룹 안쪽만 이 가드를 지난다. 괄호 폴더는 주소에 나타나지 않는다.
+ *
+ * 서비스 셸도 여기에 있다. 헤더의 메뉴는 이 그룹 안의 화면들을 가리키므로, 그룹 밖에서는
+ * 그릴 이유가 없다.
  */
 export default function MainLayout({ children }: { children: ReactNode }) {
   if (!isSetupComplete()) {
     redirect("/setup");
   }
 
-  return children;
+  // 서비스 셸(헤더·푸터)은 여기서 그린다. 설치 마법사는 자기 셸을 따로 쓴다.
+  return <SiteShell>{children}</SiteShell>;
 }
