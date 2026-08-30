@@ -7,18 +7,24 @@ import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
 import { cases, doc } from "@/lib/strings";
 import { currentOwnerId } from "@/server/owner";
+import { siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
 import styles from "./page.module.css";
 
-/** 카드에 붙는 보관 안내. 목록에서도 언제 사라지는지 보여야 한다(`PAGES.md` §15). */
-function retentionLabel(retentionUntil: Date | null): string {
+/**
+ * 카드에 붙는 보관 안내. 목록에서도 언제 사라지는지 보여야 한다(`PAGES.md` §15).
+ *
+ * 시간대를 인자로 받는다. 설치할 때 고른 시간대로 세지 않으면 "1일 남았어요"가
+ * 서버가 놓인 곳에 따라 달라진다.
+ */
+function retentionLabel(retentionUntil: Date | null, timeZone: string): string {
   if (retentionUntil === null) {
     return doc.retentionKeep;
   }
-  const remaining = daysUntil(retentionUntil);
+  const remaining = daysUntil(retentionUntil, new Date(), timeZone);
   return remaining <= 0
     ? doc.retentionToday
-    : doc.retentionUntil(formatDate(retentionUntil), remaining);
+    : doc.retentionUntil(formatDate(retentionUntil, timeZone), remaining);
 }
 
 function Header() {
@@ -55,6 +61,7 @@ export default async function CasesPage() {
   // 기한이 지난 문서를 치운다. 목록을 그리기 전에 해야 지워질 문서가 잠깐 보이지 않는다.
   purgeExpiredUploads(appDb());
   const rows = listUploadsForOwner(appDb(), ownerId);
+  const timeZone = siteTimeZone();
 
   if (rows.length === 0) {
     return (
@@ -84,11 +91,11 @@ export default async function CasesPage() {
               {row.title}
             </Link>
             <p className={styles.cardMeta}>
-              {doc.uploadedAt(formatDate(row.uploadedAt))}
+              {doc.uploadedAt(formatDate(row.uploadedAt, timeZone))}
               {doc.metaSeparator}
               {doc.charCount(row.charCount)}
             </p>
-            <p className={styles.cardRetention}>{retentionLabel(row.retentionUntil)}</p>
+            <p className={styles.cardRetention}>{retentionLabel(row.retentionUntil, timeZone)}</p>
           </li>
         ))}
       </ul>

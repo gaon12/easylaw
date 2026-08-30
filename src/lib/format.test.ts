@@ -28,3 +28,19 @@ describe("daysUntil", () => {
     expect(daysUntil(new Date("2026-08-27T01:00:00Z"), now)).toBe(-2);
   });
 });
+
+describe("시간대를 바꾸면", () => {
+  it("같은 순간이 다른 날짜로 보인다", () => {
+    // 설치할 때 고른 시간대가 실제로 화면에 반영되는지. 기본값만 검사하면 이걸 놓친다.
+    const moment = new Date("2026-08-28T16:00:00Z");
+    expect(formatDate(moment, "Asia/Seoul")).toBe("2026년 8월 29일");
+    expect(formatDate(moment, "UTC")).toBe("2026년 8월 28일");
+  });
+
+  it("남은 날짜도 그 시간대로 센다", () => {
+    const now = new Date("2026-08-29T20:00:00Z"); // 서울은 이미 8월 30일 새벽
+    const target = new Date("2026-08-30T20:00:00Z");
+    expect(daysUntil(target, now, "Asia/Seoul")).toBe(1);
+    expect(daysUntil(target, now, "UTC")).toBe(1);
+  });
+});

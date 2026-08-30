@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { setting } from "@/db/app/schema";
 import type { AppDb } from "@/db/client";
 import { appDb } from "@/db/client";
+import { isProduction } from "@/lib/env";
 
 /**
  * 서비스 설정. `CONVENTIONS.md` §7
@@ -26,6 +27,10 @@ import { appDb } from "@/db/client";
  * 화면에 띄우는 순간 어깨너머로도, 스크린샷으로도 샌다.
  */
 const SETTINGS = {
+  /** IANA 시간대 이름. 날짜를 보여 주고 보관 기한을 세는 기준이 된다. */
+  time_zone: { secret: false },
+  /** HTTPS로 서비스하는가. 세션 쿠키의 `secure` 플래그가 이 값을 본다. */
+  secure_cookies: { secret: false },
   law_api_oc: { secret: true },
   llm_base_url: { secret: false },
   llm_api_key: { secret: true },
@@ -144,6 +149,49 @@ function llmConfig(db: AppDb = appDb()): LlmConfig | undefined {
 }
 
 const DEFAULT_LLM_MODEL = "claude-sonnet-5";
+
+/**
+ * 기본 시간대.
+ *
+ * 서버가 어디에서 돌든 사용자가 보는 "오늘"은 하나여야 한다. 이 서비스가 다루는 것이
+ * 한국 판결문이라 한국 시간을 기본값으로 두되, 설치할 때 바꿀 수 있게 한다.
+ */
+const DEFAULT_TIME_ZONE = "Asia/Seoul";
+
+/** 날짜 표시와 보관 기한 계산의 기준 시간대. */
+function siteTimeZone(db: AppDb = appDb()): string {
+  const stored = readSetting(db, "time_zone");
+  if (stored === undefined) {
+    return DEFAULT_TIME_ZONE;
+  }
+  /*
+   * 저장된 값이 이 런타임에서 쓸 수 없는 이름일 수 있다 — 설정 표는 사람이 고칠 수 있고,
+   * Node를 올리면 목록이 바뀐다. 날짜 하나 때문에 화면 전체가 죽으면 안 된다.
+   */
+  try {
+    new Intl.DateTimeFormat("ko-KR", { timeZone: stored });
+    return stored;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+}
+
+/**
+ * 세션 쿠키에 `secure`를 붙일까.
+ *
+ * 설정하지 않았으면 실행 환경을 따른다 — 개발 중에는 http로 띄우므로 붙이면 로그인이
+ * 되지 않고, 운영에서는 붙는 편이 맞다.
+ *
+ * 이름을 `use…`로 짓지 않는다. 그렇게 지으면 도구가 React 훅으로 오인하고, 사람도
+ * 컴포넌트 안에서만 부를 수 있는 것으로 읽는다.
+ */
+function shouldUseSecureCookies(db: AppDb = appDb()): boolean {
+  const stored = readSetting(db, "secure_cookies");
+  if (stored === undefined) {
+    return isProduction();
+  }
+  return stored === "true";
+}
 const DEFAULT_DAILY_GENERATION_LIMIT = 200;
 
 /** 하루 총 생성 상한. 공개 서비스에서 `설명 만들기` 버튼은 곧 지출이다([F-42]). */
@@ -156,6 +204,7 @@ function generationDailyLimit(db: AppDb = appDb()): number {
 export {
   DEFAULT_DAILY_GENERATION_LIMIT,
   DEFAULT_LLM_MODEL,
+  DEFAULT_TIME_ZONE,
   generationDailyLimit,
   isSetupComplete,
   lawApiKey,
@@ -164,6 +213,8 @@ export {
   markSetupComplete,
   readSetting,
   SETTING_KEYS,
+  siteTimeZone,
+  shouldUseSecureCookies,
   writeSetting,
   writeSettings,
 };

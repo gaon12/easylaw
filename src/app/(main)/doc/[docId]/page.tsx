@@ -7,19 +7,20 @@ import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
 import { doc, upload, viewer } from "@/lib/strings";
 import { currentOwnerId } from "@/server/owner";
+import { siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
 import { deleteDoc } from "./actions";
 import styles from "./page.module.css";
 
 /** 보관 기한 안내. 기한이 없으면 없다고 말한다 — 빈칸은 안내가 아니다. */
-function retentionNotice(retentionUntil: Date | null): string {
+function retentionNotice(retentionUntil: Date | null, timeZone: string): string {
   if (retentionUntil === null) {
     return doc.retentionKeep;
   }
-  const remaining = daysUntil(retentionUntil);
+  const remaining = daysUntil(retentionUntil, new Date(), timeZone);
   return remaining <= 0
     ? doc.retentionToday
-    : doc.retentionUntil(formatDate(retentionUntil), remaining);
+    : doc.retentionUntil(formatDate(retentionUntil, timeZone), remaining);
 }
 
 /**
@@ -52,6 +53,7 @@ export default async function DocPage(props: {
 
   const spans = listUploadSpans(db, docId);
   const masks = listMaskCounts(db, docId);
+  const timeZone = siteTimeZone();
   const isAgain = searchParams.again !== undefined;
 
   return (
@@ -61,11 +63,11 @@ export default async function DocPage(props: {
       <header className={styles.header}>
         <h1 className={styles.title}>{row.title}</h1>
         <p className={styles.meta}>
-          {doc.uploadedAt(formatDate(row.uploadedAt))}
+          {doc.uploadedAt(formatDate(row.uploadedAt, timeZone))}
           {doc.metaSeparator}
           {doc.charCount(row.charCount)}
         </p>
-        <p className={styles.retention}>{retentionNotice(row.retentionUntil)}</p>
+        <p className={styles.retention}>{retentionNotice(row.retentionUntil, timeZone)}</p>
       </header>
 
       <section className={styles.masks}>

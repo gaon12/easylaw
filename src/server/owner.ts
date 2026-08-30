@@ -11,7 +11,7 @@ import {
   type UserRole,
 } from "@/db/app/repository";
 import { appDb } from "@/db/client";
-import { isProduction } from "@/lib/env";
+import { shouldUseSecureCookies } from "./settings";
 
 /**
  * 로그인 세션. `PRODUCT.md` §6.3
@@ -91,7 +91,8 @@ async function setSessionCookie(token: string): Promise<void> {
     // 스크립트가 읽을 수 없어야 한다. 이 토큰이 곧 문서 열쇠다.
     httpOnly: true,
     sameSite: "lax",
-    secure: isProduction(),
+    // HTTPS로 서비스하는지는 설치할 때 정한다. 설정이 없으면 실행 환경을 따른다.
+    secure: shouldUseSecureCookies(),
     path: "/",
     maxAge: SESSION_DAYS * DAY_SECONDS,
   });
