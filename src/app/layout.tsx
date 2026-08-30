@@ -21,7 +21,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ko">
+    /*
+     * `suppressHydrationWarning`은 **이 태그 한 겹에만** 걸린다(자식에는 걸리지 않는다).
+     *
+     * 위의 인라인 스크립트가 하이드레이션 전에 `<html>`의 속성을 바꾸기 때문에 필요하다.
+     * 서버는 브라우저에 저장된 설정을 알 수 없으므로 이 차이는 **의도한 것**이고, 고칠 수
+     * 있는 종류의 불일치가 아니다. 기본값인 방문자에게는 스크립트가 아무 속성도 붙이지
+     * 않으므로 애초에 차이가 없고, 이 선언은 설정을 바꾼 사람에게만 쓰인다.
+     *
+     * 쿠키에 담아 서버가 직접 그리는 방법도 있지만 "시스템 설정" 모드를 풀 수 없다 —
+     * 운영체제의 고대비 설정은 서버가 모르고, CSS 미디어 쿼리로 대신하려면 토큰 오버라이드
+     * 블록을 통째로 복사해야 한다(`tokens.css`가 금지한다).
+     */
+    <html lang="ko" suppressHydrationWarning={true}>
       <head>
         {/*
           화면 설정을 첫 페인트 전에 적용한다. 없으면 밝은 화면이 한 번 그려진 뒤

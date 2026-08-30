@@ -26,11 +26,14 @@ function stubStorage(values: Record<string, string>, throws = false) {
 }
 
 function stubDocument() {
-  const attributes: Record<string, string> = {};
+  const attributes: Record<string, string | undefined> = {};
   vi.stubGlobal("document", {
     documentElement: {
       setAttribute: (name: string, value: string) => {
         attributes[name] = value;
+      },
+      removeAttribute: (name: string) => {
+        delete attributes[name];
       },
     },
   });
@@ -68,7 +71,7 @@ describe("readPreferences", () => {
 });
 
 describe("applyPreferences", () => {
-  it("글자 크기와 대비를 속성으로 옮긴다", () => {
+  it("기본값이 아닌 설정만 속성으로 옮긴다", () => {
     stubStorage({});
     const attributes = stubDocument();
     applyPreferences({ textSize: "l", display: "more" });
@@ -77,13 +80,39 @@ describe("applyPreferences", () => {
     expect(attributes[CONTRAST_ATTRIBUTE]).toBe("more");
   });
 
+  it("기본값이면 속성을 아예 붙이지 않는다", () => {
+    /*
+     * 이것이 하이드레이션 불일치를 막는 자리다. 서버는 `<html>`을 아무 속성 없이 그리므로,
+     * 기본값인 방문자에게 클라이언트가 `normal`을 써 넣으면 아무것도 바꾸지 않으면서
+     * 서버가 보낸 것과 달라지기만 한다. CSS도 `[data-contrast="more"]`만 본다.
+     */
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+    const attributes = stubDocument();
+    applyPreferences({ textSize: "m", display: "system" });
+
+    expect(attributes[TEXT_SIZE_ATTRIBUTE]).toBeUndefined();
+    expect(attributes[CONTRAST_ATTRIBUTE]).toBeUndefined();
+  });
+
+  it("설정을 되돌리면 붙였던 속성을 뗀다", () => {
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+    const attributes = stubDocument();
+
+    applyPreferences({ textSize: "xxl", display: "more" });
+    expect(attributes[CONTRAST_ATTRIBUTE]).toBe("more");
+
+    applyPreferences({ textSize: "m", display: "light" });
+    expect(attributes[TEXT_SIZE_ATTRIBUTE]).toBeUndefined();
+    expect(attributes[CONTRAST_ATTRIBUTE]).toBeUndefined();
+  });
+
   it("기본 모드는 시스템 설정을 따르지 않는다", () => {
     // 시스템이 고대비여도 사용자가 "기본"을 골랐으면 밝은 화면이어야 한다.
     vi.stubGlobal("window", { matchMedia: () => ({ matches: true }) });
     const attributes = stubDocument();
     applyPreferences({ textSize: "m", display: "light" });
 
-    expect(attributes[CONTRAST_ATTRIBUTE]).toBe("normal");
+    expect(attributes[CONTRAST_ATTRIBUTE]).toBeUndefined();
   });
 
   it("시스템 설정을 고르면 운영체제를 따라간다", () => {
@@ -107,5 +136,11 @@ describe("PREFERENCES_SCRIPT", () => {
   it("저장소 접근 실패를 삼킨다 — 첫 페인트를 막으면 안 된다", () => {
     expect(PREFERENCES_SCRIPT).toContain("try{");
     expect(PREFERENCES_SCRIPT).toContain("catch(e){}");
+  });
+
+  it("기본값에는 아무 속성도 쓰지 않는다", () => {
+    // 설정을 바꾼 적 없는 방문자에게 `<html>`이 서버가 보낸 그대로 남아야
+    // 하이드레이션 불일치가 아예 생기지 않는다.
+    expect(PREFERENCES_SCRIPT).not.toContain('"normal"');
   });
 });

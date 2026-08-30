@@ -93,11 +93,28 @@ function resolveContrast(display: DisplayMode): "more" | "normal" {
   return display === "more" ? "more" : "normal";
 }
 
-/** 설정을 문서에 적용한다. 저장은 하지 않는다 — 미리보기와 저장을 따로 다루기 위해서다. */
+/**
+ * 설정을 문서에 적용한다. 저장은 하지 않는다 — 미리보기와 저장을 따로 다루기 위해서다.
+ *
+ * **기본값일 때는 속성을 아예 붙이지 않는다.** CSS는 `[data-contrast="more"]`만 보고
+ * 기본 화면은 속성이 없는 상태 그 자체다(`tokens.css`). 굳이 `normal`을 써 넣으면
+ * 아무것도 바꾸지 않으면서 서버가 그린 `<html>`과 달라지기만 한다 — 그게 하이드레이션
+ * 불일치의 원인이었다. 글자 크기도 같은 이유로 `보통`이면 붙이지 않는다.
+ */
 function applyPreferences(preferences: Preferences): void {
   const root = document.documentElement;
-  root.setAttribute(TEXT_SIZE_ATTRIBUTE, preferences.textSize);
-  root.setAttribute(CONTRAST_ATTRIBUTE, resolveContrast(preferences.display));
+
+  if (preferences.textSize === DEFAULTS.textSize) {
+    root.removeAttribute(TEXT_SIZE_ATTRIBUTE);
+  } else {
+    root.setAttribute(TEXT_SIZE_ATTRIBUTE, preferences.textSize);
+  }
+
+  if (resolveContrast(preferences.display) === "more") {
+    root.setAttribute(CONTRAST_ATTRIBUTE, "more");
+  } else {
+    root.removeAttribute(CONTRAST_ATTRIBUTE);
+  }
 }
 
 /**
@@ -111,14 +128,16 @@ function applyPreferences(preferences: Preferences): void {
  * 한쪽만 바뀐 채로 조용히 동작을 멈춘다.
  *
  * 이 코드는 번들러를 거치지 않고 그대로 실행되므로 옛 문법만 쓴다.
+ *
+ * **기본값이면 아무 속성도 붙이지 않는다.** 그래야 설정을 바꾼 적 없는 대부분의 방문자에게
+ * `<html>`이 서버가 보낸 그대로 남고, 하이드레이션 불일치가 아예 생기지 않는다.
  */
 const PREFERENCES_SCRIPT = `(function(){try{
 var r=document.documentElement;
 var t=localStorage.getItem(${JSON.stringify(TEXT_SIZE_KEY)});
-if(${JSON.stringify(TEXT_SIZES)}.indexOf(t)>=0){r.setAttribute(${JSON.stringify(TEXT_SIZE_ATTRIBUTE)},t);}
+if(t&&t!==${JSON.stringify(DEFAULTS.textSize)}&&${JSON.stringify(TEXT_SIZES)}.indexOf(t)>=0){r.setAttribute(${JSON.stringify(TEXT_SIZE_ATTRIBUTE)},t);}
 var d=localStorage.getItem(${JSON.stringify(DISPLAY_KEY)});
-var more=d==="more"||((d===null||d==="system")&&matchMedia("(prefers-contrast: more)").matches);
-r.setAttribute(${JSON.stringify(CONTRAST_ATTRIBUTE)},more?"more":"normal");
+if(d==="more"||((d===null||d==="system")&&matchMedia("(prefers-contrast: more)").matches)){r.setAttribute(${JSON.stringify(CONTRAST_ATTRIBUTE)},"more");}
 }catch(e){}})();`;
 
 export {
