@@ -9,10 +9,17 @@ import styles from "../setup-steps.module.css";
 import { StepRail } from "../step-rail";
 
 /** 요약에 보여 줄 항목. 설치 완료 표시 자체는 사용자에게 의미가 없으므로 뺀다. */
-const SHOWN = ["law_api_oc", "llm_base_url", "llm_api_key", "generation_daily_limit"] as const;
+const SHOWN = [
+  "time_zone",
+  "secure_cookies",
+  "law_api_oc",
+  "llm_base_url",
+  "llm_api_key",
+  "generation_daily_limit",
+] as const;
 
 /**
- * 설치 3단계 — 완료. `PAGES.md` §17
+ * 설치 5단계 — 완료. `PAGES.md` §17
  *
  * **완료 표시를 자동으로 찍지 않는다.** 이 값이 찍히는 순간 마법사는 영영 닫히므로,
  * 되돌릴 수 없는 동작을 화면 이동만으로 일으키지 않는다. 사람이 버튼을 눌러야 끝난다.

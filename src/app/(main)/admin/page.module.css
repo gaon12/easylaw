@@ -78,3 +78,18 @@
     padding: var(--el-space-4);
   }
 }
+
+/* 켜고 끄는 설정. 손가락으로 눌러야 하므로 기본 크기보다 키운다. */
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-3);
+  min-height: var(--el-touch-target);
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--el-action);
+}

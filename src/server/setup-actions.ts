@@ -27,7 +27,7 @@ function field(formData: FormData, name: string): string {
   return typeof value === "string" ? value : "";
 }
 
-/** 1단계 — 관리자 계정. 만들면 곧바로 로그인 상태가 된다. */
+/** 2단계 — 관리자 계정. 만들면 곧바로 로그인 상태가 된다. */
 async function createAdmin(_previous: SetupState, formData: FormData): Promise<SetupState> {
   const db = appDb();
   if (isSetupComplete(db) || hasAdmin(db)) {
@@ -41,10 +41,35 @@ async function createAdmin(_previous: SetupState, formData: FormData): Promise<S
     return { problem: result.problem, email };
   }
 
+  redirect("/setup/service");
+}
+
+/**
+ * 3단계 — 서비스 환경(시간대·https).
+ *
+ * 체크박스는 **꺼져 있으면 폼에 아예 오지 않는다.** 그래서 "값이 없음"을 "끔"으로 읽어야
+ * 한다 — 없다고 그냥 두면 한 번 켠 뒤로 영영 못 끄게 된다.
+ */
+async function saveService(formData: FormData): Promise<void> {
+  const db = appDb();
+  const session = await currentSession();
+  if (isSetupComplete(db) || session?.role !== "admin") {
+    return;
+  }
+
+  writeSettings(
+    db,
+    {
+      time_zone: field(formData, "time_zone"),
+      secure_cookies: formData.get("secure_cookies") === "true" ? "true" : "false",
+    },
+    session.userId,
+  );
+
   redirect("/setup/connections");
 }
 
-/** 2단계 — 외부 연결. 비워 두면 그 기능만 꺼진 채로 넘어간다. */
+/** 4단계 — 외부 연결. 비워 두면 그 기능만 꺼진 채로 넘어간다. */
 async function saveConnections(formData: FormData): Promise<void> {
   const db = appDb();
   const session = await currentSession();
@@ -65,7 +90,7 @@ async function saveConnections(formData: FormData): Promise<void> {
 }
 
 /**
- * 3단계 — 완료 표시.
+ * 5단계 — 완료 표시.
  *
  * 이 값이 찍히는 순간 마법사는 영영 닫힌다. 그래서 자동으로 찍지 않고 사람이 버튼을
  * 누르게 한다 — 되돌릴 수 없는 동작을 화면 이동만으로 일으키지 않는다.
@@ -89,6 +114,8 @@ async function saveSettings(formData: FormData): Promise<void> {
   }
 
   const values: Partial<Record<SettingKey, string>> = {
+    time_zone: field(formData, "time_zone"),
+    secure_cookies: formData.get("secure_cookies") === "true" ? "true" : "false",
     law_api_oc: field(formData, "law_api_oc"),
     llm_base_url: field(formData, "llm_base_url"),
     llm_api_key: field(formData, "llm_api_key"),
@@ -112,5 +139,5 @@ async function saveSettings(formData: FormData): Promise<void> {
   redirect("/admin?saved=1");
 }
 
-export { createAdmin, finishSetup, saveConnections, saveSettings };
+export { createAdmin, finishSetup, saveConnections, saveService, saveSettings };
 export type { SetupState };

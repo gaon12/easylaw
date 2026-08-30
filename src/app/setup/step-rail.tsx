@@ -1,10 +1,6 @@
 import { setup } from "@/lib/strings";
 import styles from "./step-rail.module.css";
-import { SETUP_STEP } from "./steps";
-
-type StepName = keyof typeof SETUP_STEP;
-
-const ORDER: readonly StepName[] = ["account", "connections", "done"];
+import { SETUP_ORDER, SETUP_STEP, type SetupStepName } from "./steps";
 
 /**
  * 설치 진행 표시줄. `PAGES.md` §4의 `{component.step-indicator}`
@@ -29,13 +25,13 @@ function stateClass(index: number, currentIndex: number): string | undefined {
   return index === currentIndex ? styles.current : styles.upcoming;
 }
 
-function StepRail({ current }: { current: StepName }) {
-  const currentIndex = ORDER.indexOf(current);
+function StepRail({ current }: { current: SetupStepName }) {
+  const currentIndex = SETUP_ORDER.indexOf(current);
 
   return (
     <nav aria-label={setup.stepsLabel} className={styles.rail}>
       <ol className={styles.list}>
-        {ORDER.map((name, index) => {
+        {SETUP_ORDER.map((name, index) => {
           const done = index < currentIndex;
           const active = index === currentIndex;
 

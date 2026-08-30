@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { hasAdmin } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { setup } from "@/lib/strings";
+import styles from "../setup-steps.module.css";
+import { StepRail } from "../step-rail";
 import { AdminForm } from "./admin-form";
-import styles from "./setup-steps.module.css";
-import { StepRail } from "./step-rail";
 
 /**
  * 설치 1단계 — 관리자 계정. `PAGES.md` §17
@@ -14,7 +14,7 @@ import { StepRail } from "./step-rail";
  */
 export default function SetupPage() {
   if (hasAdmin(appDb())) {
-    redirect("/setup/connections");
+    redirect("/setup/service");
   }
 
   return (

@@ -557,7 +557,9 @@ export const setup = {
   stepLabel: (current: number, total: number) => `${total}단계 중 ${current}단계`,
   /** 단계 이름. 진행 표시줄과 스크린리더가 같은 이름을 쓴다. */
   stepNames: {
+    environment: "환경 점검",
     account: "관리자 계정",
+    service: "서비스 환경",
     connections: "외부 연결",
     done: "완료",
   },
@@ -565,9 +567,45 @@ export const setup = {
   stepDone: "끝난 단계",
   stepCurrent: "지금 단계",
 
+  environmentTitle: "서버를 먼저 살펴봤어요",
+  environmentIntro:
+    "이 서버가 EasyLaw를 돌릴 수 있는 상태인지 확인했어요. 설정을 다 넣은 뒤에 문제를 발견하면 어디가 잘못됐는지 찾기 어려워서, 시작하기 전에 먼저 봐요.",
+  environmentOk: "모두 확인했어요. 다음으로 넘어가셔도 돼요.",
+  environmentWarn:
+    "몇 가지 알아 두실 것이 있어요. 지금 설치를 이어 가셔도 되지만, 아래 내용을 한 번 읽어 주세요.",
+  environmentFail:
+    "먼저 해결하셔야 하는 것이 있어요. 아래 빨간 항목을 고치신 뒤 이 화면을 새로 고쳐 주세요.",
+  environmentRecheckBody:
+    "이 검사는 화면을 열 때마다 다시 해요. 무언가 고치신 뒤에는 아래 '다시 검사하기'를 눌러 주세요.",
+  environmentRecheck: "다시 검사하기",
+  environmentSubmit: "확인했어요, 다음으로",
+  levels: {
+    ok: "좋아요",
+    warn: "확인해 주세요",
+    fail: "고쳐야 해요",
+  },
+
+  serviceTitle: "이 서버의 환경을 알려 주세요",
+  serviceIntro:
+    "날짜를 어떻게 보여 드릴지, 주소가 https인지에 관한 설정이에요. 둘 다 나중에 관리자 화면에서 바꾸실 수 있어요.",
+  serviceSubmit: "저장하고 다음으로",
+
+  timeZoneTitle: "시간대",
+  timeZoneBody:
+    "판결 선고일, 문서를 올리신 날, 자동 삭제까지 남은 날을 셀 때 쓰는 기준이에요. 서버가 어디에 놓여 있든 이용하시는 분들이 보는 '오늘'은 하나여야 해서, 나라나 지역이 아니라 이 서비스의 기준 시간대를 고르시는 거예요.",
+  timeZoneLabel: "기준 시간대",
+  timeZoneHint: "한국에서 쓰신다면 Asia/Seoul 그대로 두시면 돼요.",
+
+  httpsTitle: "주소가 https인가요",
+  httpsBody:
+    "https로 서비스하시면 로그인 쿠키에 '암호화된 연결에서만 보내기' 표시를 붙여요. 그러면 중간에서 쿠키를 가로채기 어려워져요.",
+  httpsWarn:
+    "주의: http로 접속하시는데 이걸 켜시면 로그인이 되지 않아요. 브라우저가 쿠키를 아예 보내지 않기 때문이에요. 지금 주소창이 http로 시작한다면 꺼 두세요.",
+  httpsLabel: "https로 서비스해요",
+
   accountTitle: "관리자 계정을 만들어 주세요",
   accountIntro:
-    "이 서버를 관리할 계정이에요. 서비스 설정을 바꾸고, 나중에 다른 사람의 문서를 다루는 기능이 생기면 그 권한도 여기에 붙어요.",
+    "이 서버를 관리할 계정이에요. 서비스 설정을 바꾸고, 나중에 다른 사람의 문서를 다루는 기능이 생기면 그 권한도 여기에 붙어요. 처음 만드는 계정 하나만 관리자가 돼요 — 설치가 끝나면 이 화면이 닫히기 때문에, 이 계정의 이메일과 비밀번호는 꼭 기억해 주세요.",
   accountSubmit: "계정 만들고 다음으로",
   accountSubmitting: "만들고 있어요…",
 
@@ -602,6 +640,8 @@ export const setup = {
 
   /** 설정 항목의 사람이 읽는 이름. 저장소 키를 화면에 그대로 내보내지 않는다. */
   settingNames: {
+    time_zone: "기준 시간대",
+    secure_cookies: "https 전용 쿠키",
     law_api_oc: "법제처 인증키",
     llm_base_url: "AI API 주소",
     llm_api_key: "AI API 키",

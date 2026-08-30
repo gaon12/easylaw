@@ -112,3 +112,105 @@
   font-size: var(--el-text-body-s);
   font-weight: 700;
 }
+
+/* ── 환경 점검 ─────────────────────────────────────────── */
+
+.checks {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+/*
+ * 검사 하나. 상태를 색으로만 알리지 않는다(`DESIGN.md` §10) —
+ * 왼쪽 굵은 선과 오른쪽 상태 글자가 함께 의미를 전한다.
+ */
+.check {
+  display: grid;
+  gap: var(--el-space-1);
+  padding: var(--el-space-4);
+  border-radius: var(--el-radius-m);
+  border-left: 4px solid var(--el-border-strong);
+  background: var(--el-bg-canvas);
+}
+
+.ok {
+  border-left-color: var(--el-success);
+}
+
+.warn {
+  border-left-color: var(--el-warning);
+}
+
+.fail {
+  border-left-color: var(--el-danger);
+}
+
+.checkHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--el-space-2);
+}
+
+.checkLabel {
+  font-weight: 700;
+}
+
+.checkLevel {
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+}
+
+.ok .checkLevel {
+  color: var(--el-grounded-fg);
+}
+
+.warn .checkLevel {
+  color: var(--el-needs-check-fg);
+}
+
+.fail .checkLevel {
+  color: var(--el-ungrounded-fg);
+}
+
+/* 실제로 읽힌 값. 경로나 버전이라 자릿수가 흔들리면 안 된다. */
+.checkValue {
+  font-size: var(--el-text-body-s);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.checkNote {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--el-space-4);
+}
+
+.recheck {
+  font-size: var(--el-text-body-s);
+}
+
+/* ── 서비스 환경 ───────────────────────────────────────── */
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-3);
+  min-height: var(--el-touch-target);
+  cursor: pointer;
+}
+
+/* 체크박스는 손가락으로 눌러야 한다. 기본 크기는 작다. */
+.checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--el-action);
+}

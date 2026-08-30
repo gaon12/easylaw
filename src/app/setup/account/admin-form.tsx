@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PASSWORD_MIN } from "@/lib/credentials";
 import { auth, setup } from "@/lib/strings";
 import { createAdmin, type SetupState } from "@/server/setup-actions";
-import styles from "./setup-steps.module.css";
+import styles from "../setup-steps.module.css";
 
 /** 설치 단계에서만 나오는 문제(이미 관리자가 있음)와 일반 가입 문제를 함께 다룬다. */
 function problemMessage(problem: SetupState["problem"]): string | undefined {
