@@ -7,6 +7,7 @@ import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
 import { RenditionPanel } from "@/components/viewer/rendition-panel";
 import { SummaryCard } from "@/components/viewer/summary-card";
+import { TableOfContents } from "@/components/wiki/toc";
 import { corpusDb } from "@/db/client";
 import {
   findJudgmentByCaseNo,
@@ -14,7 +15,9 @@ import {
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
+import type { Citation } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
+import { detectHeadings } from "@/lib/text/headings";
 import { findCitations } from "@/server/citations";
 import { PIPELINE_VERSION } from "@/server/generate";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
@@ -59,6 +62,46 @@ function RenditionPlaceholder({ caseNo, level }: { caseNo: string; level: string
 }
 
 /**
+ * 원문 칸. 표제로 만든 목차와 본문.
+ *
+ * 표제가 둘 이상일 때만 목차를 낸다 — 하나뿐이면 목차가 아니라 소음이다.
+ */
+function OriginalSection({
+  spans,
+  citations,
+  decidedAt,
+  headings,
+  reason,
+}: {
+  spans: readonly { id: string; paraIdx: number; text: string }[];
+  citations: ReadonlyMap<string, readonly Citation[]>;
+  decidedAt: Date | null;
+  headings: readonly { id: string; label: string }[];
+  /** 원문을 못 가져왔으면 그 이유. 가져왔으면 null. */
+  reason: string | null;
+}) {
+  if (reason !== null) {
+    return <p className={styles.notice}>{reason}</p>;
+  }
+
+  return (
+    <>
+      {headings.length > 1 ? (
+        <TableOfContents
+          entries={headings.map((heading) => ({
+            id: heading.id,
+            label: heading.label,
+            depth: 1 as const,
+          }))}
+          label={viewer.originalToc}
+        />
+      ) : null}
+      <OriginalPanel citations={citations} decidedAt={decidedAt} spans={spans} />
+    </>
+  );
+}
+
+/**
  * 화면 하나에 필요한 것을 한 번에 읽는다.
  *
  * 인용 찾기를 **여기서 한 번에** 한다. 문장마다 컴포넌트 안에서 찾으면 사전 조회가
@@ -84,6 +127,11 @@ function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
     spans,
     citations: new Map(spans.map((span) => [span.id, findCitations(span.text)])),
     sentences: rendition === undefined ? [] : listSentences(db, rendition.id),
+    /*
+     * 원문의 `【주 문】` 같은 표제가 목차의 뼈대다(`DESIGN.md` §11.5).
+     * 판결문은 짧아도 수십 문장이고, 읽는 사람이 찾는 것은 대개 한 구간이다.
+     */
+    headings: detectHeadings(spans),
   };
 }
 
@@ -161,7 +209,10 @@ export default async function CasePage(props: {
 
   const { summary } = result;
   const textResult = await ensureJudgmentText(summary.caseNoCanonical);
-  const { row, spans, citations, sentences } = loadJudgment(summary.caseNoCanonical, level);
+  const { row, spans, citations, sentences, headings } = loadJudgment(
+    summary.caseNoCanonical,
+    level,
+  );
 
   return (
     <div className={styles.page}>
@@ -189,11 +240,13 @@ export default async function CasePage(props: {
 
         <section className={styles.panel}>
           <h2 className={styles.panelTitle}>{viewer.originalPanel}</h2>
-          {textResult.ok ? (
-            <OriginalPanel citations={citations} decidedAt={summary.decidedAt} spans={spans} />
-          ) : (
-            <p className={styles.notice}>{textResult.reason}</p>
-          )}
+          <OriginalSection
+            citations={citations}
+            decidedAt={summary.decidedAt}
+            headings={headings}
+            reason={textResult.ok ? null : textResult.reason}
+            spans={spans}
+          />
         </section>
       </div>
     </div>

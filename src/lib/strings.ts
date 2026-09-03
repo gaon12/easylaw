@@ -901,6 +901,8 @@ export const viewer = {
   levelGroupLabel: "설명 단계 고르기",
   levelChanged: (label: string) => `${label} 단계로 바꿨어요.`,
   originalPanel: "원문",
+  /** 원문 목차. `【주 문】` 같은 표제로 만든다. */
+  originalToc: "원문 목차",
   renditionPanel: "쉬운 설명",
   evidence: "근거 보기",
   evidenceOf: (order: number) => `${order}번째 문장의 근거 보기`,
