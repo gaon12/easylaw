@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate --config drizzle.corpus.config.ts && drizzle-kit generate --config drizzle.app.config.ts",
     "db:migrate": "node scripts/migrate.mjs",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "law:sync": "tsx scripts/sync-laws.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
