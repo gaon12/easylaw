@@ -668,21 +668,35 @@ function listLawArticles(db: CorpusDb, lawVersionId: string, at?: Date) {
   return rows.filter((row) => row.effectiveAt === null || row.effectiveAt <= at);
 }
 
+interface LawNameEntry {
+  readonly lawId: string;
+  readonly name: string;
+  readonly shortName: string | null;
+}
+
 /**
- * 우리가 아는 법 이름 전부.
+ * 인용 사전의 원재료. 이름·약칭과 그 법의 `lawId`를 함께 낸다.
  *
  * 판결문에서 인용을 찾을 때 **사전으로 쓴다**(`lib/law-citation`). 법 이름에는 공백이
  * 들어가서(`채무자 회생 및 파산에 관한 법률`) 글만 봐서는 어디까지가 이름인지 알 수 없고,
  * 아는 이름 목록에 대고 맞추는 수밖에 없다.
  *
- * 판 수는 168,494개지만 서로 다른 이름은 13,265개다. 한 번 읽어 두고 재사용한다.
+ * **이름이 아니라 `lawId`로 푼다.** 법은 개정되면서 이름이 바뀐다 —
+ * `총포·도검·화약류단속법`과 `총포ㆍ도검ㆍ화약류 등의 안전관리에 관한 법률`은 같은 법이고
+ * `lawId`가 같다. 이름으로 풀면 옛 이름으로 인용한 판결문이 그 법에 닿지 못한다.
+ *
+ * 약칭도 함께 낸다. 실측(2026-09-03) 약칭 2,676개 중 두 개 이상의 `lawId`를 가리키는
+ * 모호한 것은 8개뿐이고, 그것들만 버리면 나머지는 그대로 쓸 수 있다.
  */
-function listLawNames(db: CorpusDb): string[] {
+function listLawNameEntries(db: CorpusDb): LawNameEntry[] {
   return db
-    .selectDistinct({ name: lawVersion.name })
+    .selectDistinct({
+      lawId: lawVersion.lawId,
+      name: lawVersion.name,
+      shortName: lawVersion.shortName,
+    })
     .from(lawVersion)
-    .all()
-    .map((row) => row.name);
+    .all();
 }
 
 /**
@@ -713,7 +727,7 @@ export {
   finishGenerationJob,
   heartbeatGenerationJob,
   listLawArticles,
-  listLawNames,
+  listLawNameEntries,
   listSentences,
   listSpans,
   listStructureNodes,
@@ -731,6 +745,7 @@ export type {
   Confidence,
   JudgmentInput,
   LawArticleInput,
+  LawNameEntry,
   LawVersionInput,
   Level,
   Outcome,

@@ -18,12 +18,17 @@ import styles from "./page.module.css";
  */
 export default async function LawPage(props: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ 조?: string; 의?: string; 때?: string }>;
+  searchParams: Promise<{ 조?: string; 의?: string; 때?: string; id?: string }>;
 }) {
   const [params, query] = await Promise.all([props.params, props.searchParams]);
   const name = decodeURIComponent(params.name);
   const at = query.때 === undefined ? new Date() : new Date(query.때);
-  const found = await lawAsOf(name, Number.isNaN(at.getTime()) ? new Date() : at);
+  /*
+   * **`id`가 있으면 그것으로 찾는다.** 법은 개정되면서 이름이 바뀌므로, 인용에서 온
+   * 링크는 언제나 `법령ID`를 달고 온다. 이름은 사람이 직접 주소를 칠 때만 쓰인다.
+   */
+  const key = query.id === undefined ? { name } : { lawId: query.id };
+  const found = await lawAsOf(key, Number.isNaN(at.getTime()) ? new Date() : at);
 
   if (found.kind !== "ok") {
     return (

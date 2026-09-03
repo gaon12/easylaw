@@ -1,6 +1,6 @@
 import "server-only";
 import { corpusDb } from "@/db/client";
-import { listLawNames } from "@/db/corpus/repository";
+import { listLawNameEntries } from "@/db/corpus/repository";
 import { type Citation, createLawNameIndex, detectCitations } from "@/lib/law-citation/detect";
 
 /**
@@ -15,7 +15,7 @@ import { type Citation, createLawNameIndex, detectCitations } from "@/lib/law-ci
 let cached: ReturnType<typeof createLawNameIndex> | undefined;
 
 function lawNameIndex() {
-  cached ??= createLawNameIndex(listLawNames(corpusDb()));
+  cached ??= createLawNameIndex(listLawNameEntries(corpusDb()));
   return cached;
 }
 

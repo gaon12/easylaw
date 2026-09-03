@@ -25,6 +25,12 @@ import { parseArticleRef } from "@/lib/law-api/parse-law";
  *   한 번 받으면 다시 받을 이유가 없다(§6.4).
  */
 
+/**
+ * "언제든 한 판이라도 있었나"를 물을 때 쓰는 기준 시각.
+ * 시행일이 이보다 늦은 법령은 없다.
+ */
+const FAR_FUTURE = new Date("9999-12-31T00:00:00Z");
+
 interface ArticleText {
   readonly articleNo: string;
   readonly branchNo: string;
@@ -72,17 +78,33 @@ function toArticleText(row: {
  * 조문을 `at` 기준으로 한 번 더 거른다 — 한 개정 안에서도 조문마다 시행일이 다르므로,
  * 판을 골랐다고 그 판의 모든 조문이 그날 시행 중이었던 것은 아니다.
  */
-async function lawAsOf(lawName: string, at: Date, signal?: AbortSignal): Promise<LawLookup> {
+/**
+ * 이 날짜에 시행 중이던 법의 조문을 준다.
+ *
+ * **`lawId`로 찾는 쪽이 정확하다.** 법은 개정되면서 이름이 바뀌므로, 옛 이름으로 인용한
+ * 판결문은 이름으로는 그 법에 닿지 못한다. 이름은 사람이 직접 주소를 칠 때를 위해 남긴다.
+ */
+async function lawAsOf(
+  key: { lawId: string } | { name: string },
+  at: Date,
+  signal?: AbortSignal,
+): Promise<LawLookup> {
   const db = corpusDb();
-  const version = findLawVersionAt(db, { name: lawName }, at);
+  const version = findLawVersionAt(db, key, at);
   if (version === undefined) {
     /*
      * 이름이 아예 없는 것과, 이름은 있는데 그때 시행 전이었던 것을 구분한다.
      * 앞은 "우리가 모르는 법"이고 뒤는 "그때는 없던 법"이다 — 검증 결과가 달라야 한다.
      */
-    return findLatestLawVersion(db, lawName) === undefined
-      ? { kind: "unknown_law" }
-      : { kind: "not_in_force" };
+    /*
+     * 이름이 아예 없는 것과, 이름은 있는데 그때 시행 전이었던 것을 구분한다.
+     * `lawId`로 물었으면 그 id가 코퍼스에 있는지로 본다.
+     */
+    const everExisted =
+      "lawId" in key
+        ? findLawVersionAt(db, key, FAR_FUTURE) !== undefined
+        : findLatestLawVersion(db, key.name) !== undefined;
+    return everExisted ? { kind: "not_in_force" } : { kind: "unknown_law" };
   }
 
   if (version.bodyFetchedAt === null) {
@@ -150,7 +172,7 @@ type CitationCheck =
  * 법제처가 잠깐 죽었을 때 멀쩡한 인용이 전부 환각으로 표시된다.
  */
 async function verifyCitation(
-  lawName: string,
+  key: { lawId: string } | { name: string },
   reference: string,
   at: Date,
   signal?: AbortSignal,
@@ -160,7 +182,7 @@ async function verifyCitation(
     return { kind: "unverifiable", reason: "조문 표기를 읽지 못했습니다." };
   }
 
-  const found = await lawAsOf(lawName, at, signal);
+  const found = await lawAsOf(key, at, signal);
   if (found.kind === "unknown_law" || found.kind === "not_in_force") {
     return { kind: found.kind };
   }
@@ -172,7 +194,7 @@ async function verifyCitation(
   }
 
   const db = corpusDb();
-  const version = findLawVersionAt(db, { name: lawName }, at);
+  const version = findLawVersionAt(db, key, at);
   const article =
     version === undefined
       ? undefined

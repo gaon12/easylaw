@@ -37,14 +37,19 @@ function CitedText({
       parts.push(text.slice(cursor, citation.start));
     }
 
-    if (citation.lawName === undefined) {
+    if (citation.law === undefined) {
       /*
        * 모르는 법이면 링크하지 않고 글자만 남긴다. 링크를 걸어 두고 눌렀을 때 "없어요"를
        * 보여 주는 것은, 누르기 전까지 있는 것처럼 보이게 만드는 일이다.
        */
       parts.push(citation.text);
     } else {
-      const query = new URLSearchParams({ 조: citation.articleNo });
+      /*
+       * 주소에는 **정식명**을 쓰고 `법령ID`를 함께 실는다. 이름만으로는 개정으로 이름이
+       * 바뀐 법을 놓치고, 같은 이름의 다른 법과 섞인다(정식명 248개가 그렇다).
+       * 이름은 사람이 읽으라고 두는 것이고, 실제 조회는 id가 한다.
+       */
+      const query = new URLSearchParams({ 조: citation.articleNo, id: citation.law.lawId });
       if (citation.branchNo !== undefined) {
         query.set("의", citation.branchNo);
       }
@@ -55,9 +60,9 @@ function CitedText({
       parts.push(
         <Link
           className={styles.citation}
-          href={`/law/${encodeURIComponent(citation.lawName)}?${query}`}
+          href={`/law/${encodeURIComponent(citation.law.name)}?${query}`}
           key={`${citation.start}-${citation.end}`}
-          title={viewer.citationHint(citation.lawName, formatCitation(citation))}
+          title={viewer.citationHint(citation.law.name, formatCitation(citation))}
         >
           {citation.text}
         </Link>,
