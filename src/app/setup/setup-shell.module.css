@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   gap: var(--el-space-3);
-  max-width: 620px;
+  max-width: var(--el-container);
   margin: 0 auto;
   padding: var(--el-space-6) var(--el-space-6) 0;
 }
@@ -51,8 +51,19 @@
   width: 100%;
 }
 
+/*
+ * 콘텐츠 폭.
+ *
+ * 예전에는 620px에 갇혀 있어서 넓은 화면에서 가운데 좁은 기둥 하나만 쓰고 양옆이
+ * 통째로 비었다. 이제 `--el-container`(1248px)까지 쓴다 — 서비스 화면과 같은 폭이라
+ * 설치를 마치고 넘어갈 때 폭이 튀지 않는다.
+ *
+ * 폭을 늘렸다고 모든 것을 늘리지는 않는다. 입력 칸이 1248px로 늘어나면 읽기도 채우기도
+ * 나빠진다. 늘어나야 할 것(점검 카드 목록)과 그대로 두어야 할 것(폼·문단)은
+ * `setup-steps.module.css`에서 각각 정한다.
+ */
 .inner {
-  max-width: 620px;
+  max-width: var(--el-container);
   margin: 0 auto;
   padding: var(--el-space-6) var(--el-space-6) var(--el-space-16);
   display: grid;
@@ -65,7 +76,7 @@
 }
 
 .footerInner {
-  max-width: 620px;
+  max-width: var(--el-container);
   margin: 0 auto;
   padding: 0 var(--el-space-6) var(--el-space-8);
   display: grid;
