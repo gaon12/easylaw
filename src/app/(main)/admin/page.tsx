@@ -45,8 +45,23 @@ function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly 
   );
 }
 
+/**
+ * 칸마다 붙는 안내. 없는 칸에는 붙이지 않는다.
+ *
+ * AI 주소는 **OpenAI 호환이어야 한다.** 칸이 하나뿐이라 제공자가 안내하는 주소를 그대로
+ * 붙여 넣게 되는데, Gemini 네이티브 주소를 넣으면 `contents is not specified` 400이 오고
+ * 그 문장만으로는 원인을 알 수 없다. 마법사에만 적어 두면 소용이 없다 — 설치가 끝난 뒤에
+ * 주소를 고치는 곳은 여기다.
+ */
+const FIELD_HINTS: Partial<Record<EditableKey, string>> = {
+  llm_base_url: setup.llmBaseUrlHint,
+  llm_model: setup.llmModelHint,
+};
+
 /** 가릴 것이 없는 칸. 비밀 항목은 `SecretField`가 따로 그린다. */
 function TextField({ name, value }: { name: EditableKey; value: string | undefined }) {
+  const hint = FIELD_HINTS[name];
+
   return (
     <label className={styles.field}>
       <span className={styles.label}>{setup.settingNames[name]}</span>
@@ -57,6 +72,7 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
         name={name}
         type="text"
       />
+      {hint === undefined ? null : <span className={styles.hint}>{hint}</span>}
     </label>
   );
 }

@@ -64,6 +64,7 @@ export default async function ConnectionsPage() {
                 placeholder={setup.llmBaseUrlPlaceholder}
                 type="url"
               />
+              <span className={styles.hint}>{setup.llmBaseUrlHint}</span>
             </label>
 
             <label className={styles.field}>
@@ -85,6 +86,7 @@ export default async function ConnectionsPage() {
                 name="llm_model"
                 type="text"
               />
+              <span className={styles.hint}>{setup.llmModelHint}</span>
             </label>
 
             <label className={styles.field}>

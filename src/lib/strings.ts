@@ -761,8 +761,18 @@ export const setup = {
     "판결문을 쉬운 말로 바꾸는 데 쓰는 AI 연결이에요. 없으면 원문만 보여 드리고 설명 만들기 버튼이 꺼져요.",
   llmBaseUrlLabel: "API 주소",
   llmBaseUrlPlaceholder: "https://api.example.com/v1",
+  /**
+   * **OpenAI 호환 주소여야 한다.** 이 칸이 하나뿐이라 제공자가 안내하는 주소를 그대로
+   * 붙여 넣게 되는데, 우리는 뒤에 `/chat/completions`를 붙여 OpenAI 형식으로 보낸다.
+   * Gemini 네이티브 주소를 넣으면 `contents is not specified` 400이 오고, 그 문장만으로는
+   * 무엇이 잘못됐는지 알 수 없다 — 실제로 겪은 일이라 여기 적어 둔다.
+   */
+  llmBaseUrlHint:
+    "OpenAI 호환 주소를 넣어 주세요. 뒤의 /chat/completions는 저희가 붙이니 빼고 넣으시면 돼요. Gemini는 https://generativelanguage.googleapis.com/v1beta/openai 예요.",
   llmApiKeyLabel: "API 키",
   llmModelLabel: "모델 이름",
+  /** `models/` 접두사를 붙이면 그대로 모델 이름으로 나가 404가 된다. */
+  llmModelHint: "모델 이름만 넣어 주세요. 예: gemini-2.5-flash · gpt-4o-mini",
   limitLabel: "하루 설명 생성 상한",
   limitHint: "설명 만들기 버튼은 곧 지출이에요. 하루에 몇 번까지 허용할지 정해요.",
 

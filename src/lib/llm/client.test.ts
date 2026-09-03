@@ -222,3 +222,82 @@ describe("응답 다루기", () => {
     expect((error as LlmError).retryable).toBe(true);
   });
 });
+
+describe("주소를 잘못 넣은 경우를 알아본다", () => {
+  /** Gemini 네이티브 API가 실제로 보내는 본문(2026-09-03 실측). */
+  const geminiNative = JSON.stringify([
+    {
+      error: {
+        code: 400,
+        message: "* GenerateContentRequest.contents: contents is not specified\n",
+        status: "INVALID_ARGUMENT",
+      },
+    },
+  ]);
+
+  it("Gemini 네이티브 주소면 `/openai`를 붙이라고 말한다", async () => {
+    stubFetch(() => new Response(geminiNative, { status: 400 }));
+
+    const client = createLlmClient({
+      ...CONFIG,
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    });
+    const failure = await client.complete({ instruction: "요약해 주세요." }).catch((e) => e);
+
+    expect(failure).toBeInstanceOf(LlmError);
+    // 고칠 주소를 그대로 담는다. "형식이 다릅니다"만으로는 무엇을 칠지 알 수 없다.
+    expect(failure.message).toContain("https://generativelanguage.googleapis.com/v1beta/openai");
+    // 제공자가 보낸 원문도 남긴다. 우리 진단이 틀렸을 때 되짚을 것이 있어야 한다.
+    expect(failure.message).toContain("GenerateContentRequest");
+  });
+
+  it("끝의 슬래시가 있어도 주소를 두 번 붙이지 않는다", async () => {
+    stubFetch(() => new Response(geminiNative, { status: 400 }));
+
+    const client = createLlmClient({
+      ...CONFIG,
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/",
+    });
+    const failure = await client.complete({ instruction: "요약해 주세요." }).catch((e) => e);
+
+    expect(failure.message).toContain("/v1beta/openai");
+    expect(failure.message).not.toContain("/v1beta//openai");
+  });
+
+  it("`/chat/completions`까지 넣었으면 그 부분을 빼라고 말한다", async () => {
+    stubFetch(() => new Response("Not Found", { status: 404 }));
+
+    const client = createLlmClient({
+      ...CONFIG,
+      baseUrl: "https://ai.example.com/v1/chat/completions",
+    });
+    const failure = await client.complete({ instruction: "요약해 주세요." }).catch((e) => e);
+
+    expect(failure.message).toContain("https://ai.example.com/v1");
+    expect(failure.message).not.toContain("https://ai.example.com/v1/chat/completions 까지만");
+  });
+
+  it("짐작이 안 되는 실패는 제공자 본문을 그대로 전한다", async () => {
+    stubFetch(() => new Response('{"error":"quota exceeded"}', { status: 429 }));
+
+    const failure = await createLlmClient(CONFIG)
+      .complete({ instruction: "요약해 주세요." })
+      .catch((e) => e);
+
+    // 없는 진단을 지어내지 않는다.
+    expect(failure.message).toContain("429");
+    expect(failure.message).toContain("quota exceeded");
+    expect(failure.message).not.toContain("openai");
+  });
+
+  it("404여도 주소가 멀쩡하면 진단을 지어내지 않는다", async () => {
+    stubFetch(() => new Response("Not Found", { status: 404 }));
+
+    const failure = await createLlmClient(CONFIG)
+      .complete({ instruction: "요약해 주세요." })
+      .catch((e) => e);
+
+    expect(failure.message).toContain("404");
+    expect(failure.message).not.toContain("까지만 넣으세요");
+  });
+});

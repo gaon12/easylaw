@@ -69,6 +69,7 @@ const ERROR_DETAIL_LIMIT = 500;
 /** 다시 걸면 될 법한 상태 코드. 그 밖은 같은 요청을 다시 보내도 같은 답이 온다. */
 const TOO_MANY_REQUESTS = 429;
 const SERVER_ERROR_FLOOR = 500;
+const NOT_FOUND = 404;
 
 class LlmError extends Error {
   readonly status: number | undefined;
@@ -152,6 +153,35 @@ function endpoint(baseUrl: string): string {
   return `${baseUrl.replace(TRAILING_SLASHES, "")}/chat/completions`;
 }
 
+/**
+ * 주소를 잘못 넣은 흔한 경우를 알아보고 무엇을 고칠지 말한다.
+ *
+ * **여기가 자가 호스팅에서 가장 자주 막히는 자리다.** 설정 칸은 `llm_base_url` 하나뿐이고
+ * 화면은 "AI API 주소"라고만 적혀 있어서, 제공자가 안내하는 주소를 그대로 붙여 넣게 된다.
+ * 그런데 우리가 말하는 것은 **OpenAI 호환 chat completions**이고 뒤에 `/chat/completions`를
+ * 붙인다. 그래서 다음 두 가지가 실제로 일어난다.
+ *
+ * - Gemini 네이티브 주소(`…/v1beta`)를 넣으면 Google이 그 요청을 네이티브 핸들러로 보내고
+ *   `GenerateContentRequest.contents: contents is not specified` 400이 온다. 우리가 보낸
+ *   `messages`를 읽지 못한다는 뜻인데, 그 문장만 보고 원인을 알아낼 방법이 없다.
+ * - 완성된 엔드포인트(`…/chat/completions`)를 통째로 넣으면 주소가 두 번 붙어 404가 된다.
+ *
+ * 둘 다 사용자가 고칠 수 있는 문제다. **고칠 방법을 알려 주지 않으면 고칠 수 없을 뿐이다.**
+ */
+function diagnoseEndpoint(baseUrl: string, status: number, detail: string): string | undefined {
+  const url = baseUrl.replace(TRAILING_SLASHES, "");
+
+  if (detail.includes("GenerateContentRequest") || detail.includes("contents is not specified")) {
+    return `이 주소는 OpenAI 호환 엔드포인트가 아니라 Gemini 네이티브 API입니다. 주소 끝에 \`/openai\`를 붙여 \`${url}/openai\` 로 바꾸세요.`;
+  }
+
+  if (status === NOT_FOUND && url.endsWith("/chat/completions")) {
+    return `주소에 \`/chat/completions\`가 이미 들어 있습니다. 그 부분은 우리가 붙이므로 \`${url.slice(0, -"/chat/completions".length)}\` 까지만 넣으세요.`;
+  }
+
+  return;
+}
+
 /** 보낼 본문. 프로토콜 필드명이라 snake_case를 그대로 쓴다. */
 function buildBody(config: LlmConfig, request: CompletionRequest): Record<string, unknown> {
   return {
@@ -227,7 +257,17 @@ async function requestCompletion(
   if (!response.ok) {
     // 본문에 원인이 적혀 있는 경우가 많다. 키가 섞일 자리가 아니라 그대로 담아도 된다.
     const detail = (await response.text()).slice(0, ERROR_DETAIL_LIMIT);
-    throw new LlmError(`AI 서버 응답이 ${response.status}입니다. ${detail}`.trim(), {
+    /*
+     * 고칠 방법을 아는 경우에는 그것을 **먼저** 말한다. 제공자가 보낸 문장을 그대로
+     * 앞세우면 원인을 아는 사람만 읽을 수 있는 오류가 된다.
+     */
+    const hint = diagnoseEndpoint(config.baseUrl, response.status, detail);
+    const message =
+      hint === undefined
+        ? `AI 서버 응답이 ${response.status}입니다. ${detail}`
+        : `${hint} (AI 서버 응답 ${response.status}: ${detail})`;
+
+    throw new LlmError(message.trim(), {
       status: response.status,
       retryable: response.status === TOO_MANY_REQUESTS || response.status >= SERVER_ERROR_FLOOR,
     });
