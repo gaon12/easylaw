@@ -2,8 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { auth, disclaimer, site } from "@/lib/strings";
 import { logOut } from "@/server/auth-actions";
-import { currentSession } from "@/server/owner";
+import { currentSession, displayName } from "@/server/owner";
 import styles from "./site-shell.module.css";
+
+/** 헤더 아바타 크기. CSS와 같은 값이어야 브라우저가 자리를 미리 잡는다. */
+const AVATAR_PX = 32;
 
 /**
  * 헤더의 계정 영역.
@@ -29,9 +32,29 @@ async function AccountNav() {
     );
   }
 
+  // 표시 이름 규칙은 `server/owner.ts`에 한 번만 적혀 있다.
+  const name = displayName(session) ?? session.email;
+
   return (
     <>
-      <span className={styles.accountEmail}>{session.email}</span>
+      <Link className={styles.accountLink} href="/settings">
+        {/*
+          아바타는 우리 서버가 그린다(`/avatar/[seed]`). 외부 API를 쓰지 않는 이유는
+          그 라우트 주석에 적었다. 장식이라 스크린리더에는 숨기고, 이름이 그 역할을 한다.
+
+          biome-ignore lint/performance/noImgElement: 우리 라우트가 내주는 SVG다.
+          next/image는 SVG를 최적화하지 못하고, 쓰려면 `dangerouslyAllowSVG`를 켜야 하는데
+          그건 외부 SVG까지 함께 여는 설정이라 아바타 하나 때문에 켤 이유가 없다.
+        */}
+        <img
+          alt=""
+          className={styles.avatar}
+          height={AVATAR_PX}
+          src={`/avatar/${encodeURIComponent(name)}`}
+          width={AVATAR_PX}
+        />
+        <span className={styles.accountName}>{name}</span>
+      </Link>
       {/* 로그아웃은 상태를 바꾸는 동작이라 링크가 아니라 폼이어야 한다. */}
       <form action={logOut}>
         <button className={styles.navButton} type="submit">

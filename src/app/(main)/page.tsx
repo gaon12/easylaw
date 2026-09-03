@@ -5,7 +5,7 @@ import { Section } from "@/components/ui/section";
 import { listUploadsForOwner } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { home, viewer } from "@/lib/strings";
-import { currentSession } from "@/server/owner";
+import { currentSession, displayName } from "@/server/owner";
 import { siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
 import { Workspace } from "./workspace";
@@ -38,7 +38,7 @@ export default async function HomePage() {
     const docs = listUploadsForOwner(appDb(), session.userId);
     return (
       <Workspace
-        email={session.email}
+        name={displayName(session)}
         recent={docs.slice(0, RECENT_LIMIT)}
         timeZone={siteTimeZone()}
         totalDocs={docs.length}

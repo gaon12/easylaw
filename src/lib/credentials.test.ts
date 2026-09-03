@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeEmail, PASSWORD_MIN, validateNewCredentials } from "./credentials";
+import {
+  normalizeEmail,
+  PASSWORD_MIN,
+  validateNewCredentials,
+  validateNickname,
+} from "./credentials";
 
 describe("normalizeEmail", () => {
   it("소문자로 맞추고 공백을 턴다", () => {
@@ -65,5 +70,38 @@ describe("validateNewCredentials", () => {
       ok: false,
       problem: "password_too_long",
     });
+  });
+});
+
+describe("validateNickname", () => {
+  it("앞뒤 공백을 털고 받는다", () => {
+    const result = validateNickname("  법돌이  ");
+    expect(result.ok && result.nickname).toBe("법돌이");
+  });
+
+  it("두 글자보다 짧으면 받지 않는다 — 한 글자는 이름으로 읽히지 않는다", () => {
+    expect(validateNickname("가")).toEqual({ ok: false, problem: "nickname_too_short" });
+    expect(validateNickname("   ")).toEqual({ ok: false, problem: "nickname_required" });
+  });
+
+  it("스무 글자를 넘기면 받지 않는다 — 헤더가 무너진다", () => {
+    expect(validateNickname("가".repeat(21)).ok).toBe(false);
+    expect(validateNickname("가".repeat(20)).ok).toBe(true);
+  });
+
+  it("보이지 않는 글자를 막는다", () => {
+    /*
+     * 화면에 그대로 그려지는 값이다. 제어문자가 섞이면 이름이 이상하게 잘리고,
+     * 양방향 제어문자는 글자 순서를 뒤집어 보이게 만드는 데 쓰인다.
+     */
+    for (const bad of ["법\u0000돌이", "법\u200b돌이", "법\u202e돌이", "법\u2028돌이"]) {
+      expect(validateNickname(bad)).toEqual({ ok: false, problem: "nickname_invalid" });
+    }
+  });
+
+  it("한글·영문·숫자·이모지는 받는다", () => {
+    for (const good of ["법돌이", "lawbot", "판례123", "법돌이 2호"]) {
+      expect(validateNickname(good).ok).toBe(true);
+    }
   });
 });

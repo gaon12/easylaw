@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PASSWORD_MIN } from "@/lib/credentials";
+import { NICKNAME_MAX, NICKNAME_MIN, PASSWORD_MIN } from "@/lib/credentials";
 import { auth } from "@/lib/strings";
 import type { AuthState } from "@/server/auth-actions";
 import styles from "./auth-form.module.css";
@@ -55,6 +55,24 @@ function AuthForm({ action, submitLabel, submittingLabel, mode }: AuthFormProps)
             type="email"
           />
         </label>
+
+        {mode === "signup" ? (
+          <label className={styles.field}>
+            <span className={styles.label}>{auth.nicknameLabel}</span>
+            <input
+              autoComplete="nickname"
+              className={styles.input}
+              defaultValue={state.nickname}
+              maxLength={NICKNAME_MAX}
+              minLength={NICKNAME_MIN}
+              name="nickname"
+              placeholder={auth.nicknamePlaceholder}
+              required={true}
+              type="text"
+            />
+            <span className={styles.hint}>{auth.nicknameHint(NICKNAME_MIN, NICKNAME_MAX)}</span>
+          </label>
+        ) : null}
 
         <label className={styles.field}>
           <span className={styles.label}>{auth.passwordLabel}</span>

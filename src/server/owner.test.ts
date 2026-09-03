@@ -48,7 +48,7 @@ function lastCookieOptions(): { secure: boolean } {
 
 /** `createUser`는 이메일이 겹치면 undefined를 낸다. 테스트에서는 겹칠 일이 없다. */
 function newAdmin(email: string): string {
-  const id = createUser(db, email, "hash", "admin");
+  const id = createUser(db, { email, passwordHash: "hash", role: "admin" });
   if (id === undefined) {
     throw new Error(`계정을 만들지 못했습니다 (${email}).`);
   }

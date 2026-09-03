@@ -18,8 +18,9 @@ import { type AuthProblem, signIn, signOut, signUp } from "./auth";
 
 interface AuthState {
   readonly problem?: AuthProblem;
-  /** 실패했을 때 이메일만 다시 채워 준다. */
+  /** 실패했을 때 다시 채워 줄 값. 비밀번호는 절대 넣지 않는다. */
   readonly email?: string;
+  readonly nickname?: string;
 }
 
 function field(formData: FormData, name: string): string {
@@ -29,10 +30,12 @@ function field(formData: FormData, name: string): string {
 
 async function createAccount(_previous: AuthState, formData: FormData): Promise<AuthState> {
   const email = field(formData, "email");
-  const result = await signUp(email, field(formData, "password"));
+  const nickname = field(formData, "nickname");
+  const result = await signUp(email, field(formData, "password"), "member", nickname);
 
   if (!result.ok) {
-    return { problem: result.problem, email };
+    // 실패하면 이메일과 닉네임을 다시 채워 준다. 비밀번호는 돌려주지 않는다.
+    return { problem: result.problem, email, nickname };
   }
 
   // redirect는 예외를 던져 흐름을 끊는다. try 안에 두지 않는다.

@@ -1,7 +1,12 @@
 import "server-only";
 import { createUser, findUserByEmail, touchUser, type UserRole } from "@/db/app/repository";
 import { appDb } from "@/db/client";
-import { type CredentialProblem, normalizeEmail, validateNewCredentials } from "@/lib/credentials";
+import {
+  type CredentialProblem,
+  normalizeEmail,
+  validateNewCredentials,
+  validateNickname,
+} from "@/lib/credentials";
 import { RateLimiter } from "@/lib/rate-limit";
 import { endSession, startSession } from "./owner";
 import { hashPassword, verifyPassword } from "./password";
@@ -42,14 +47,30 @@ async function signUp(
   rawEmail: string,
   rawPassword: string,
   role: UserRole = "member",
+  rawNickname?: string,
 ): Promise<AuthResult> {
   const validated = validateNewCredentials(rawEmail, rawPassword);
   if (!validated.ok) {
     return { ok: false, problem: validated.problem };
   }
 
+  /*
+   * 닉네임은 **가입 화면에서만** 받는다. 설치 마법사의 관리자 계정은 서버를 세우는
+   * 사람의 것이고 그 화면에 칸을 하나 더 두는 것은 설치를 길게 만들 뿐이다 —
+   * 없으면 화면이 이메일 앞부분을 쓴다.
+   */
+  const nickname = rawNickname === undefined ? undefined : validateNickname(rawNickname);
+  if (nickname !== undefined && !nickname.ok) {
+    return { ok: false, problem: nickname.problem };
+  }
+
   const { email, password } = validated.credentials;
-  const userId = createUser(appDb(), email, hashPassword(password), role);
+  const userId = createUser(appDb(), {
+    email,
+    passwordHash: hashPassword(password),
+    role,
+    nickname: nickname?.ok === true ? nickname.nickname : null,
+  });
   if (userId === undefined) {
     return { ok: false, problem: "email_taken" };
   }

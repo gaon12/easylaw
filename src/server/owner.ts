@@ -50,6 +50,8 @@ interface CurrentSession {
   readonly userId: string;
   /** 가입한 계정인가. 화면의 로그인/로그아웃 표시가 이 값을 본다. */
   readonly email: string | null;
+  /** 화면에 보이는 이름. 없으면 화면이 이메일 앞부분을 쓴다. */
+  readonly nickname: string | null;
   /** 관리자만 서비스 설정을 바꿀 수 있다. */
   readonly role: UserRole;
 }
@@ -77,6 +79,7 @@ async function currentSession(): Promise<CurrentSession | undefined> {
     sessionId: row.id,
     userId: row.userId,
     email: account?.email ?? null,
+    nickname: account?.nickname ?? null,
     role: account?.role ?? "member",
   };
 }
@@ -143,5 +146,32 @@ function renewSession(sessionId: string): void {
   touchSession(appDb(), sessionId, expiryFrom(new Date()));
 }
 
-export { COOKIE_NAME, currentOwnerId, currentSession, endSession, renewSession, startSession };
+/**
+ * 화면에 보여 줄 이름.
+ *
+ * **이메일을 화면에 쓰지 않는다.** 헤더나 인사말에 이메일이 떠 있으면 화면을 공유하거나
+ * 어깨너머로 볼 때 그대로 샌다. 닉네임이 없는 옛 계정은 이메일 앞부분(@ 앞)을 쓴다 —
+ * 도메인까지 보여 줄 이유가 없다.
+ *
+ * 한 곳에 두는 이유는 규칙이 화면마다 달라지지 않게 하기 위해서다.
+ */
+function displayName(session: { nickname: string | null; email: string | null }): string | null {
+  if (session.nickname !== null && session.nickname.length > 0) {
+    return session.nickname;
+  }
+  if (session.email === null) {
+    return null;
+  }
+  return session.email.split("@")[0] ?? session.email;
+}
+
+export {
+  COOKIE_NAME,
+  currentOwnerId,
+  currentSession,
+  displayName,
+  endSession,
+  renewSession,
+  startSession,
+};
 export type { CurrentSession };

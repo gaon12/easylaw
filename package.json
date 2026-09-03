@@ -18,6 +18,8 @@
     "law:sync": "tsx scripts/sync-laws.ts"
   },
   "dependencies": {
+    "@dicebear/core": "9.4.3",
+    "@dicebear/identicon": "9.4.2",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",
     "es-hangul": "^2.4.0",

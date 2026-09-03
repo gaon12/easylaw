@@ -57,12 +57,19 @@ function hasAdmin(db: AppDb): boolean {
  *
  * 이메일은 소문자로 정규화된 값만 들어온다고 본다. 정규화는 부르는 쪽의 몫이다.
  */
-function createUser(
-  db: AppDb,
-  email: string,
-  passwordHash: string,
-  role: UserRole = "member",
-): string | undefined {
+interface NewUser {
+  readonly email: string;
+  readonly passwordHash: string;
+  readonly role?: UserRole;
+  /** 화면에 보이는 이름. 없으면 화면이 이메일 앞부분을 쓴다. */
+  readonly nickname?: string | null;
+}
+
+function createUser(db: AppDb, input: NewUser): string | undefined {
+  const { email, passwordHash } = input;
+  const role = input.role ?? "member";
+  const nickname = input.nickname ?? null;
+
   return db.transaction((tx) => {
     const taken = tx.select({ id: user.id }).from(user).where(eq(user.email, email)).get();
     if (taken !== undefined) {
@@ -70,7 +77,9 @@ function createUser(
     }
 
     const id = newId();
-    tx.insert(user).values({ id, email, passwordHash, role, lastSeenAt: new Date() }).run();
+    tx.insert(user)
+      .values({ id, email, passwordHash, role, nickname, lastSeenAt: new Date() })
+      .run();
     tx.insert(auditLog)
       .values({ id: newId(), actor: id, action: "user.signed_up", target: id })
       .run();

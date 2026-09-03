@@ -35,7 +35,7 @@ function input(overrides: Partial<Parameters<typeof ingestUpload>[1]> = {}) {
 
 beforeEach(() => {
   ({ db } = createTestAppDb());
-  const id = createUser(db, "owner@example.com", "hash");
+  const id = createUser(db, { email: "owner@example.com", passwordHash: "hash" });
   if (id === undefined) {
     throw new Error("계정을 만들지 못했다");
   }

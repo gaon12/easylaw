@@ -35,7 +35,7 @@ let userSeq = 0;
 /** 테스트용 계정 하나. 이메일은 매번 다르게 만든다. */
 function makeUser(): string {
   userSeq += 1;
-  const id = createUser(db, `user${userSeq}@example.com`, "hash");
+  const id = createUser(db, { email: `user${userSeq}@example.com`, passwordHash: "hash" });
   if (id === undefined) {
     throw new Error("계정을 만들지 못했다");
   }
@@ -62,13 +62,13 @@ function uploadInput(userId: string, overrides: Partial<UploadInput> = {}): Uplo
 
 describe("계정", () => {
   it("이메일로 계정을 만들고 찾는다", () => {
-    const id = createUser(db, "hong@example.com", "hash");
+    const id = createUser(db, { email: "hong@example.com", passwordHash: "hash" });
     expect(findUserByEmail(db, "hong@example.com")?.id).toBe(id);
   });
 
   it("이미 쓰는 이메일이면 만들지 않는다", () => {
-    const first = createUser(db, "hong@example.com", "hash");
-    expect(createUser(db, "hong@example.com", "hash2")).toBeUndefined();
+    const first = createUser(db, { email: "hong@example.com", passwordHash: "hash" });
+    expect(createUser(db, { email: "hong@example.com", passwordHash: "hash2" })).toBeUndefined();
     // 기존 계정의 비밀번호가 덮이면 안 된다.
     expect(findUserByEmail(db, "hong@example.com")?.id).toBe(first);
     expect(findUserByEmail(db, "hong@example.com")?.passwordHash).toBe("hash");

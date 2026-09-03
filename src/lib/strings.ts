@@ -248,7 +248,7 @@ export const demo = {
  */
 export const auth = {
   signUpTitle: "회원가입",
-  signUpIntro: "이메일과 비밀번호만 있으면 돼요. 이름이나 전화번호는 묻지 않아요.",
+  signUpIntro: "이메일, 비밀번호, 부르실 이름만 있으면 돼요. 실명이나 전화번호는 묻지 않아요.",
   signUpSubmit: "가입할게요",
   signUpSubmitting: "가입하고 있어요…",
   signUpDone: "가입했어요. 이제 다른 기기에서도 문서를 여실 수 있어요.",
@@ -265,6 +265,18 @@ export const auth = {
   passwordLabel: "비밀번호",
   passwordHint: (min: number) =>
     `${min}자 이상이면 돼요. 대문자나 특수문자는 요구하지 않아요 — 길수록 안전해요.`,
+
+  /**
+   * 닉네임.
+   *
+   * **이메일을 화면에 쓰지 않으려고 받는다.** 헤더에 이메일이 떠 있으면 화면을 공유하거나
+   * 어깨너머로 볼 때 그대로 샌다. 실명일 필요가 없다는 것을 안내에 분명히 적는다 —
+   * 판결문을 다루는 서비스에서 실명을 적게 두면 안 된다.
+   */
+  nicknameLabel: "부르실 이름",
+  nicknamePlaceholder: "법돌이",
+  nicknameHint: (min: number, max: number) =>
+    `화면에 보일 이름이에요. ${min}~${max}자. 실명이 아니어도 되고, 겹쳐도 괜찮아요.`,
 
   logOut: "로그아웃",
   signedInAs: (email: string) => `${email} 계정으로 보고 있어요.`,
@@ -284,6 +296,10 @@ export const auth = {
     password_too_short: "비밀번호가 짧아요. 조금 더 길게 만들어 주세요.",
     password_too_long: "비밀번호가 너무 길어요. 조금 줄여 주시겠어요?",
     password_too_common: "너무 흔한 비밀번호예요. 다른 것으로 바꿔 주세요.",
+    nickname_required: "부르실 이름을 넣어 주세요.",
+    nickname_too_short: "이름이 너무 짧아요. 두 글자 이상으로 해 주시겠어요?",
+    nickname_too_long: "이름이 너무 길어요. 스무 글자 안으로 해 주시겠어요?",
+    nickname_invalid: "이름에 쓸 수 없는 글자가 섞여 있어요.",
     password_contains_email: "비밀번호에 이메일 앞부분이 들어 있어요. 다른 것으로 바꿔 주세요.",
     credentials_invalid: "이메일이나 비밀번호가 맞지 않아요. 다시 확인해 주시겠어요?",
     too_many_attempts: "여러 번 틀리셨어요. 잠시 뒤에 다시 해 주시겠어요?",
@@ -735,8 +751,7 @@ export const adminTest = {
  */
 export const workspace = {
   title: "내 작업",
-  greeting: (email: string | null) =>
-    email === null ? "다시 오셨네요" : `${email}님, 다시 오셨네요`,
+  greeting: (name: string | null) => (name === null ? "다시 오셨네요" : `${name}님, 다시 오셨네요`),
   intro: "사건번호로 판례를 찾거나, 받으신 판결문을 올려 쉬운 말로 바꿔 보세요.",
   docsTitle: "최근 올린 판결문",
   seeAll: (count: number) => (count > 0 ? `문서함 전체 보기 (${count}개)` : "문서함 열기"),

@@ -42,7 +42,11 @@ type CredentialProblem =
   | "password_too_short"
   | "password_too_long"
   | "password_too_common"
-  | "password_contains_email";
+  | "password_contains_email"
+  | "nickname_required"
+  | "nickname_too_short"
+  | "nickname_too_long"
+  | "nickname_invalid";
 
 interface Credentials {
   readonly email: string;
@@ -108,5 +112,62 @@ function validateNewCredentials(rawEmail: string, password: string): CredentialR
   return { ok: true, credentials: { email, password } };
 }
 
-export { normalizeEmail, PASSWORD_MAX, PASSWORD_MIN, validateNewCredentials };
-export type { CredentialProblem, CredentialResult, Credentials };
+/**
+ * 닉네임 길이.
+ *
+ * 아래로는 두 글자를 요구한다 — 한 글자는 화면에서 이름으로 읽히지 않는다.
+ * 위로는 헤더가 무너지지 않을 만큼만 둔다.
+ */
+const NICKNAME_MIN = 2;
+const NICKNAME_MAX = 20;
+
+/**
+ * 닉네임에 쓸 수 없는 글자.
+ *
+ * 제어문자·줄바꿈·너비 없는 문자·양방향 제어문자를 막는다. **화면에 그대로 그려지는
+ * 값**이라, 눈에 보이지 않는 글자가 섞이면 이름이 이상하게 잘리거나 옆 글자를 밀어낸다.
+ * 양방향 제어문자는 글자 순서를 뒤집어 보이게 만드는 데 쓰인다.
+ */
+// biome-ignore lint/complexity/useRegexLiterals: 정규식 리터럴로 쓰면 이 글자들이 보이지 않는 상태로 소스에 박힌다. 막으려는 대상이 바로 그 "보이지 않는 글자"라, 코드에서도 이스케이프로 적어야 읽고 고칠 수 있다.
+const NICKNAME_FORBIDDEN = new RegExp(
+  "[\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\u202a-\u202e]",
+  "u",
+);
+
+type NicknameResult =
+  | { readonly ok: true; readonly nickname: string }
+  | { readonly ok: false; readonly problem: CredentialProblem };
+
+/**
+ * 닉네임을 다듬고 본다.
+ *
+ * **유일성은 보지 않는다.** 이것은 식별자가 아니라 호칭이고, 유일하게 만들면 가입할 때
+ * "이미 쓰는 사람이 있어요"를 만나게 된다. 계정을 가르는 것은 이메일이다.
+ */
+function validateNickname(raw: string): NicknameResult {
+  const nickname = raw.trim();
+  if (nickname.length === 0) {
+    return { ok: false, problem: "nickname_required" };
+  }
+  if (NICKNAME_FORBIDDEN.test(nickname)) {
+    return { ok: false, problem: "nickname_invalid" };
+  }
+  if (nickname.length < NICKNAME_MIN) {
+    return { ok: false, problem: "nickname_too_short" };
+  }
+  if (nickname.length > NICKNAME_MAX) {
+    return { ok: false, problem: "nickname_too_long" };
+  }
+  return { ok: true, nickname };
+}
+
+export {
+  NICKNAME_MAX,
+  NICKNAME_MIN,
+  normalizeEmail,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  validateNewCredentials,
+  validateNickname,
+};
+export type { CredentialProblem, CredentialResult, Credentials, NicknameResult };

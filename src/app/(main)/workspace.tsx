@@ -23,12 +23,13 @@ interface RecentDoc {
  * 마이페이지로 데려가는 것과 같은 이유다.
  */
 function Workspace({
-  email,
+  name,
   recent,
   totalDocs,
   timeZone,
 }: {
-  email: string | null;
+  /** 화면에 보여 줄 이름. 이메일이 아니다(`server/owner.ts`의 `displayName`). */
+  name: string | null;
   recent: readonly RecentDoc[];
   totalDocs: number;
   timeZone: string;
@@ -37,7 +38,7 @@ function Workspace({
     <>
       <Section label={workspace.title} leading={true} tone="hero">
         <div className={styles.head}>
-          <h1 className={styles.title}>{workspace.greeting(email)}</h1>
+          <h1 className={styles.title}>{workspace.greeting(name)}</h1>
           <p className={styles.body}>{workspace.intro}</p>
 
           {/* 찾기가 첫 자리다. 로그인했든 아니든 가장 자주 하는 일이다. */}
