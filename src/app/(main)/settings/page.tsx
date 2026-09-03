@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { account, settings } from "@/lib/strings";
+import { account, data, settings } from "@/lib/strings";
 import styles from "./page.module.css";
 import { SettingsForm } from "./settings-form";
 
@@ -45,6 +45,9 @@ export default function SettingsPage() {
       <nav className={styles.links}>
         <Link className={styles.link} href="/settings/account">
           {account.title}
+        </Link>
+        <Link className={styles.link} href="/settings/data">
+          {data.title}
         </Link>
       </nav>
 

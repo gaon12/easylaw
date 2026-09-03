@@ -6,7 +6,7 @@ import { PaperFigure } from "@/components/ui/paper-figure";
 import { listUploadsForOwner } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
-import { cases, doc } from "@/lib/strings";
+import { cases, data, doc } from "@/lib/strings";
 import { currentOwnerId } from "@/server/owner";
 import { siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
@@ -100,6 +100,16 @@ export default async function CasesPage() {
           </Card>
         ))}
       </ul>
+
+      {/*
+        보관 기간을 바꾸거나 한 번에 지우는 일은 여기가 아니라 `/settings/data`가 맡는다.
+        목록 화면에 삭제를 늘어놓으면 문서를 열러 온 사람이 그 옆에서 그 일을 하게 된다.
+      */}
+      <nav className={styles.links}>
+        <Link className={styles.link} href="/settings/data">
+          {data.title}
+        </Link>
+      </nav>
     </div>
   );
 }

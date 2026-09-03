@@ -5,6 +5,8 @@ import { createTestAppDb } from "../testing";
 import {
   createSession,
   createUser,
+  deleteAccount,
+  deleteAllUploads,
   deleteExpiredSessions,
   deleteExpiredUploads,
   deleteSession,
@@ -17,10 +19,12 @@ import {
   listUploadSpans,
   listUploadsForOwner,
   saveUpload,
+  summarizeOwnerData,
   type UploadInput,
   updateNickname,
+  updateRetention,
 } from "./repository";
-import { auditLog } from "./schema";
+import { auditLog, session, upload, uploadMask, uploadSpan } from "./schema";
 
 let db: AppDb;
 let close: () => void;
@@ -272,5 +276,171 @@ describe("updateNickname", () => {
 
     expect(findUserById(db, first)?.nickname).toBe("법돌이");
     expect(findUserById(db, second)?.nickname).toBe("법돌이");
+  });
+});
+
+describe("보관 기간 바꾸기", () => {
+  it("기간을 늘리면 그 시각이 저장된다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    const until = new Date("2030-01-01T00:00:00Z");
+
+    expect(updateRetention(db, id, userId, until)).toBe(true);
+    expect(findUploadForOwner(db, id, userId)?.retentionUntil).toEqual(until);
+  });
+
+  it("'직접 지울 때까지'로 바꾸면 만료가 없어진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId, { retentionUntil: new Date("2030-01-01") }));
+
+    expect(updateRetention(db, id, userId, null)).toBe(true);
+    expect(findUploadForOwner(db, id, userId)?.retentionUntil).toBeNull();
+  });
+
+  it("남의 문서는 바꾸지 못한다", () => {
+    const owner = makeUser();
+    const stranger = makeUser();
+    const { id } = saveUpload(db, uploadInput(owner));
+
+    expect(updateRetention(db, id, stranger, new Date("2030-01-01"))).toBe(false);
+    // 조용히 실패하는 것으로 끝나지 않는다. 원래 값이 그대로여야 한다.
+    expect(findUploadForOwner(db, id, owner)?.retentionUntil).toBeNull();
+  });
+
+  it("바꾼 사실을 기록에 남긴다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    updateRetention(db, id, userId, new Date("2030-01-01T00:00:00Z"));
+
+    const rows = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "upload.retention_changed"))
+      .all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.target).toBe(id);
+  });
+});
+
+describe("문서 전부 지우기", () => {
+  it("내 문서만 전부 지운다", () => {
+    const mine = makeUser();
+    const other = makeUser();
+    saveUpload(db, uploadInput(mine, { docHash: "a" }));
+    saveUpload(db, uploadInput(mine, { docHash: "b" }));
+    saveUpload(db, uploadInput(other, { docHash: "c" }));
+
+    expect(deleteAllUploads(db, mine)).toBe(2);
+    expect(listUploadsForOwner(db, mine)).toHaveLength(0);
+    // 남의 문서는 그대로다.
+    expect(listUploadsForOwner(db, other)).toHaveLength(1);
+  });
+
+  it("문장과 마스킹 요약도 함께 사라진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    expect(listUploadSpans(db, id).length).toBeGreaterThan(0);
+
+    deleteAllUploads(db, userId);
+
+    expect(listUploadSpans(db, id)).toHaveLength(0);
+    expect(listMaskCounts(db, id)).toHaveLength(0);
+  });
+
+  it("문서마다 기록을 하나씩 남긴다 — '전부 지웠다' 한 줄로 뭉치지 않는다", () => {
+    const userId = makeUser();
+    saveUpload(db, uploadInput(userId, { docHash: "a" }));
+    saveUpload(db, uploadInput(userId, { docHash: "b" }));
+
+    deleteAllUploads(db, userId);
+
+    const rows = db.select().from(auditLog).where(eq(auditLog.action, "upload.deleted")).all();
+    expect(rows).toHaveLength(2);
+  });
+
+  it("문서가 없으면 0을 준다", () => {
+    expect(deleteAllUploads(db, makeUser())).toBe(0);
+  });
+});
+
+describe("계정 지우기", () => {
+  it("계정과 함께 문서·문장·마스킹·세션이 전부 사라진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    createSession(db, userId, "token-hash", new Date("2999-01-01T00:00:00Z"));
+
+    expect(deleteAccount(db, userId)).toBe(true);
+
+    // 외래 키가 실제로 도는지 본다. 코드가 표를 하나씩 지우지 않기 때문이다.
+    expect(findUserById(db, userId)).toBeUndefined();
+    expect(db.select().from(upload).where(eq(upload.userId, userId)).all()).toHaveLength(0);
+    expect(db.select().from(uploadSpan).where(eq(uploadSpan.uploadId, id)).all()).toHaveLength(0);
+    expect(db.select().from(uploadMask).where(eq(uploadMask.uploadId, id)).all()).toHaveLength(0);
+    expect(db.select().from(session).where(eq(session.userId, userId)).all()).toHaveLength(0);
+  });
+
+  it("남의 계정과 문서는 건드리지 않는다", () => {
+    const gone = makeUser();
+    const stays = makeUser();
+    saveUpload(db, uploadInput(stays));
+
+    deleteAccount(db, gone);
+
+    expect(findUserById(db, stays)).toBeDefined();
+    expect(listUploadsForOwner(db, stays)).toHaveLength(1);
+  });
+
+  it("지운 사실은 남는다 — 기록에는 건수만 있고 내용은 없다", () => {
+    const userId = makeUser();
+    saveUpload(db, uploadInput(userId, { docHash: "a" }));
+    saveUpload(db, uploadInput(userId, { docHash: "b" }));
+
+    deleteAccount(db, userId);
+
+    const rows = db.select().from(auditLog).where(eq(auditLog.action, "account.deleted")).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.meta).toEqual({ uploads: 2 });
+    // 계정이 사라져도 기록은 남는다 — audit_log에는 외래 키를 걸지 않았다.
+    expect(rows[0]?.actor).toBe(userId);
+  });
+
+  it("없는 계정을 지우면 false", () => {
+    expect(deleteAccount(db, "없는-아이디")).toBe(false);
+  });
+
+  it("계정이 사라진 뒤에는 그 세션으로 아무것도 못 한다", () => {
+    const userId = makeUser();
+    createSession(db, userId, "live-token", new Date("2999-01-01T00:00:00Z"));
+    expect(findLiveSession(db, "live-token")).toBeDefined();
+
+    deleteAccount(db, userId);
+
+    expect(findLiveSession(db, "live-token")).toBeUndefined();
+  });
+});
+
+describe("내 자료 요약", () => {
+  it("문서·문장·가린 건수를 센다", () => {
+    const userId = makeUser();
+    saveUpload(db, uploadInput(userId, { docHash: "a" }));
+    saveUpload(db, uploadInput(userId, { docHash: "b" }));
+
+    // 문서마다 문장 2개, 가린 것 3건(name 2 + phone 1)이다.
+    expect(summarizeOwnerData(db, userId)).toEqual({ docs: 2, sentences: 4, masks: 6 });
+  });
+
+  it("남의 자료는 세지 않는다", () => {
+    const mine = makeUser();
+    const other = makeUser();
+    saveUpload(db, uploadInput(other));
+
+    expect(summarizeOwnerData(db, mine)).toEqual({ docs: 0, sentences: 0, masks: 0 });
+  });
+
+  it("문서가 없어도 null이 아니라 0을 준다", () => {
+    // `sum`은 행이 없으면 null을 준다. 화면에 "null건"이 나오면 안 된다.
+    const summary = summarizeOwnerData(db, makeUser());
+    expect(summary.masks).toBe(0);
+    expect(Number.isNaN(summary.masks)).toBe(false);
   });
 });

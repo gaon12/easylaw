@@ -95,5 +95,5 @@ function purgeExpiredUploads(db: AppDb, now: Date = new Date()): number {
   return deleteExpiredUploads(db, now);
 }
 
-export { ingestUpload, isRetentionChoice, purgeExpiredUploads, RETENTION_CHOICES };
+export { ingestUpload, isRetentionChoice, purgeExpiredUploads, RETENTION_CHOICES, retentionUntil };
 export type { IngestInput, IngestResult, RetentionChoice };

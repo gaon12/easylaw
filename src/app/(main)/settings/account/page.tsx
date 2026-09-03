@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SignInRequired } from "@/components/auth/sign-in-required";
 import { Card } from "@/components/ui/card";
 import { StructuredList } from "@/components/ui/structured-list";
-import { account, settings } from "@/lib/strings";
+import { account, data, settings } from "@/lib/strings";
 import { currentSession, displayName } from "@/server/owner";
 import { NicknameForm } from "./nickname-form";
 import styles from "./page.module.css";
@@ -49,6 +49,9 @@ export default async function AccountSettingsPage() {
       </Card>
 
       <nav className={styles.links}>
+        <Link className={styles.link} href="/settings/data">
+          {data.title}
+        </Link>
         <Link className={styles.link} href="/settings">
           {settings.title}
         </Link>

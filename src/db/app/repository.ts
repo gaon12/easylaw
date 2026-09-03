@@ -7,7 +7,7 @@
  * "조회한 다음 컴포넌트에서 주인을 비교"하는 방식은 언젠가 비교를 빠뜨린다.
  */
 
-import { and, desc, eq, gt, isNotNull, lte } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNotNull, lte, sum } from "drizzle-orm";
 import type { MaskKind } from "@/lib/text/mask";
 import type { AppDb } from "../client";
 import { auditLog, session, upload, uploadMask, uploadSpan, user } from "./schema";
@@ -293,6 +293,148 @@ function deleteUpload(db: AppDb, uploadId: string, userId: string): boolean {
 }
 
 /**
+ * 이 사람의 자료가 얼마나 되는지. `PAGES.md` §17
+ *
+ * **문서마다 세지 않는다.** 목록을 돌면서 문장 수를 물으면 문서 수만큼 조회가 붙는다
+ * (§10.2 N+1 금지). 집계 셋을 각각 한 번씩만 던진다.
+ *
+ * 세는 것은 **건수뿐이다** — 무엇을 가렸는지는 애초에 저장하지 않는다(`schema.ts`).
+ */
+function summarizeOwnerData(
+  db: AppDb,
+  userId: string,
+): {
+  docs: number;
+  sentences: number;
+  masks: number;
+} {
+  const mine = db.select({ id: upload.id }).from(upload).where(eq(upload.userId, userId));
+
+  const sentences = db
+    .select({ n: count() })
+    .from(uploadSpan)
+    .where(inArray(uploadSpan.uploadId, mine))
+    .get();
+
+  const masks = db
+    .select({ n: sum(uploadMask.count) })
+    .from(uploadMask)
+    .where(inArray(uploadMask.uploadId, mine))
+    .get();
+
+  const docs = db.select({ n: count() }).from(upload).where(eq(upload.userId, userId)).get();
+
+  return {
+    docs: docs?.n ?? 0,
+    sentences: sentences?.n ?? 0,
+    // `sum`은 행이 없으면 null을 준다. 문자열로 오는 드라이버가 있어 Number로 맞춘다.
+    masks: Number(masks?.n ?? 0),
+  };
+}
+
+/**
+ * 보관 기간을 바꾼다. `PAGES.md` §17
+ *
+ * 지금까지 보관 기간은 **올릴 때 한 번** 정하면 끝이었다. 7일로 올려 둔 사건이 길어지면
+ * 다시 올리는 수밖에 없었는데, 다시 올리면 같은 문서라도 `uploaded_at`이 새로 찍힌다.
+ *
+ * `null`은 "직접 지울 때까지"다. 기간을 **줄이는 것도 허용한다** — 사용자가 자기 문서를
+ * 더 빨리 지우겠다는 것을 막을 이유가 없다. 이미 지난 시각으로 줄이면 다음 조회 때
+ * `deleteExpiredUploads`가 가져간다.
+ */
+function updateRetention(
+  db: AppDb,
+  uploadId: string,
+  userId: string,
+  retentionUntil: Date | null,
+): boolean {
+  const result = db
+    .update(upload)
+    .set({ retentionUntil })
+    .where(and(eq(upload.id, uploadId), eq(upload.userId, userId)))
+    .run();
+
+  if (result.changes === 0) {
+    return false;
+  }
+
+  db.insert(auditLog)
+    .values({
+      id: newId(),
+      actor: userId,
+      action: "upload.retention_changed",
+      target: uploadId,
+      // 사실만 남긴다. 문서 내용은 넣지 않는다.
+      meta: { until: retentionUntil?.toISOString() ?? null },
+    })
+    .run();
+  return true;
+}
+
+/**
+ * 이 사람의 문서를 전부 지운다. `PAGES.md` §17
+ *
+ * 문서함에서 하나씩 지울 수 있지만, 스무 개를 지우려면 스무 번을 눌러야 했다.
+ * 자기 자료를 치우는 일이 귀찮아서 미뤄지면 그것도 보관 기간이 길어지는 것이다.
+ *
+ * **기록은 문서마다 하나씩 남긴다.** "전부 지웠다" 한 줄만 남기면 나중에 특정 문서가
+ * 언제 사라졌는지 답할 수 없다.
+ */
+function deleteAllUploads(db: AppDb, userId: string): number {
+  return db.transaction((tx) => {
+    const mine = tx.select({ id: upload.id }).from(upload).where(eq(upload.userId, userId)).all();
+
+    for (const row of mine) {
+      tx.delete(upload).where(eq(upload.id, row.id)).run();
+      tx.insert(auditLog)
+        .values({ id: newId(), actor: userId, action: "upload.deleted", target: row.id })
+        .run();
+    }
+
+    return mine.length;
+  });
+}
+
+/**
+ * 계정을 지운다. `PAGES.md` §17
+ *
+ * 처리방침이 "계정 전체를 지우는 기능은 아직 준비 중"이라고 적어 두었던 자리다.
+ * 자기 자료를 거두어 갈 방법이 없는 서비스는 그 자료를 맡길 이유도 없다.
+ *
+ * **문서·문장·마스킹 요약·세션은 외래 키 `on delete cascade`가 함께 가져간다**(`schema.ts`).
+ * 여기서 지우는 것은 `user` 한 행이고, 나머지는 DB가 보증한다 — 지울 표를 코드가 하나씩
+ * 세면 표가 늘어날 때 빠뜨린다.
+ *
+ * 남기는 것은 감사 기록뿐이다. `audit_log`는 일부러 외래 키를 걸지 않았고(`schema.ts`),
+ * 거기 들어가는 것은 식별자와 건수이지 내용이 아니다.
+ */
+function deleteAccount(db: AppDb, userId: string): boolean {
+  return db.transaction((tx) => {
+    const uploads = tx
+      .select({ id: upload.id })
+      .from(upload)
+      .where(eq(upload.userId, userId))
+      .all();
+
+    const result = tx.delete(user).where(eq(user.id, userId)).run();
+    if (result.changes === 0) {
+      return false;
+    }
+
+    tx.insert(auditLog)
+      .values({
+        id: newId(),
+        actor: userId,
+        action: "account.deleted",
+        target: userId,
+        meta: { uploads: uploads.length },
+      })
+      .run();
+    return true;
+  });
+}
+
+/**
  * 보관 기간이 지난 문서를 지운다.
  *
  * 사용자가 고른 기간은 약속이다. 지나도 남아 있으면 약속을 어긴 것이므로, 이 함수는
@@ -324,6 +466,8 @@ function deleteExpiredUploads(db: AppDb, now: Date = new Date()): number {
 
 export {
   createSession,
+  deleteAccount,
+  deleteAllUploads,
   deleteExpiredSessions,
   deleteExpiredUploads,
   deleteSession,
@@ -339,8 +483,10 @@ export {
   listUploadSpans,
   listUploadsForOwner,
   saveUpload,
+  summarizeOwnerData,
   touchSession,
   touchUser,
   updateNickname,
+  updateRetention,
 };
 export type { SaveResult, SpanInput, UploadInput, UserRole };
