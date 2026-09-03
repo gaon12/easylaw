@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { hasAdmin } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import type { AuthProblem } from "./auth";
-import { signUp } from "./auth";
+import { signIn, signUp } from "./auth";
 import { currentSession } from "./owner";
 import { isSetupComplete, markSetupComplete, type SettingKey, writeSettings } from "./settings";
 
@@ -37,6 +37,31 @@ async function createAdmin(_previous: SetupState, formData: FormData): Promise<S
 
   const email = field(formData, "email");
   const result = await signUp(email, field(formData, "password"), "admin");
+  if (!result.ok) {
+    return { problem: result.problem, email };
+  }
+
+  redirect("/setup/service");
+}
+
+/**
+ * 2단계 — 이미 있는 관리자로 다시 들어오기.
+ *
+ * **설치를 하다 만 경우가 흔하다.** 관리자를 만들고 창을 닫았거나, 쿠키가 지워졌거나,
+ * 다른 브라우저로 열었거나. 그때 마법사가 "관리자가 이미 있다"며 다음 단계로 보내면
+ * 3단계는 관리자 세션이 없다고 1단계로 되돌리고, 거기서 무한히 돈다.
+ * 설치가 끝나기 전에는 `/login`도 `/setup`으로 돌아가므로 **빠져나갈 길이 없다.**
+ *
+ * 그래서 마법사 안에 로그인을 둔다. 만드는 것과 들어오는 것은 다른 일이고,
+ * 둘 중 하나는 언제나 가능해야 한다.
+ */
+async function signInAdmin(_previous: SetupState, formData: FormData): Promise<SetupState> {
+  if (isSetupComplete(appDb())) {
+    return { problem: "already_done" };
+  }
+
+  const email = field(formData, "email");
+  const result = await signIn(email, field(formData, "password"));
   if (!result.ok) {
     return { problem: result.problem, email };
   }
@@ -139,5 +164,5 @@ async function saveSettings(formData: FormData): Promise<void> {
   redirect("/admin?saved=1");
 }
 
-export { createAdmin, finishSetup, saveConnections, saveService, saveSettings };
+export { createAdmin, finishSetup, saveConnections, saveService, saveSettings, signInAdmin };
 export type { SetupState };

@@ -20,8 +20,9 @@ import { StepRail } from "../step-rail";
 export default async function ConnectionsPage() {
   const session = await currentSession();
   if (session?.role !== "admin") {
-    // 관리자 계정을 만들기 전에 들어온 경우. 처음부터 다시 시작한다.
-    redirect("/setup");
+    // 1단계가 아니라 2단계로 보낸다. 거기에 계정을 만드는 폼과 로그인 폼이 있다 —
+    // 1단계로 보내면 "다음"을 누를 때마다 여기로 와서 다시 튕기는 고리가 된다.
+    redirect("/setup/account");
   }
 
   return (

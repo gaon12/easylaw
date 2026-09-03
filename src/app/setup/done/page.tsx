@@ -33,7 +33,9 @@ const SHOWN = [
 export default async function SetupDonePage() {
   const session = await currentSession();
   if (session?.role !== "admin") {
-    redirect("/setup");
+    // 1단계가 아니라 2단계로 보낸다. 거기에 로그인 폼이 있다 — 1단계로 보내면
+    // "다음"을 누를 때마다 여기로 와서 다시 튕기는 고리가 된다.
+    redirect("/setup/account");
   }
 
   const settings = listSettings(appDb());
