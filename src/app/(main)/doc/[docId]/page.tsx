@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Infobox } from "@/components/ui/infobox";
 import { OriginalPanel } from "@/components/viewer/original-panel";
+import { TableOfContents } from "@/components/wiki/toc";
 import { findUploadForOwner, listMaskCounts, listUploadSpans } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
 import { doc, upload, viewer } from "@/lib/strings";
+import { detectHeadings } from "@/lib/text/headings";
+import { findCitations } from "@/server/citations";
 import { currentOwnerId } from "@/server/owner";
 import { siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
@@ -55,6 +58,15 @@ export default async function DocPage(props: {
 
   const spans = listUploadSpans(db, docId);
   const masks = listMaskCounts(db, docId);
+
+  /*
+   * **올린 문서도 공개 판례와 같은 뷰어를 받는다.** 오히려 이쪽이 더 필요하다 —
+   * 자기 사건 판결문을 읽는 사람이 「민사소송법 제420조」가 무슨 말인지 가장 알고 싶다.
+   *
+   * 인용 찾기를 여기서 한 번에 한다. 문장마다 하면 사전 조회가 문장 수만큼 붙는다(§10.2).
+   */
+  const citations = new Map(spans.map((span) => [span.id, findCitations(span.text)]));
+  const headings = detectHeadings(spans);
   const timeZone = siteTimeZone();
   const isAgain = searchParams.again !== undefined;
 
@@ -95,7 +107,23 @@ export default async function DocPage(props: {
 
       <section className={styles.panel}>
         <h2 className={styles.sectionTitle}>{viewer.originalPanel}</h2>
-        <OriginalPanel spans={spans} />
+        {/* 표제가 둘 이상일 때만 목차를 낸다 — 하나뿐이면 목차가 아니라 소음이다. */}
+        {headings.length > 1 ? (
+          <TableOfContents
+            entries={headings.map((heading) => ({
+              id: heading.id,
+              label: heading.label,
+              depth: 1 as const,
+            }))}
+            label={viewer.originalToc}
+          />
+        ) : null}
+        {/*
+          `decidedAt`을 주지 않는다. **올린 문서에는 선고일이 없다** — 법령 링크는 날짜 없이
+          가고, 법령 화면이 "선고일을 알 수 없어 오늘 시행 중인 법을 보여 준다"고 말한다.
+          모르는 날짜를 지어내 "판결 당시의 법"이라고 하는 것보다 낫다.
+        */}
+        <OriginalPanel citations={citations} spans={spans} />
       </section>
 
       <Card as="section" className={styles.danger} padding="tight">
