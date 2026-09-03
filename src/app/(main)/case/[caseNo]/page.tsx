@@ -1,17 +1,25 @@
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { LevelTabs } from "@/components/viewer/level-tabs";
-import { toLevel } from "@/components/viewer/levels";
+import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
+import { RenditionPanel } from "@/components/viewer/rendition-panel";
 import { SummaryCard } from "@/components/viewer/summary-card";
 import { corpusDb } from "@/db/client";
-import { findJudgmentByCaseNo, listSpans } from "@/db/corpus/repository";
+import {
+  findJudgmentByCaseNo,
+  findRendition,
+  listSentences,
+  listSpans,
+} from "@/db/corpus/repository";
 import { viewer } from "@/lib/strings";
 import { findCitations } from "@/server/citations";
+import { PIPELINE_VERSION } from "@/server/generate";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import { llmConfig, siteTimeZone } from "@/server/settings";
+import { requestGeneration } from "./actions";
 import styles from "./page.module.css";
 
 /**
@@ -21,8 +29,9 @@ import styles from "./page.module.css";
  * 안내 상자 하나로 끝내지 않고 자리를 갖춘 빈 상태로 그린다. 옆 칸에는 원문이 있으니
  * "아무것도 없는 화면"은 아니라는 것도 함께 보여야 한다.
  */
-function RenditionPlaceholder() {
+function RenditionPlaceholder({ caseNo, level }: { caseNo: string; level: string }) {
   const ready = llmConfig() !== undefined;
+
   return (
     <div className={styles.empty}>
       <PaperFigure mood="empty" />
@@ -30,7 +39,85 @@ function RenditionPlaceholder() {
         {ready ? viewer.generateHint : viewer.generatorOffTitle}
       </h3>
       <p className={styles.emptyBody}>{ready ? viewer.generateBody : viewer.generatorOffBody}</p>
+
+      {ready ? (
+        /*
+          자바스크립트 없이 동작한다. 누르면 서버가 만들고 화면을 다시 그린다 —
+          수십 초가 걸리므로 진행 표시(SSE, §5.3)를 붙이는 것이 다음 일이다.
+        */
+        <form action={requestGeneration}>
+          <input name="caseNo" type="hidden" value={caseNo} />
+          <input name="level" type="hidden" value={level} />
+          <Button size="l" type="submit">
+            {viewer.generateCta}
+          </Button>
+          <p className={styles.emptyBody}>{viewer.generateWait}</p>
+        </form>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * 화면 하나에 필요한 것을 한 번에 읽는다.
+ *
+ * 인용 찾기를 **여기서 한 번에** 한다. 문장마다 컴포넌트 안에서 찾으면 사전 조회가
+ * 문장 수만큼 붙는다(§10.2 N+1 금지).
+ */
+function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
+  const db = corpusDb();
+  const row = findJudgmentByCaseNo(db, caseNoCanonical);
+  const spans = row === undefined ? [] : listSpans(db, row.id);
+
+  /*
+   * 이 레벨의 설명이 이미 있으면 읽는다. 없으면 빈 배열이고 화면이 "설명 만들기"를 낸다.
+   * `PIPELINE_VERSION`으로 찾는 이유는, 프롬프트를 고친 뒤 옛 설명을 보여 주지 않기
+   * 위해서다(§6.4) — 옛 설명은 지우지 않고 남겨 두되 기본으로 꺼내지 않는다.
+   */
+  const rendition =
+    row === undefined || level === "L0"
+      ? undefined
+      : findRendition(db, row.id, level, PIPELINE_VERSION);
+
+  return {
+    row,
+    spans,
+    citations: new Map(spans.map((span) => [span.id, findCitations(span.text)])),
+    sentences: rendition === undefined ? [] : listSentences(db, rendition.id),
+  };
+}
+
+/** 설명 칸. 만들어진 것이 있으면 그것을, 없으면 만들기 버튼을 그린다. */
+function RenditionSection({
+  caseNo,
+  level,
+  sentences,
+}: {
+  caseNo: string;
+  level: Exclude<ViewLevel, "L0">;
+  sentences: readonly {
+    id: string;
+    role: "heading" | "body";
+    text: string;
+    confidence: "grounded" | "needs_check" | "ungrounded";
+    checkReason: string | null;
+  }[];
+}) {
+  return (
+    <section className={styles.panel}>
+      <h2 className={styles.panelTitle}>{viewer.renditionPanel}</h2>
+      {sentences.length > 0 ? (
+        <RenditionPanel
+          level={level}
+          needsCheckCount={
+            sentences.filter((sentence) => sentence.confidence === "needs_check").length
+          }
+          sentences={sentences}
+        />
+      ) : (
+        <RenditionPlaceholder caseNo={caseNo} level={level} />
+      )}
+    </section>
   );
 }
 
@@ -74,16 +161,7 @@ export default async function CasePage(props: {
 
   const { summary } = result;
   const textResult = await ensureJudgmentText(summary.caseNoCanonical);
-
-  const db = corpusDb();
-  const row = findJudgmentByCaseNo(db, summary.caseNoCanonical);
-  const spans = row === undefined ? [] : listSpans(db, row.id);
-
-  /*
-   * 인용 찾기를 **여기서 한 번에** 한다. 문장마다 컴포넌트 안에서 찾으면 사전 조회가
-   * 문장 수만큼 붙는다. 결과는 span id로 묶어 넘긴다.
-   */
-  const citations = new Map(spans.map((span) => [span.id, findCitations(span.text)]));
+  const { row, spans, citations, sentences } = loadJudgment(summary.caseNoCanonical, level);
 
   return (
     <div className={styles.page}>
@@ -106,10 +184,7 @@ export default async function CasePage(props: {
 
       <div className={styles.panels}>
         {level === "L0" ? null : (
-          <section className={styles.panel}>
-            <h2 className={styles.panelTitle}>{viewer.renditionPanel}</h2>
-            <RenditionPlaceholder />
-          </section>
+          <RenditionSection caseNo={summary.caseNoCanonical} level={level} sentences={sentences} />
         )}
 
         <section className={styles.panel}>

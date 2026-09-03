@@ -840,6 +840,17 @@ export const viewer = {
   sourceLinkLabel: "국가법령정보센터에서 원문 보기",
   notAvailableTitle: "이 사건의 판결문을 아직 볼 수 없어요",
   notAvailableBody: "공개된 판결문이 없거나 지금은 가져올 수 없어요.",
+  /**
+   * 생성된 설명 화면.
+   *
+   * **원본이 아니라는 고지를 본문 위에 둔다**(P1). 아래에 두면 다 읽은 뒤에야 보인다.
+   */
+  notOriginal:
+    "이 설명은 AI가 만든 것이고 원본 판결서가 아니에요. 법적 효력이 있는 것은 법원이 보낸 원본이에요.",
+  needsCheckSummary: (count: number) =>
+    `${count}개 문장은 원문만으로 확인하기 어려웠어요. 그 문장에 표시해 두었어요.`,
+  generateWait: "수십 초 걸려요.",
+
   generatorOffTitle: "설명 만들기가 아직 준비되지 않았어요",
   generatorOffBody: "지금은 원문만 보여 드릴 수 있어요. 설명 만들기는 곧 열어 드릴게요.",
   /** 결과 배지 옆 라벨. 색이 아니라 글자가 의미를 전한다(`DESIGN.md` §10). */

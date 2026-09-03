@@ -1,0 +1,38 @@
+/* 생성된 설명. 신뢰도는 문장 옆에 붙는다(`DESIGN.md` §3.4). */
+
+.notice {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  padding: var(--el-space-3) var(--el-space-4);
+  background: var(--el-bg-subtle);
+  border-radius: var(--el-radius-s);
+}
+
+.summary {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.heading {
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+  margin-top: var(--el-space-4);
+}
+
+.sentence {
+  line-height: inherit;
+}
+
+/* 배지를 문장 끝에 붙인다. 줄을 새로 잡아먹지 않게 인라인으로 둔다. */
+.mark {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--el-space-2);
+  margin-left: var(--el-space-2);
+}
+
+.reason {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
