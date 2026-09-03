@@ -30,6 +30,8 @@ interface LawSummary {
   readonly ministry: string | undefined;
   readonly promulgatedAt: Date | undefined;
   readonly effectiveAt: Date | undefined;
+  /** `현행`인가 `연혁`인가. 법제처가 주는 구분을 그대로 둔다. */
+  readonly historyCode: string | undefined;
 }
 
 const summarySchema = z
@@ -42,6 +44,7 @@ const summarySchema = z
     소관부처명: looseValue,
     공포일자: looseValue,
     시행일자: looseValue,
+    현행연혁코드: looseValue,
   })
   .loose();
 
@@ -56,6 +59,7 @@ function toSummary(raw: unknown): LawSummary {
     ministry: optionalText(parsed.소관부처명),
     promulgatedAt: parseApiDate(parsed.공포일자),
     effectiveAt: parseApiDate(parsed.시행일자),
+    historyCode: optionalText(parsed.현행연혁코드),
   };
 }
 
@@ -73,6 +77,14 @@ interface LawClause {
 interface LawArticle {
   /** 조 번호. `"3"`처럼 숫자 문자열이다. */
   readonly number: string;
+  /**
+   * 가지 번호. `제4조의2`의 `2`다. 없으면 undefined.
+   *
+   * **조 번호만으로는 조문이 유일하지 않다.** 도로교통법 2019년 판 209개 조문 중 29건이
+   * 조 번호가 겹쳤고, 가지 번호를 봐야 갈렸다. 이것을 빠뜨리면 `제4조`를 찾을 때
+   * `제4조의2`가 나올 수 있다 — 조문 실존 검증([F-30])에서 가장 나쁜 종류의 오답이다.
+   */
+  readonly branchNumber: string | undefined;
   readonly title: string | undefined;
   /** 조문 본문. 항이 있으면 대개 조 제목 줄만 들어 있다. */
   readonly text: string | undefined;
@@ -95,6 +107,7 @@ const clauseSchema = z.object({ 항번호: looseValue, 항내용: looseValue }).
 const articleSchema = z
   .object({
     조문번호: looseValue,
+    조문가지번호: looseValue,
     조문제목: looseValue,
     조문내용: looseValue,
     조문시행일자: looseValue,
@@ -143,10 +156,17 @@ function toClause(raw: unknown): LawClause {
   };
 }
 
+/** 가지 번호는 없을 때 `""`로도 `"0"`으로도 온다. 둘 다 "없음"이다. */
+function branchNumber(raw: unknown): string | undefined {
+  const text = optionalText(raw);
+  return text === undefined || text === "0" ? undefined : text;
+}
+
 function toArticle(raw: unknown): LawArticle {
   const parsed = articleSchema.parse(raw);
   return {
     number: String(parsed.조문번호 ?? "").trim(),
+    branchNumber: branchNumber(parsed.조문가지번호),
     title: optionalText(parsed.조문제목),
     text: optionalText(parsed.조문내용 && htmlToPlainText(String(parsed.조문내용))),
     clauses: asArray(parsed.항).map(toClause),
@@ -194,9 +214,35 @@ function circledToNumber(text: string): string | undefined {
   return String(code - CIRCLED_ONE + 1);
 }
 
-function findArticle(detail: LawDetail, articleNo: string | number): LawArticle | undefined {
-  const wanted = String(articleNo).trim();
-  return detail.articles.find((article) => article.number === wanted);
+/**
+ * 조문을 찾는다. **가지 번호까지 맞춰야 한다.**
+ *
+ * `제4조`를 찾을 때 `제4조의2`가 나오면 안 되므로, 가지 번호를 주지 않으면
+ * 가지 번호가 **없는** 조문만 찾는다. 느슨하게 맞추면 조용히 틀린 조문을 돌려준다.
+ */
+function findArticle(
+  detail: LawDetail,
+  articleNo: string | number,
+  branchNo?: string | number,
+): LawArticle | undefined {
+  const wantedNumber = String(articleNo).trim();
+  const wantedBranch = branchNo === undefined ? undefined : String(branchNo).trim();
+  return detail.articles.find(
+    (article) => article.number === wantedNumber && article.branchNumber === wantedBranch,
+  );
+}
+
+/** `제4조의2` · `제3조` 같은 표기를 조 번호와 가지 번호로 나눈다. 판결문이 쓰는 형태다. */
+const ARTICLE_REF = /제\s*(\d+)\s*조(?:\s*의\s*(\d+))?/u;
+
+function parseArticleRef(text: string): { number: string; branchNumber?: string } | undefined {
+  const matched = ARTICLE_REF.exec(text);
+  const number = matched?.[1];
+  if (number === undefined) {
+    return;
+  }
+  const branch = matched?.[2];
+  return branch === undefined ? { number } : { number, branchNumber: branch };
 }
 
 function findClause(article: LawArticle, clauseNo: string | number): LawClause | undefined {
@@ -213,6 +259,7 @@ export {
   circledToNumber,
   findArticle,
   findClause,
+  parseArticleRef,
   parseLawDetailResponse,
   toSummary as parseLawSummary,
 };

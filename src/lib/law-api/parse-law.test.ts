@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseListPage } from "./envelope";
 import lawDetail from "./fixtures/law-detail.json" with { type: "json" };
+import lawDetail2019 from "./fixtures/law-detail-2019.json" with { type: "json" };
 import lawSearch from "./fixtures/law-search.json" with { type: "json" };
 import {
   circledToNumber,
   findArticle,
   findClause,
+  parseArticleRef,
   parseLawDetailResponse,
   parseLawSummary,
 } from "./parse-law";
@@ -97,5 +99,44 @@ describe("circledToNumber", () => {
     expect(circledToNumber("1")).toBeUndefined();
     expect(circledToNumber("가")).toBeUndefined();
     expect(circledToNumber("")).toBeUndefined();
+  });
+});
+
+describe("가지 번호 (제4조의2)", () => {
+  /** 2019-04-17 시행 도로교통법. 제4조와 제4조의2가 함께 있는 앞부분만 남겼다. */
+  const detail = parseLawDetailResponse(lawDetail2019);
+
+  it("조 번호가 같아도 가지 번호로 갈린다", () => {
+    const plain = findArticle(detail, 4);
+    const branch = findArticle(detail, 4, 2);
+
+    expect(plain?.branchNumber).toBeUndefined();
+    expect(branch?.branchNumber).toBe("2");
+    expect(plain?.title).not.toBe(branch?.title);
+  });
+
+  it("제4조를 찾을 때 제4조의2가 나오지 않는다", () => {
+    // 느슨하게 맞추면 조용히 틀린 조문을 돌려준다. [F-30]에서 가장 나쁜 오답이다.
+    expect(findArticle(detail, 4)?.title).toContain("교통안전시설의 종류");
+    expect(findArticle(detail, 4, 2)?.title).toContain("무인 교통단속용 장비");
+  });
+
+  it("없는 가지 번호는 undefined다", () => {
+    expect(findArticle(detail, 4, 9)).toBeUndefined();
+  });
+});
+
+describe("parseArticleRef", () => {
+  it("판결문이 쓰는 표기를 조·가지로 나눈다", () => {
+    expect(parseArticleRef("제3조")).toEqual({ number: "3" });
+    expect(parseArticleRef("제4조의2")).toEqual({ number: "4", branchNumber: "2" });
+    expect(parseArticleRef("도로교통법 제 44 조 의 2 를 위반하여")).toEqual({
+      number: "44",
+      branchNumber: "2",
+    });
+  });
+
+  it("조문 표기가 없으면 undefined다", () => {
+    expect(parseArticleRef("도로교통법에 따라")).toBeUndefined();
   });
 });
