@@ -5,6 +5,7 @@ import type { TocEntry } from "@/components/ui/types";
 import { WikiSection } from "@/components/wiki/section";
 import { TableOfContents } from "@/components/wiki/toc";
 import { formatDate } from "@/lib/format";
+import { asOfNote, readAsOf } from "@/lib/law-citation/as-of";
 import { law as strings } from "@/lib/strings";
 import { type ArticleText, lawAsOf } from "@/server/law";
 import { siteTimeZone } from "@/server/settings";
@@ -83,13 +84,17 @@ export default async function LawPage(props: {
 }) {
   const [params, query] = await Promise.all([props.params, props.searchParams]);
   const name = decodeURIComponent(params.name);
-  const at = query.때 === undefined ? new Date() : new Date(query.때);
+  /*
+   * 날짜를 받았는가. **받았을 때만 "판결 당시의 법"이라고 말할 수 있다** —
+   * 못 받았으면 오늘 기준이고, 그것을 판결 당시라고 하면 거짓말이 된다.
+   */
+  const { at, dated } = readAsOf(query.때, new Date());
   /*
    * **`id`가 있으면 그것으로 찾는다.** 법은 개정되면서 이름이 바뀌므로, 인용에서 온
    * 링크는 언제나 `법령ID`를 달고 온다. 이름은 사람이 직접 주소를 칠 때만 쓰인다.
    */
   const key = query.id === undefined ? { name } : { lawId: query.id };
-  const found = await lawAsOf(key, Number.isNaN(at.getTime()) ? new Date() : at);
+  const found = await lawAsOf(key, at);
 
   if (found.kind !== "ok") {
     return (
@@ -126,7 +131,7 @@ export default async function LawPage(props: {
             ]}
           />
         </Card>
-        <p className={styles.note}>{strings.asOfNote}</p>
+        <p className={styles.note}>{asOfNote(query.때, dated)}</p>
       </header>
 
       <div className={styles.layout}>
