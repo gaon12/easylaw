@@ -12,6 +12,7 @@ function fakeLawApi(overrides: Partial<LawApi>): LawApi {
   const notUsed = () => Promise.reject(new Error("연결 시험은 이 함수를 쓰지 않습니다."));
   return {
     searchByCaseNumber: () => Promise.resolve([]),
+    searchByKeyword: notUsed,
     fetchDetail: () => Promise.resolve(undefined),
     searchLaws: notUsed,
     fetchLaw: notUsed,

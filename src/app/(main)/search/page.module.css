@@ -80,3 +80,38 @@
     padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
   }
 }
+
+/* ── 결과 묶음 ─────────────────────────────────────────── */
+
+.group {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.groupTitle {
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+}
+
+.hits {
+  display: grid;
+  /* 결과가 많으면 화면 폭을 쓴다. 좁아지면 저절로 한 줄이 된다. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--el-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hitLink {
+  color: var(--el-fg-1);
+  font-weight: 700;
+  display: block;
+  min-height: var(--el-touch-target);
+}
+
+.hitMeta {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  line-height: var(--el-leading-body);
+}

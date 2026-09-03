@@ -5,7 +5,7 @@
  * 테이블을 직접 만지지 않아야 `corpus`/`app` 양쪽에 같은 파이프라인을 쓸 수 있다.
  */
 
-import { and, asc, desc, eq, inArray, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, lt, lte, or, sql } from "drizzle-orm";
 import type { CorpusDb } from "../client";
 import {
   generationJob,
@@ -668,6 +668,52 @@ function listLawArticles(db: CorpusDb, lawVersionId: string, at?: Date) {
   return rows.filter((row) => row.effectiveAt === null || row.effectiveAt <= at);
 }
 
+/** 검색 한 번에 보여 줄 법령 수. 더 필요하면 사용자가 좁혀서 다시 찾는다. */
+const LAW_SEARCH_LIMIT = 20;
+
+/**
+ * 이름으로 법령을 찾는다. **법제처를 부르지 않는다.**
+ *
+ * 판 목록을 미리 받아 뒀으므로(§6.5) 이름 검색은 우리 DB에서 끝난다. 왕복이 없으니
+ * 결과가 즉시 나오고, 법제처 키가 없어도 동작한다.
+ *
+ * **법 하나에 판이 여럿이므로 `lawId`로 묶고 가장 최근 시행판만 낸다.** 안 그러면
+ * "도로교통법"을 찾았을 때 같은 이름이 132번 나온다.
+ */
+function searchLawVersions(db: CorpusDb, query: string, limit = LAW_SEARCH_LIMIT) {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    return [];
+  }
+
+  const pattern = `%${trimmed}%`;
+  const rows = db
+    .select()
+    .from(lawVersion)
+    .where(or(like(lawVersion.name, pattern), like(lawVersion.shortName, pattern)))
+    /*
+     * 현행을 먼저, 그다음 시행일 역순. 이름만 맞으면 폐지된 옛 법령이 먼저 나올 수 있는데,
+     * 찾는 사람이 원하는 것은 대개 지금 살아 있는 법이다.
+     */
+    .orderBy(desc(lawVersion.effectiveAt))
+    .limit(limit * MATCHES_PER_LAW)
+    .all();
+
+  const byLaw = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    if (!byLaw.has(row.lawId)) {
+      byLaw.set(row.lawId, row);
+    }
+  }
+  return [...byLaw.values()].slice(0, limit);
+}
+
+/**
+ * 한 법에 판이 여럿이라 넉넉히 읽고 묶는다. 도로교통법만 132판이므로 이 배수가 작으면
+ * 서로 다른 법이 몇 개 안 나온다.
+ */
+const MATCHES_PER_LAW = 40;
+
 interface LawNameEntry {
   readonly lawId: string;
   readonly name: string;
@@ -736,6 +782,7 @@ export {
   saveLawArticles,
   saveRendition,
   saveStructure,
+  searchLawVersions,
   STALE_AFTER_MS,
   upsertJudgment,
   upsertLawVersions,

@@ -38,6 +38,13 @@ import { TARGETS } from "./targets";
 interface LawApi {
   /** 사건번호로 판례를 찾는다. 없으면 빈 배열 — 이것이 예외가 아니라 흔한 결과다(§5.4). */
   searchByCaseNumber(caseNo: string, signal?: AbortSignal): Promise<PrecedentSummary[]>;
+  /**
+   * 내용으로 판례를 찾는다. 사건번호를 모르는 사람이 훨씬 많다(§5.2).
+   *
+   * 사건번호 검색과 파라미터가 다르다 — `nb=`가 아니라 `query=`다. 같은 함수에 섞으면
+   * 어느 쪽으로 찾았는지가 흐려지고, 결과가 0건일 때 원인을 짚을 수 없다.
+   */
+  searchByKeyword(query: string, signal?: AbortSignal): Promise<PrecedentSummary[]>;
   /** 판례일련번호로 본문을 가져온다. */
   fetchDetail(precedentId: string, signal?: AbortSignal): Promise<PrecedentDetail | undefined>;
 
@@ -62,6 +69,9 @@ interface LawApi {
 const SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do";
 const SERVICE_URL = "https://www.law.go.kr/DRF/lawService.do";
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/** 내용 검색 한 번에 받을 판례 수. 화면 한 장에 담길 만큼만 받는다. */
+const PRECEDENT_LIMIT = 20;
 
 class LawApiError extends Error {
   readonly status: number | undefined;
@@ -147,7 +157,9 @@ function serviceUrl(oc: string, target: string, keyName: string, keyValue: strin
 }
 
 /** 판례 — 사건번호 조회의 주 경로(§5.1). */
-function precedentMethods(oc: string): Pick<LawApi, "searchByCaseNumber" | "fetchDetail"> {
+function precedentMethods(
+  oc: string,
+): Pick<LawApi, "searchByCaseNumber" | "searchByKeyword" | "fetchDetail"> {
   return {
     async searchByCaseNumber(caseNo, signal) {
       const url = new URL(SEARCH_URL);
@@ -164,6 +176,16 @@ function precedentMethods(oc: string): Pick<LawApi, "searchByCaseNumber" | "fetc
          * zod가 만든 이슈 배열을 그대로 올리면 화면에 JSON 덩어리가 뜬다 — 사용자가 할 수
          * 있는 일이 아무것도 없는 메시지다.
          */
+        throw new LawApiError("법제처 응답의 형태가 예상과 다릅니다.");
+      }
+    },
+
+    async searchByKeyword(query, signal) {
+      const url = searchUrl(oc, TARGETS.prec.target, { query, display: String(PRECEDENT_LIMIT) });
+      const payload = await requestJson(url, signal);
+      try {
+        return parseSearchResponse(payload);
+      } catch {
         throw new LawApiError("법제처 응답의 형태가 예상과 다릅니다.");
       }
     },

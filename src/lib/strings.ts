@@ -769,6 +769,19 @@ export const search = {
   apiUnavailableBody:
     "판례 조회 기능이 아직 연결되지 않았어요. 받으신 판결문을 올리면 바로 쉽게 바꿔 드릴게요.",
   apiErrorTitle: "판례를 가져오지 못했어요",
+
+  /**
+   * 통합 검색 결과.
+   *
+   * 법령 칸은 **법제처 연결이 없어도 채워진다** — 판 목록을 미리 받아 뒀기 때문이다(§6.5).
+   * 그래서 "지금은 찾아볼 수 없어요"를 판례에만 말하고 법령은 그대로 보여 준다.
+   */
+  lawsTitle: (count: number) => `법령 ${count}건`,
+  precedentsTitle: (count: number) => `판례 ${count}건`,
+  effectiveAt: (date: string) => `${date} 시행`,
+  lawsOnlyBody:
+    "판례 조회가 아직 연결되지 않아 법령만 찾았어요. 받으신 판결문을 올리시면 바로 쉽게 바꿔 드려요.",
+  nothingTitle: "찾으시는 것을 못 찾았어요",
 } as const;
 
 /**
