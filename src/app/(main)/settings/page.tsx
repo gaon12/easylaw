@@ -1,4 +1,5 @@
-import { settings } from "@/lib/strings";
+import Link from "next/link";
+import { account, settings } from "@/lib/strings";
 import styles from "./page.module.css";
 import { SettingsForm } from "./settings-form";
 
@@ -36,6 +37,16 @@ export default function SettingsPage() {
           <p className={styles.previewNote}>{settings.previewNote}</p>
         </aside>
       </div>
+
+      {/*
+        계정 설정은 서버에 저장되므로 이 화면과 성격이 다르다. 섞지 않고 길만 낸다 —
+        이 화면은 "이 브라우저에만 저장돼요"라고 말하고 있다.
+      */}
+      <nav className={styles.links}>
+        <Link className={styles.link} href="/settings/account">
+          {account.title}
+        </Link>
+      </nav>
 
       <section className={styles.later}>
         <h2 className={styles.laterTitle}>{settings.laterTitle}</h2>

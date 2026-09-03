@@ -37,7 +37,7 @@ async function AccountNav() {
 
   return (
     <>
-      <Link className={styles.accountLink} href="/settings">
+      <Link className={styles.accountLink} href="/settings/account">
         {/*
           아바타는 우리 서버가 그린다(`/avatar/[seed]`). 외부 API를 쓰지 않는 이유는
           그 라우트 주석에 적었다. 장식이라 스크린리더에는 숨기고, 이름이 그 역할을 한다.

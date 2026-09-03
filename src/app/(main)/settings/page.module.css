@@ -235,3 +235,18 @@
     padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
   }
 }
+
+/* 계정 설정으로 가는 길. 이 화면의 설정과 섞이지 않게 따로 둔다. */
+.links {
+  display: flex;
+  gap: var(--el-space-4);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.link {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+  min-height: var(--el-touch-target);
+  display: inline-flex;
+  align-items: center;
+}

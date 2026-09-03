@@ -112,6 +112,35 @@ function createSession(db: AppDb, userId: string, tokenHash: string, expiresAt: 
   return id;
 }
 
+/**
+ * 닉네임을 바꾼다.
+ *
+ * 감사 로그를 함께 남긴다 — 화면에 보이는 이름이 바뀌는 일이라, 나중에 "누가 언제
+ * 바꿨나"를 물을 수 있어야 한다. 옛 이름을 함께 적어 두면 되짚을 수 있다.
+ *
+ * 유일성을 보지 않는 이유는 `credentials.ts`에 적었다 — 이것은 호칭이지 식별자가 아니다.
+ */
+function updateNickname(db: AppDb, userId: string, nickname: string): void {
+  db.transaction((tx) => {
+    const before = tx
+      .select({ nickname: user.nickname })
+      .from(user)
+      .where(eq(user.id, userId))
+      .get();
+
+    tx.update(user).set({ nickname }).where(eq(user.id, userId)).run();
+    tx.insert(auditLog)
+      .values({
+        id: newId(),
+        actor: userId,
+        action: "user.nickname_changed",
+        target: userId,
+        meta: { from: before?.nickname ?? null, to: nickname },
+      })
+      .run();
+  });
+}
+
 /** 살아 있는 세션만 돌려준다. 만료 조건을 질의에 함께 건다 — 나중에 비교하면 빠뜨린다. */
 function findLiveSession(db: AppDb, tokenHash: string, now: Date = new Date()) {
   return db
@@ -312,5 +341,6 @@ export {
   saveUpload,
   touchSession,
   touchUser,
+  updateNickname,
 };
 export type { SaveResult, SpanInput, UploadInput, UserRole };

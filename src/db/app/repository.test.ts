@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
@@ -11,12 +12,15 @@ import {
   findLiveSession,
   findUploadForOwner,
   findUserByEmail,
+  findUserById,
   listMaskCounts,
   listUploadSpans,
   listUploadsForOwner,
   saveUpload,
   type UploadInput,
+  updateNickname,
 } from "./repository";
+import { auditLog } from "./schema";
 
 let db: AppDb;
 let close: () => void;
@@ -221,5 +225,52 @@ describe("삭제", () => {
 
   it("지울 것이 없으면 아무것도 하지 않는다", () => {
     expect(deleteExpiredUploads(db, new Date())).toBe(0);
+  });
+});
+
+describe("updateNickname", () => {
+  it("이름을 바꾸고 감사 로그를 남긴다", () => {
+    const id = createUser(db, { email: "hong@example.com", passwordHash: "hash" }) as string;
+
+    updateNickname(db, id, "법돌이");
+
+    expect(findUserById(db, id)?.nickname).toBe("법돌이");
+    const log = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "user.nickname_changed"))
+      .all();
+    expect(log).toHaveLength(1);
+    // 옛 이름을 함께 남겨야 "누가 무엇을 무엇으로 바꿨나"를 되짚을 수 있다.
+    expect(log[0]?.meta).toEqual({ from: null, to: "법돌이" });
+  });
+
+  it("가입할 때 넣은 이름을 바꾸면 옛 이름이 로그에 남는다", () => {
+    const id = createUser(db, {
+      email: "kim@example.com",
+      passwordHash: "hash",
+      nickname: "처음이름",
+    }) as string;
+
+    updateNickname(db, id, "바꾼이름");
+
+    expect(findUserById(db, id)?.nickname).toBe("바꾼이름");
+    const log = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "user.nickname_changed"))
+      .all();
+    expect(log[0]?.meta).toEqual({ from: "처음이름", to: "바꾼이름" });
+  });
+
+  it("같은 이름을 여럿이 쓸 수 있다 — 호칭이지 식별자가 아니다", () => {
+    const first = createUser(db, { email: "a@example.com", passwordHash: "hash" }) as string;
+    const second = createUser(db, { email: "b@example.com", passwordHash: "hash" }) as string;
+
+    updateNickname(db, first, "법돌이");
+    updateNickname(db, second, "법돌이");
+
+    expect(findUserById(db, first)?.nickname).toBe("법돌이");
+    expect(findUserById(db, second)?.nickname).toBe("법돌이");
   });
 });
