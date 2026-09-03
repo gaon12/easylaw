@@ -1,3 +1,8 @@
+/**
+ * biome-ignore-all lint/style/useNamingConvention: 손으로 만든 응답의 키가 한국어다.
+ * 실제 API 필드명과 글자 그대로 같아야 파서를 시험하는 의미가 있다.
+ */
+
 import { describe, expect, it } from "vitest";
 import { parseListPage } from "./envelope";
 import lawDetail from "./fixtures/law-detail.json" with { type: "json" };
@@ -144,10 +149,52 @@ describe("parseArticleRef", () => {
 describe("조문 머리 떼기", () => {
   const detail = parseLawDetailResponse(lawDetail);
 
-  it("본문 앞의 `제N조(제목)`를 뗀다 — 화면이 제목을 따로 그린다", () => {
-    // 항이 없는 조문은 조문내용에 제목까지 포함한 한 줄이 통째로 온다.
+  /** 머리 떼기만 보기 위한 최소 응답. 실제 조문내용의 형태를 그대로 옮겼다. */
+  function bodyOf(articleNo: string, branchNo: string | undefined, content: string) {
+    const unit: Record<string, unknown> = {
+      조문번호: articleNo,
+      조문여부: "조문",
+      조문내용: content,
+    };
+    if (branchNo !== undefined) {
+      unit.조문가지번호 = branchNo;
+    }
+    const parsed = parseLawDetailResponse({
+      법령: { 기본정보: { 법령명_한글: "시험법" }, 조문: { 조문단위: [unit] } },
+    });
+    return parsed.articles[0]?.text;
+  }
+
+  it("`제N조(제목)` 머리를 통째로 뗀다", () => {
+    // 이스케이프를 한 겹 놓치면 `제2조(보통재판적`까지 삼키고 `) 소…`를 남긴다.
+    expect(bodyOf("2", undefined, "제2조(보통재판적) 소(訴)는 피고의 법원이 관할한다.")).toBe(
+      "소(訴)는 피고의 법원이 관할한다.",
+    );
+  });
+
+  it("가지 조문의 머리도 뗀다", () => {
+    expect(bodyOf("4", "2", "제4조의2(무인 장비) 시장등은 장비를 설치할 수 있다.")).toBe(
+      "시장등은 장비를 설치할 수 있다.",
+    );
+  });
+
+  it("괄호 제목이 없는 머리도 뗀다", () => {
+    expect(bodyOf("7", undefined, "제7조 이 법은 공포한 날부터 시행한다.")).toBe(
+      "이 법은 공포한 날부터 시행한다.",
+    );
+  });
+
+  it("머리가 없으면 본문을 자르지 않는다", () => {
+    expect(bodyOf("9", undefined, "머리가 없는 본문은 그대로 남는다.")).toBe(
+      "머리가 없는 본문은 그대로 남는다.",
+    );
+  });
+
+  it("픽스처의 모든 조문에 머리가 남아 있지 않다", () => {
     for (const article of detail.articles) {
       expect(article.text ?? "").not.toMatch(new RegExp(`^제${article.number}조`, "u"));
+      // 번호만 떼고 남으면 `(목적) 이 법은…` 또는 `) 소…`로 시작한다.
+      expect(article.text ?? "").not.toMatch(/^[()]/u);
     }
   });
 

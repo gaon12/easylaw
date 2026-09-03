@@ -171,7 +171,13 @@ function branchNumber(raw: unknown): string | undefined {
  */
 function stripArticleHead(text: string, number: string, branch: string | undefined): string {
   const label = branch === undefined ? `제${number}조` : `제${number}조의${branch}`;
-  const head = new RegExp(`^\s*${label}\s*(?:\([^)]*\))?\s*`, "u");
+  /*
+   * 템플릿 문자열은 **이스케이프를 한 겹 먹는다.** `\(`라고 적으면 정규식에는 `(`가
+   * 닿아서 괄호가 글자가 아니라 그룹 열기가 된다. 그러면 `(?:([^)]*))?`가 되어
+   * `제2조(보통재판적`까지 삼키고 `) 소…`를 남긴다 — 실제로 그랬다.
+   * 정규식에 `\(`를 닿게 하려면 여기에는 `\\(`로 적어야 한다. `\s`도 같다.
+   */
+  const head = new RegExp(`^\\s*${label}\\s*(?:\\([^)]*\\))?\\s*`, "u");
   return text.replace(head, "");
 }
 
