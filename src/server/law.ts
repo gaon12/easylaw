@@ -5,6 +5,7 @@ import {
   findLawArticle,
   findLawVersionAt,
   listLawArticles,
+  listLawSections,
   saveLawArticles,
 } from "@/db/corpus/repository";
 import { lawApi } from "@/lib/law-api/client";
@@ -39,11 +40,18 @@ interface ArticleText {
   readonly clauses: readonly { number: string | undefined; text: string }[];
 }
 
+/** 장·절 제목. 목차의 뼈대다(`DESIGN.md` §11.5). */
+interface LawSectionText {
+  readonly title: string;
+  readonly beforeArticleNo: string;
+}
+
 interface LawAtResult {
   readonly lawName: string;
   readonly mst: string;
   readonly effectiveAt: Date | null;
   readonly articles: readonly ArticleText[];
+  readonly sections: readonly LawSectionText[];
 }
 
 type LawLookup =
@@ -126,6 +134,7 @@ async function lawAsOf(
           effectiveAt: article.effectiveAt,
           orderIdx: index,
         })),
+        detail.sections,
       );
     } catch (error) {
       return {
@@ -142,6 +151,7 @@ async function lawAsOf(
       mst: version.mst,
       effectiveAt: version.effectiveAt,
       articles: listLawArticles(db, version.id, at).map(toArticleText),
+      sections: listLawSections(db, version.id),
     },
   };
 }
@@ -219,4 +229,4 @@ async function verifyCitation(
 }
 
 export { lawAsOf, verifyCitation };
-export type { ArticleText, CitationCheck, LawAtResult, LawLookup };
+export type { ArticleText, CitationCheck, LawAtResult, LawLookup, LawSectionText };

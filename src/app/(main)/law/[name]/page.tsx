@@ -1,20 +1,81 @@
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { StructuredList } from "@/components/ui/structured-list";
+import type { TocEntry } from "@/components/ui/types";
+import { WikiSection } from "@/components/wiki/section";
+import { TableOfContents } from "@/components/wiki/toc";
 import { formatDate } from "@/lib/format";
 import { law as strings } from "@/lib/strings";
-import { lawAsOf } from "@/server/law";
+import { type ArticleText, lawAsOf } from "@/server/law";
 import { siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
 
+/** 목차에 조문을 그대로 늘어놓아도 읽히는 한계. 넘으면 장 제목만 쓴다. */
+const TOC_ARTICLE_LIMIT = 40;
+
+/** 항의 key로 쓸 앞글자 길이. 같은 조문 안에서 항끼리 구분되면 충분하다. */
+const CLAUSE_KEY_LENGTH = 12;
+
+/** 조문 하나의 앵커 id. 주소에 그대로 보이므로 사람이 읽을 수 있게 둔다. */
+function articleAnchor(articleNo: string, branchNo: string): string {
+  return branchNo.length > 0 ? `조${articleNo}의${branchNo}` : `조${articleNo}`;
+}
+
 /**
- * 법령 한 판. `PRODUCT.md` §6.5
+ * 목차를 만든다.
+ *
+ * **장 제목을 뼈대로 쓴다.** 조문이 519개인 법의 목차를 조문으로만 만들면 그 자체가
+ * 또 하나의 긴 문서가 된다. 장이 없는 법(부속 규정 등)은 조문을 그대로 늘어놓는다 —
+ * 그런 법은 대개 조문이 몇 개뿐이다.
+ */
+function buildToc(
+  articles: readonly ArticleText[],
+  sections: readonly { title: string; beforeArticleNo: string }[],
+): TocEntry[] {
+  if (sections.length === 0) {
+    return articles.slice(0, TOC_ARTICLE_LIMIT).map((article) => ({
+      id: articleAnchor(article.articleNo, article.branchNo),
+      label: strings.articleLabel(article.articleNo, article.branchNo),
+      depth: 1 as const,
+    }));
+  }
+
+  return sections.map((section) => ({
+    id: `장${section.beforeArticleNo}`,
+    label: section.title,
+    depth: 1 as const,
+  }));
+}
+
+/** 조문 본문. 항이 있으면 항을, 없으면 조문 본문을 그린다. */
+function ArticleBody({ article }: { article: ArticleText }) {
+  if (article.clauses.length > 0) {
+    return (
+      <>
+        {article.clauses.map((clause) => (
+          <p
+            className={styles.body}
+            key={`${clause.number ?? ""}-${clause.text.slice(0, CLAUSE_KEY_LENGTH)}`}
+          >
+            {clause.text}
+          </p>
+        ))}
+      </>
+    );
+  }
+  return article.body === null ? null : <p className={styles.body}>{article.body}</p>;
+}
+
+/**
+ * 법령 한 판. `PRODUCT.md` §6.5 · `DESIGN.md` §11.5
+ *
+ * **위키식으로 그린다** — 목차, 조문마다 앵커, 장 제목으로 나뉜 절, 화면 폭을 쓰는 2단.
+ * 조문이 수백 개인 문서라 위에서부터 읽어 내려가는 것이 불가능하고, 그 문제를 위키가
+ * 이미 풀어 놓았다.
  *
  * **판결 당시의 법을 보여 준다.** 주소의 `때`가 판결 선고일이고, 그 날짜에 시행 중이던
  * 판을 고른다. 현행법을 보여 주면 그 판결을 읽는 데 도움이 안 될뿐더러, 사이에 개정이
  * 있었으면 조문 번호부터 다르다.
- *
- * `때`가 없으면 오늘 기준 — 판결에서 오지 않고 직접 들어온 경우다.
  */
 export default async function LawPage(props: {
   params: Promise<{ name: string }>;
@@ -43,9 +104,11 @@ export default async function LawPage(props: {
 
   const { law } = found;
   const zone = siteTimeZone();
-  /** 인용에서 왔으면 그 조문으로 바로 데려간다. */
   const target = query.조;
   const targetBranch = query.의 ?? "";
+
+  /** 장 제목이 어느 조문 앞에 오는지. 조문을 그리면서 그 자리에 끼워 넣는다. */
+  const sectionAt = new Map(law.sections.map((section) => [section.beforeArticleNo, section]));
 
   return (
     <div className={styles.page}>
@@ -66,32 +129,41 @@ export default async function LawPage(props: {
         <p className={styles.note}>{strings.asOfNote}</p>
       </header>
 
-      <ol className={styles.articles}>
-        {law.articles.map((article) => {
-          const anchor = `조${article.articleNo}${article.branchNo ? `의${article.branchNo}` : ""}`;
-          const highlighted = article.articleNo === target && article.branchNo === targetBranch;
+      <div className={styles.layout}>
+        <aside className={styles.aside}>
+          <TableOfContents entries={buildToc(law.articles, law.sections)} />
+        </aside>
 
-          return (
-            <li className={styles.article} id={anchor} key={anchor}>
-              <h2 className={highlighted ? styles.articleHeadHit : styles.articleHead}>
-                {strings.articleLabel(article.articleNo, article.branchNo)}
-                {article.title === null ? null : (
-                  <span className={styles.articleTitle}>{strings.articleTitle(article.title)}</span>
+        <div className={styles.articles}>
+          {law.articles.map((article) => {
+            const anchor = articleAnchor(article.articleNo, article.branchNo);
+            const highlighted = article.articleNo === target && article.branchNo === targetBranch;
+            const section = sectionAt.get(article.articleNo);
+
+            return (
+              <div key={anchor}>
+                {/* 장 제목은 그 장이 시작되는 조문 바로 앞에 온다. */}
+                {section === undefined ? null : (
+                  <h2 className={styles.sectionTitle} id={`장${section.beforeArticleNo}`}>
+                    {section.title}
+                  </h2>
                 )}
-              </h2>
-              {article.clauses.length === 0 ? (
-                <p className={styles.body}>{article.body}</p>
-              ) : (
-                article.clauses.map((clause) => (
-                  <p className={styles.body} key={`${anchor}-${clause.number ?? clause.text}`}>
-                    {clause.text}
-                  </p>
-                ))
-              )}
-            </li>
-          );
-        })}
-      </ol>
+
+                <div className={highlighted ? styles.hit : undefined}>
+                  <WikiSection
+                    heading={strings.articleLabel(article.articleNo, article.branchNo)}
+                    id={anchor}
+                    level={3}
+                    meta={article.title === null ? undefined : strings.articleTitle(article.title)}
+                  >
+                    <ArticleBody article={article} />
+                  </WikiSection>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

@@ -310,6 +310,16 @@ const lawVersion = sqliteTable(
     historyCode: text("history_code"),
     /** 본문을 받아 둔 시각. null이면 아직 목록만 있는 판이다. */
     bodyFetchedAt: integer("body_fetched_at", { mode: "timestamp_ms" }),
+    /**
+     * 장·절 제목. `[{ title, beforeArticleNo }]`.
+     *
+     * 목차의 뼈대다(`DESIGN.md` §11.5) — 조문이 519개인 법의 목차를 조문으로만 만들면
+     * 그 자체가 또 하나의 긴 문서가 된다.
+     *
+     * 별도 표로 빼지 않는 이유는 **따로 조회할 일이 없기 때문**이다. 언제나 그 판의
+     * 본문과 함께 읽고, 수도 몇십 개뿐이다. 본문이 없는 판에서는 null이다.
+     */
+    sections: text("sections", { mode: "json" }),
     fetchedAt: createdAt(),
   },
   (table) => [

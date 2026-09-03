@@ -1,4 +1,8 @@
-/* 법령 본문. 조문이 수백 개라 목록 화면에 가깝다(`DESIGN.md` §5.1 — 단일 canvas). */
+/*
+ * 법령 본문. `DESIGN.md` §11.5 — 위키식
+ *
+ * 조문이 수백 개인 문서다. 목차를 옆에 두고 본문이 화면 폭을 쓴다.
+ */
 
 .page {
   max-width: var(--el-container);
@@ -25,47 +29,65 @@
   line-height: var(--el-leading-body);
 }
 
-.articles {
+/*
+ * 목차 + 본문 2단.
+ *
+ * 좁은 화면에서는 한 단이 되고 목차가 위로 온다 — 문서를 열었을 때 먼저 보이는 것이
+ * 목차여야 한다는 점은 화면 크기와 무관하다.
+ */
+.layout {
   display: grid;
   gap: var(--el-space-6);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--el-space-10);
+  }
+}
+
+.aside {
+  min-width: 0;
+}
+
+.articles {
+  display: grid;
+  /* 위키식 밀도. 조문 사이를 카드 간격만큼 벌리면 문서가 아니라 목록으로 읽힌다. */
+  gap: var(--el-space-5);
+  min-width: 0;
   /* 조문은 법조인이 읽는 글이다 — L1 규격의 줄 길이를 쓴다(§7). */
   max-width: 72ch;
 }
 
-.article {
-  display: grid;
-  gap: var(--el-space-2);
-  /* 앵커로 뛰어왔을 때 제목이 헤더 밑에 숨지 않게 한다. */
+/* 장 제목. 조문보다 한 단 크게 두어 구간이 눈에 들어오게 한다. */
+.sectionTitle {
+  font-size: var(--el-text-heading-s);
+  font-weight: 700;
+  margin-top: var(--el-space-8);
+  padding-bottom: var(--el-space-2);
+  border-bottom: 1px solid var(--el-border-subtle);
   scroll-margin-top: var(--el-space-8);
 }
 
-.articleHead,
-.articleHeadHit {
-  font-size: var(--el-text-heading-xs);
-  font-weight: 700;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--el-space-2);
-  align-items: baseline;
+.sectionTitle:first-child {
+  margin-top: 0;
 }
 
 /*
- * 인용에서 온 조문. 배경으로 표시한다 — 색만으로 알리지 않도록 왼쪽에 굵은 표식을 함께
- * 둔다(§11). 카드가 아니라 제목에 붙이므로 §11의 "카드 좌측 보더 금지"에 걸리지 않는다.
+ * 인용에서 온 조문.
+ *
+ * 배경과 왼쪽 표식을 함께 준다 — 색만으로 알리면 색을 구별하지 못하는 사람에게는
+ * 아무 정보도 아니다(§11). 카드가 아니라 구간 표시라 §11의 "카드 좌측 보더 금지"에
+ * 걸리지 않는다.
  */
-.articleHeadHit {
+.hit {
   background: var(--el-action-weak);
   border-left: 4px solid var(--el-action);
-  padding: var(--el-space-2) var(--el-space-3);
   border-radius: var(--el-radius-s);
-}
-
-.articleTitle {
-  font-weight: 400;
-  color: var(--el-fg-2);
+  padding: var(--el-space-3) var(--el-space-4);
+  margin-left: calc(var(--el-space-4) * -1);
 }
 
 .body {

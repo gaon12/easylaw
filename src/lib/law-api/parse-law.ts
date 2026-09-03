@@ -92,6 +92,19 @@ interface LawArticle {
   readonly effectiveAt: Date | undefined;
 }
 
+/**
+ * 장·절 제목. `제1장 총칙` 같은 것.
+ *
+ * 응답에서는 `조문여부 = "전문"`인 항목으로 오고, 조문 번호는 **그 장이 시작되는 조문**의
+ * 번호다. 조문 실존 검증에서는 걸러 내지만(장 제목은 조문이 아니다), 화면에서는 이것이
+ * 목차의 뼈대다 — 조문이 519개인 법의 목차를 조문으로만 만들면 아무도 못 읽는다.
+ */
+interface LawSection {
+  readonly title: string;
+  /** 이 장이 시작되는 조문 번호. */
+  readonly beforeArticleNo: string;
+}
+
 interface LawDetail {
   readonly lawId: string | undefined;
   readonly name: string;
@@ -100,6 +113,7 @@ interface LawDetail {
   readonly promulgatedAt: Date | undefined;
   readonly effectiveAt: Date | undefined;
   readonly articles: readonly LawArticle[];
+  readonly sections: readonly LawSection[];
 }
 
 const clauseSchema = z.object({ 항번호: looseValue, 항내용: looseValue }).loose();
@@ -197,6 +211,15 @@ function toArticle(raw: unknown): LawArticle {
   };
 }
 
+/** 장·절 제목 하나. 본문에 제목이 그대로 들어 있다. */
+function toSection(raw: unknown): LawSection {
+  const parsed = articleSchema.parse(raw);
+  return {
+    title: optionalText(parsed.조문내용 && htmlToPlainText(String(parsed.조문내용))) ?? "",
+    beforeArticleNo: String(parsed.조문번호 ?? "").trim(),
+  };
+}
+
 /** 장·절 제목이 아니라 실제 조문인가. */
 function isArticle(raw: unknown): boolean {
   const kind = optionalText((raw as { 조문여부?: unknown } | null)?.조문여부);
@@ -217,6 +240,10 @@ function parseLawDetailResponse(payload: unknown): LawDetail {
     promulgatedAt: parseApiDate(basic.공포일자),
     effectiveAt: parseApiDate(basic.시행일자),
     articles: asArray(parsed.조문?.조문단위).filter(isArticle).map(toArticle),
+    sections: asArray(parsed.조문?.조문단위)
+      .filter((raw) => !isArticle(raw))
+      .map(toSection)
+      .filter((section) => section.title.length > 0),
   };
 }
 
@@ -286,4 +313,4 @@ export {
   parseLawDetailResponse,
   toSummary as parseLawSummary,
 };
-export type { LawArticle, LawClause, LawDetail, LawSummary };
+export type { LawArticle, LawClause, LawDetail, LawSection, LawSummary };

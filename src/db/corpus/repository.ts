@@ -593,10 +593,16 @@ interface LawArticleInput {
  * 저장과 표시를 한 트랜잭션으로 묶는다(§10.2). 중간에 끊기면 "본문이 있다고 표시됐지만
  * 조문은 없는" 판이 남고, 그러면 실존 검증이 모든 인용을 "없는 조문"이라 답한다.
  */
+interface LawSectionInput {
+  readonly title: string;
+  readonly beforeArticleNo: string;
+}
+
 function saveLawArticles(
   db: CorpusDb,
   lawVersionId: string,
   articles: readonly LawArticleInput[],
+  sections: readonly LawSectionInput[] = [],
 ): void {
   db.transaction((tx) => {
     tx.delete(lawArticle).where(eq(lawArticle.lawVersionId, lawVersionId)).run();
@@ -621,7 +627,7 @@ function saveLawArticles(
     }
 
     tx.update(lawVersion)
-      .set({ bodyFetchedAt: new Date() })
+      .set({ bodyFetchedAt: new Date(), sections })
       .where(eq(lawVersion.id, lawVersionId))
       .run();
   });
@@ -633,6 +639,16 @@ function saveLawArticles(
  * `제4조`를 찾을 때 `제4조의2`가 나오면 안 된다 — 조 번호가 같은 조문이 실제로 있고
  * (도로교통법 209개 중 29건), 느슨하게 맞추면 조용히 틀린 근거를 붙인다.
  */
+/** 장·절 제목. 본문과 함께 저장돼 있다. */
+function listLawSections(db: CorpusDb, lawVersionId: string): LawSectionInput[] {
+  const row = db
+    .select({ sections: lawVersion.sections })
+    .from(lawVersion)
+    .where(eq(lawVersion.id, lawVersionId))
+    .get();
+  return (row?.sections as LawSectionInput[] | null) ?? [];
+}
+
 function findLawArticle(db: CorpusDb, lawVersionId: string, articleNo: string, branchNo = "") {
   return db
     .select()
@@ -774,6 +790,7 @@ export {
   heartbeatGenerationJob,
   listLawArticles,
   listLawNameEntries,
+  listLawSections,
   listSentences,
   listSpans,
   listStructureNodes,
@@ -793,6 +810,7 @@ export type {
   JudgmentInput,
   LawArticleInput,
   LawNameEntry,
+  LawSectionInput,
   LawVersionInput,
   Level,
   Outcome,

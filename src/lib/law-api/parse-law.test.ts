@@ -204,3 +204,16 @@ describe("조문 머리 떼기", () => {
     expect(findClause(article as never, 1)?.text.startsWith("①")).toBe(true);
   });
 });
+
+describe("장·절 제목", () => {
+  const detail = parseLawDetailResponse(lawDetail);
+
+  it("장 제목을 조문과 따로 낸다 — 목차의 뼈대다", () => {
+    // 조문이 수백 개인 법의 목차를 조문으로만 만들면 아무도 못 읽는다.
+    expect(detail.sections).toEqual([{ title: "제1장 총칙", beforeArticleNo: "1" }]);
+  });
+
+  it("장 제목은 조문 목록에 섞이지 않는다", () => {
+    expect(detail.articles.some((article) => article.title === "제1장 총칙")).toBe(false);
+  });
+});

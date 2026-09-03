@@ -785,6 +785,21 @@ export const workspace = {
   uploadCta: "판결문 올리기",
 } as const;
 
+/**
+ * 위키식 문서 부품. `DESIGN.md` §11.5
+ *
+ * 목차·앵커·접기는 화면마다 다른 말을 쓰면 안 된다 — 같은 것이 다른 이름으로 보이면
+ * 사용자는 그것이 다른 기능인 줄 안다.
+ */
+export const wiki = {
+  tocLabel: "목차",
+  /** 문단 링크 기호. 위키에서 제목 옆의 `¶`가 하는 일이다. */
+  anchorMark: "#",
+  anchorTo: (heading: string) => `${heading} 문단으로 가는 링크`,
+  expand: "펼쳐 보기",
+  collapse: "접기",
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
