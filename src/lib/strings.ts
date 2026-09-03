@@ -600,8 +600,13 @@ export const setup = {
   httpsTitle: "주소가 https인가요",
   httpsBody:
     "https로 서비스하시면 로그인 쿠키에 '암호화된 연결에서만 보내기' 표시를 붙여요. 그러면 중간에서 쿠키를 가로채기 어려워져요.",
+  /**
+   * 예전에는 "http에서 켜면 로그인이 막힌다"고 적혀 있었다. 이제는 막히지 않는다 —
+   * http 요청에는 `Secure`를 붙이지 않는다(`server/request.ts`). 문구도 그에 맞춘다.
+   * 코드가 하는 일과 다른 안내는 없느니만 못하다.
+   */
   httpsWarn:
-    "주의: http로 접속하시는데 이걸 켜시면 로그인이 되지 않아요. 브라우저가 쿠키를 아예 보내지 않기 때문이에요. 지금 주소창이 http로 시작한다면 꺼 두세요.",
+    "http로 접속하시는 동안에는 이 설정이 적용되지 않아요. http 요청에 https 전용 쿠키를 붙이면 브라우저가 버려서 로그인이 풀리기 때문이에요. https로 서비스하실 거라면 켜 두세요.",
   httpsLabel: "https로 서비스해요",
 
   accountTitle: "관리자 계정을 만들어 주세요",
@@ -631,6 +636,18 @@ export const setup = {
   llmModelLabel: "모델 이름",
   limitLabel: "하루 설명 생성 상한",
   limitHint: "설명 만들기 버튼은 곧 지출이에요. 하루에 몇 번까지 허용할지 정해요.",
+
+  /**
+   * 관리자가 이미 있는데 그 사람으로 들어와 있지 않을 때. 흔한 상태다 —
+   * 계정만 만들고 창을 닫았거나, 쿠키가 지워졌거나, 다른 브라우저로 열었거나.
+   */
+  accountSignInTitle: "관리자로 다시 들어와 주세요",
+  accountSignInIntro: "설치를 이어서 하려면 먼저 관리자 계정으로 들어와야 해요.",
+  accountSignInSubmit: "들어가기",
+  accountSignInSubmitting: "확인하고 있어요…",
+  accountExistsTitle: "관리자 계정은 이미 만들어져 있어요",
+  accountExistsBody:
+    "관리자는 처음 한 번만 만들어져요. 만드신 계정으로 들어오시면 다음 단계로 이어져요.",
 
   doneTitle: "설치가 끝났어요",
   doneIntro: "이제 서비스를 쓰실 수 있어요. 아래 설정은 관리자 화면에서 언제든 바꾸실 수 있어요.",

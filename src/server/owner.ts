@@ -11,6 +11,7 @@ import {
   type UserRole,
 } from "@/db/app/repository";
 import { appDb } from "@/db/client";
+import { isSecureRequest } from "./request";
 import { shouldUseSecureCookies } from "./settings";
 
 /**
@@ -87,12 +88,25 @@ async function currentOwnerId(): Promise<string | undefined> {
 
 /** 쿠키를 심는다. 서버 액션·라우트 핸들러에서만 동작한다. */
 async function setSessionCookie(token: string): Promise<void> {
+  /*
+   * `Secure`는 **설정이 켜져 있고 지금 요청이 실제로 https일 때만** 붙인다.
+   *
+   * http 요청에 `Secure` 쿠키를 심으면 브라우저가 조용히 버린다. 그러면 로그인은
+   * 성공했는데 다음 요청에 쿠키가 오지 않고, 설치 마법사는 2단계 → 3단계 → 1단계로
+   * 되튕기는 고리에 갇힌다. `/login`도 설치 전에는 `/setup`으로 돌아가므로 빠져나갈
+   * 길이 없다 — 실제로 이 프로젝트에서 일어났다.
+   *
+   * **보안을 낮추는 것이 아니다.** http로 온 요청에는 `Secure`가 지킬 것이 없다.
+   * 그 자리에서 플래그가 하는 일은 "쿠키를 버리게 만들기" 하나뿐이다. https로 오면
+   * 설정 그대로 붙는다.
+   */
+  const secure = shouldUseSecureCookies() && (await isSecureRequest());
+
   (await cookies()).set(COOKIE_NAME, token, {
     // 스크립트가 읽을 수 없어야 한다. 이 토큰이 곧 문서 열쇠다.
     httpOnly: true,
     sameSite: "lax",
-    // HTTPS로 서비스하는지는 설치할 때 정한다. 설정이 없으면 실행 환경을 따른다.
-    secure: shouldUseSecureCookies(),
+    secure,
     path: "/",
     maxAge: SESSION_DAYS * DAY_SECONDS,
   });
