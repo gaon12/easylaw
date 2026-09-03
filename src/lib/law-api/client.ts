@@ -1,5 +1,6 @@
 import "server-only";
 import { lawApiKey } from "@/server/settings";
+import { type ListPage, parseListPage } from "./envelope";
 import {
   type PrecedentDetail,
   type PrecedentSummary,
@@ -7,6 +8,26 @@ import {
   parseSearchResponse,
   readRejection,
 } from "./parse";
+import {
+  type DecisionDetail,
+  type DecisionSummary,
+  parseDecisionDetailResponse,
+  parseDecisionSummary,
+} from "./parse-decision";
+import {
+  type LawDetail,
+  type LawSummary,
+  parseLawDetailResponse,
+  parseLawSummary,
+} from "./parse-law";
+import {
+  parseTermDetailResponse,
+  parseTermSummary,
+  type TermDefinition,
+  type TermSummary,
+  termSeqParam,
+} from "./parse-term";
+import { TARGETS } from "./targets";
 
 /**
  * 법제처 국가법령정보 판례 API 클라이언트. `.dev/PRODUCT.md` §5.1 · [F-31]
@@ -19,6 +40,23 @@ interface LawApi {
   searchByCaseNumber(caseNo: string, signal?: AbortSignal): Promise<PrecedentSummary[]>;
   /** 판례일련번호로 본문을 가져온다. */
   fetchDetail(precedentId: string, signal?: AbortSignal): Promise<PrecedentDetail | undefined>;
+
+  /**
+   * 법령을 이름으로 찾는다. 조문 인용 실존 검증([F-30])의 출발점이다.
+   * `PRODUCT.md` §5.5 [6a]
+   */
+  searchLaws(query: string, signal?: AbortSignal): Promise<ListPage<LawSummary>>;
+  /** 법령 본문을 조문 단위로 가져온다. 열쇠는 `법령일련번호`(MST)다. */
+  fetchLaw(lawSerial: string, signal?: AbortSignal): Promise<LawDetail>;
+
+  /** 법령용어를 찾는다. 용어 풀이의 공식 정의([F-29])가 여기에서 온다. */
+  searchTerms(query: string, signal?: AbortSignal): Promise<ListPage<TermSummary>>;
+  /** 용어 정의를 가져온다. **여러 열쇠를 한 번에** 넘긴다(한 낱말에 정의가 여럿이다). */
+  fetchTerms(termIds: readonly string[], signal?: AbortSignal): Promise<TermDefinition[]>;
+
+  /** 헌재결정례를 찾는다. 판례와 같은 뷰어 파이프라인을 탄다. */
+  searchDecisions(query: string, signal?: AbortSignal): Promise<ListPage<DecisionSummary>>;
+  fetchDecision(decisionId: string, signal?: AbortSignal): Promise<DecisionDetail>;
 }
 
 const SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do";
@@ -81,7 +119,35 @@ async function requestJson(url: URL, signal: AbortSignal | undefined): Promise<u
   return payload;
 }
 
-function createLawApi(oc: string): LawApi {
+/** 목록 요청 주소. 카테고리마다 다른 것은 `target` 하나뿐이다. */
+function searchUrl(oc: string, target: string, params: Record<string, string>): URL {
+  const url = new URL(SEARCH_URL);
+  url.searchParams.set("OC", oc);
+  url.searchParams.set("target", target);
+  url.searchParams.set("type", "JSON");
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url;
+}
+
+/**
+ * 본문 요청 주소.
+ *
+ * 열쇠 이름이 카테고리마다 다르다 — `ID`인 것과 `MST`인 것, 그리고 용어의 `trmSeqs`.
+ * `targets.ts`의 표가 그 차이를 갖고 있으므로 여기서는 받아 쓰기만 한다.
+ */
+function serviceUrl(oc: string, target: string, keyName: string, keyValue: string): URL {
+  const url = new URL(SERVICE_URL);
+  url.searchParams.set("OC", oc);
+  url.searchParams.set("target", target);
+  url.searchParams.set("type", "JSON");
+  url.searchParams.set(keyName, keyValue);
+  return url;
+}
+
+/** 판례 — 사건번호 조회의 주 경로(§5.1). */
+function precedentMethods(oc: string): Pick<LawApi, "searchByCaseNumber" | "fetchDetail"> {
   return {
     async searchByCaseNumber(caseNo, signal) {
       const url = new URL(SEARCH_URL);
@@ -118,6 +184,75 @@ function createLawApi(oc: string): LawApi {
         return;
       }
     },
+  };
+}
+
+/** 법령 — 조문 인용 실존 검증([F-30])이 쓴다. */
+function lawMethods(oc: string): Pick<LawApi, "searchLaws" | "fetchLaw"> {
+  return {
+    async searchLaws(query, signal) {
+      const url = searchUrl(oc, TARGETS.law.target, { query, display: "20" });
+      return parseListPage(await requestJson(url, signal), TARGETS.law, parseLawSummary);
+    },
+
+    async fetchLaw(lawSerial, signal) {
+      const url = serviceUrl(oc, TARGETS.law.target, TARGETS.law.detailKey, lawSerial);
+      return parseLawDetailResponse(await requestJson(url, signal));
+    },
+  };
+}
+
+/** 법령용어 — 용어 풀이의 공식 정의([F-29])가 여기에서 온다. */
+function termMethods(oc: string): Pick<LawApi, "searchTerms" | "fetchTerms"> {
+  return {
+    async searchTerms(query, signal) {
+      const url = searchUrl(oc, TARGETS.lstrm.target, { query, display: "20" });
+      return parseListPage(await requestJson(url, signal), TARGETS.lstrm, parseTermSummary);
+    },
+
+    async fetchTerms(termIds, signal) {
+      if (termIds.length === 0) {
+        // 빈 목록으로 부르면 API가 전체를 주거나 오류를 낸다. 둘 다 우리가 원한 것이 아니다.
+        return [];
+      }
+      const url = serviceUrl(
+        oc,
+        TARGETS.lstrm.target,
+        TARGETS.lstrm.detailKey,
+        termSeqParam(termIds),
+      );
+      return parseTermDetailResponse(await requestJson(url, signal));
+    },
+  };
+}
+
+/** 헌재결정례 — 판례와 같은 뷰어 파이프라인을 탄다. */
+function decisionMethods(oc: string): Pick<LawApi, "searchDecisions" | "fetchDecision"> {
+  return {
+    async searchDecisions(query, signal) {
+      const url = searchUrl(oc, TARGETS.detc.target, { query, display: "20" });
+      return parseListPage(await requestJson(url, signal), TARGETS.detc, parseDecisionSummary);
+    },
+
+    async fetchDecision(decisionId, signal) {
+      const url = serviceUrl(oc, TARGETS.detc.target, TARGETS.detc.detailKey, decisionId);
+      return parseDecisionDetailResponse(await requestJson(url, signal));
+    },
+  };
+}
+
+/**
+ * 카테고리별 묶음을 하나로 합친다.
+ *
+ * 한 함수에 다 넣으면 카테고리를 더할 때마다 길어지기만 한다. 묶음을 나눠 두면
+ * 새 카테고리는 함수 하나를 더하고 여기에 한 줄을 더하는 일이 된다.
+ */
+function createLawApi(oc: string): LawApi {
+  return {
+    ...precedentMethods(oc),
+    ...lawMethods(oc),
+    ...termMethods(oc),
+    ...decisionMethods(oc),
   };
 }
 

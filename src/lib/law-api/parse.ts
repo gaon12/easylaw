@@ -199,7 +199,34 @@ function parseSearchResponse(payload: unknown): PrecedentSummary[] {
   return list.map(toSummary);
 }
 
+/**
+ * 이 `PrecService`가 정말 판례인가.
+ *
+ * **행정심판례(`target=decc`)의 본문도 `PrecService`로 온다**(`targets.ts`). 두 응답 모두
+ * `사건번호`와 `사건명`을 갖고 있어서 봉투와 공통 필드만으로는 구분되지 않는다. 다른 점은
+ * 판례에만 `판례내용`(과 판례 일련번호)이 있다는 것이다.
+ *
+ * 걸러 내지 않으면 행정심판례 응답이 **본문이 빈 판례 하나**로 조용히 통과한다.
+ * 빈 원문은 문장이 0개이고, 그러면 근거를 매달 자리가 없는 판결문이 코퍼스에 남는다.
+ *
+ * **반드시 zod를 통과시키기 전의 원본을 본다.** `판례내용`에 `.default("")`가 걸려 있어서
+ * 파싱 뒤에는 없던 키도 생긴다 — 파싱 결과로 판별하면 이 검사는 언제나 통과한다.
+ */
+function looksLikePrecedent(payload: unknown): boolean {
+  if (payload === null || typeof payload !== "object") {
+    return false;
+  }
+  const body = (payload as { PrecService?: unknown }).PrecService;
+  if (body === null || typeof body !== "object") {
+    return false;
+  }
+  return "판례내용" in body || "판례정보일련번호" in body || "판례일련번호" in body;
+}
+
 function parseDetailResponse(payload: unknown): PrecedentDetail {
+  if (!looksLikePrecedent(payload)) {
+    throw new Error("판례 본문이 아닙니다. 같은 봉투를 쓰는 다른 카테고리일 수 있습니다.");
+  }
   const parsed = detailSchema.parse(payload).PrecService;
   return {
     ...toSummary(parsed, parsed.판례정보일련번호),

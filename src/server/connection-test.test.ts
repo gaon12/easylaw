@@ -7,10 +7,18 @@ import { PROBE_CASE_NO, probeLawApi, probeLlm } from "./connection-test";
 
 /** 시험 대상을 인자로 받게 만든 덕에 네트워크 없이 확인할 수 있다. */
 
+/** 시험이 쓰는 것은 `searchByCaseNumber` 하나뿐이다. 나머지는 불리면 터지게 둔다. */
 function fakeLawApi(overrides: Partial<LawApi>): LawApi {
+  const notUsed = () => Promise.reject(new Error("연결 시험은 이 함수를 쓰지 않습니다."));
   return {
     searchByCaseNumber: () => Promise.resolve([]),
     fetchDetail: () => Promise.resolve(undefined),
+    searchLaws: notUsed,
+    fetchLaw: notUsed,
+    searchTerms: notUsed,
+    fetchTerms: notUsed,
+    searchDecisions: notUsed,
+    fetchDecision: notUsed,
     ...overrides,
   };
 }

@@ -1,0 +1,101 @@
+import { describe, expect, it } from "vitest";
+import { parseListPage } from "./envelope";
+import lawDetail from "./fixtures/law-detail.json" with { type: "json" };
+import lawSearch from "./fixtures/law-search.json" with { type: "json" };
+import {
+  circledToNumber,
+  findArticle,
+  findClause,
+  parseLawDetailResponse,
+  parseLawSummary,
+} from "./parse-law";
+import { TARGETS } from "./targets";
+
+/**
+ * 픽스처는 **실제 법제처 응답**이다(2026-09-03, 인증키만 지웠다). 본문은 조문이 229개라
+ * 앞쪽 6개만 남기고 부칙·개정문을 덜어 냈다 — 파서가 보는 모양은 그대로다.
+ */
+
+describe("법령 목록", () => {
+  it("항목과 총건수를 읽는다", () => {
+    const page = parseListPage(lawSearch, TARGETS.law, parseLawSummary);
+
+    expect(page.total).toBeGreaterThan(0);
+    expect(page.items.length).toBeGreaterThan(0);
+    expect(page.items[0]?.name).toBe("도로교통법");
+  });
+
+  it("본문 조회 열쇠(법령일련번호)를 담는다 — 법령ID와 다르다", () => {
+    const first = parseListPage(lawSearch, TARGETS.law, parseLawSummary).items[0];
+
+    expect(first?.lawSerial).toMatch(/^\d+$/u);
+    expect(first?.lawSerial).not.toBe(first?.lawId);
+  });
+
+  it("공포일·시행일을 Date로 바꾼다", () => {
+    const first = parseListPage(lawSearch, TARGETS.law, parseLawSummary).items[0];
+
+    expect(first?.promulgatedAt).toBeInstanceOf(Date);
+    expect(first?.effectiveAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("법령 본문", () => {
+  const detail = parseLawDetailResponse(lawDetail);
+
+  it("기본 정보를 읽는다. 소관부처·법종구분은 객체로 와도 글자만 꺼낸다", () => {
+    expect(detail.name).toBe("도로교통법");
+    expect(detail.ministry).toBe("경찰청");
+    expect(detail.kind).toBe("법률");
+  });
+
+  it("장 제목(조문여부=전문)을 조문으로 세지 않는다", () => {
+    // 픽스처 6건 중 "제1장 총칙" 같은 전문이 섞여 있다. 그것까지 조문으로 세면
+    // 실존 검증이 장 제목을 조문으로 착각한다.
+    const raw = lawDetail.법령.조문.조문단위;
+    expect(raw.length).toBeGreaterThan(detail.articles.length);
+    expect(detail.articles.every((article) => article.number.length > 0)).toBe(true);
+  });
+
+  it("조를 번호로 찾는다", () => {
+    const article = findArticle(detail, 3);
+
+    expect(article).toBeDefined();
+    expect(article?.title).toContain("신호기");
+  });
+
+  it("없는 조를 찾으면 undefined다 — 지어내지 않는다", () => {
+    expect(findArticle(detail, 9999)).toBeUndefined();
+  });
+
+  it("항을 아라비아 숫자로도 동그라미 숫자로도 찾는다", () => {
+    const article = findArticle(detail, 3);
+    if (article === undefined) {
+      throw new Error("제3조를 찾지 못했습니다.");
+    }
+
+    // 판결문은 `제1항`이라 쓰고 API는 `①`로 준다. 양쪽 다 통해야 한다.
+    expect(findClause(article, 1)?.text).toContain("교통안전시설");
+    expect(findClause(article, "①")?.text).toContain("교통안전시설");
+    expect(findClause(article, 99)).toBeUndefined();
+  });
+
+  it("항 내용의 항 번호를 지우지 않는다 — 대조는 손대지 않은 글자로 한다", () => {
+    const clause = findClause(findArticle(detail, 3) as never, 1);
+
+    expect(clause?.text.startsWith("①")).toBe(true);
+  });
+});
+
+describe("circledToNumber", () => {
+  it("동그라미 숫자를 아라비아 숫자로 바꾼다", () => {
+    expect(circledToNumber("①")).toBe("1");
+    expect(circledToNumber("⑳")).toBe("20");
+  });
+
+  it("동그라미 숫자가 아니면 undefined다", () => {
+    expect(circledToNumber("1")).toBeUndefined();
+    expect(circledToNumber("가")).toBeUndefined();
+    expect(circledToNumber("")).toBeUndefined();
+  });
+});
