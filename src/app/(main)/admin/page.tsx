@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { appDb } from "@/db/client";
-import { admin, setup } from "@/lib/strings";
+import { admin, adminTest, setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
 import { listSettings, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
 import { saveSettings } from "@/server/setup-actions";
@@ -150,6 +151,17 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
           </Button>
         </Card>
       </form>
+
+      {/*
+        저장한 값이 실제로 통하는지 확인하는 통로. 폼 안에 두지 않는 이유는, 시험이
+        **저장된 값**으로 돌기 때문이다 — 비밀 항목은 폼에 값이 없어서(§10.5) 폼 값으로는
+        시험할 수 없다. 먼저 저장하고, 그 다음에 시험한다.
+      */}
+      <nav className={styles.afterForm}>
+        <Link className={styles.link} href="/admin/test">
+          {adminTest.title}
+        </Link>
+      </nav>
     </div>
   );
 }

@@ -80,3 +80,18 @@
   height: 1.25rem;
   accent-color: var(--el-action);
 }
+
+/* 폼 아래의 이동 통로. 저장과 섞이지 않게 카드 밖에 둔다. */
+.afterForm {
+  display: flex;
+  gap: var(--el-space-4);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.link {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+  min-height: var(--el-touch-target);
+  display: inline-flex;
+  align-items: center;
+}

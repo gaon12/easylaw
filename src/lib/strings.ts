@@ -672,6 +672,39 @@ export const admin = {
   deniedBody: "이 화면은 서버를 설치한 계정으로만 들어오실 수 있어요.",
 } as const;
 
+/**
+ * 연결 시험 화면.
+ *
+ * 넣은 키가 맞는지 **그 자리에서** 알려 준다. 저장한 뒤 판례를 하나 찾아보고 안 나오면,
+ * 키가 틀린 건지 그 판례가 공개되지 않은 건지(`PRODUCT.md` §5.4) 구분할 방법이 없다.
+ */
+export const adminTest = {
+  title: "연결 시험",
+  intro: "저장된 설정으로 실제로 한 번씩 불러 봤어요.",
+  back: "관리자 설정으로 돌아가기",
+  run: "다시 시험하기",
+  lawLabel: "법제처 판례 조회",
+  llmLabel: "AI 연결",
+
+  okTitle: "잘 통했어요",
+  failedTitle: "통하지 않았어요",
+  notConfiguredTitle: "아직 설정하지 않으셨어요",
+  notConfiguredBody: "이 기능은 꺼진 채로 동작해요. 관리자 설정에서 값을 넣으시면 켜져요.",
+
+  elapsed: (ms: number) => `${ms}ms 걸렸어요.`,
+  lawOk: (caseNo: string, count: number) => `${caseNo} 조회에 ${count}건이 왔어요.`,
+  /**
+   * 0건도 성공이다 — 키가 맞아야 목록 응답 자체가 온다. 인증이 틀리면 JSON 대신 HTML
+   * 안내가 와서 오류로 떨어진다. 이 시험이 보는 것은 "판례가 있는가"가 아니라
+   * "우리 키로 말이 통하는가"다.
+   */
+  lawZeroNote: "0건이어도 키는 맞아요. 인증이 틀리면 응답 자체가 오지 않아요.",
+  llmOk: (model: string, answer: string) =>
+    `${model}${pickJosa(model, "이/가")} "${answer}"라고 답했어요.`,
+  llmEmpty: "모델이 빈 응답을 보냈어요.",
+  unknownError: "알 수 없는 이유로 실패했어요.",
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,
