@@ -1,0 +1,112 @@
+/* 로그인 뒤 첫 화면. 랜딩과 같은 띠 구조를 쓰되 내용이 다르다. */
+
+.head {
+  display: grid;
+  gap: var(--el-space-4);
+  max-width: 62ch;
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.body {
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+}
+
+.sectionTitle {
+  font-size: var(--el-text-heading-s);
+}
+
+/* ── 검색 ─────────────────────────────────────────────── */
+
+.searchCard {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.searchLabel {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.searchLabelText {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.searchRow {
+  display: flex;
+  gap: var(--el-space-2);
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+}
+
+.searchHint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+/* ── 내 문서 ───────────────────────────────────────────── */
+
+.docsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--el-space-3);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.more {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+}
+
+.docs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--el-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docLink {
+  color: var(--el-fg-1);
+  font-weight: 700;
+  /* 카드 전체를 누를 수 있게 넓힌다. 손가락으로 눌러야 한다. */
+  display: block;
+  min-height: var(--el-touch-target);
+}
+
+.docMeta {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyCard {
+  display: grid;
+  gap: var(--el-space-4);
+  justify-items: start;
+}
+
+/* ── 올리기 ───────────────────────────────────────────── */
+
+.uploadRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--el-space-4);
+}

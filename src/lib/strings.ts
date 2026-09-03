@@ -727,6 +727,26 @@ export const adminTest = {
   unknownError: "알 수 없는 이유로 실패했어요.",
 } as const;
 
+/**
+ * 로그인 뒤 첫 화면.
+ *
+ * 랜딩의 문구를 다시 쓰지 않는다. 이미 들어온 사람에게 "이게 뭔지"를 다시 설명하는 것은
+ * 자리 낭비다. 필요한 것은 하던 일로 돌아가는 길이다.
+ */
+export const workspace = {
+  title: "내 작업",
+  greeting: (email: string | null) =>
+    email === null ? "다시 오셨네요" : `${email}님, 다시 오셨네요`,
+  intro: "사건번호로 판례를 찾거나, 받으신 판결문을 올려 쉬운 말로 바꿔 보세요.",
+  docsTitle: "최근 올린 판결문",
+  seeAll: (count: number) => (count > 0 ? `문서함 전체 보기 (${count}개)` : "문서함 열기"),
+  untitled: "이름 없는 문서",
+  emptyBody: "아직 올리신 판결문이 없어요. 받으신 판결문을 올리면 쉬운 말로 바꿔 드려요.",
+  uploadTitle: "판결문 올리기",
+  uploadBody: "받으신 판결문을 올리면 개인정보를 가린 뒤 쉬운 말로 바꿔 드려요.",
+  uploadCta: "판결문 올리기",
+} as const;
+
 export const search = {
   title: "검색 결과",
   searchedByCaseNumber: (canonical: string) => `${canonical} 사건번호로 찾아봤어요.`,

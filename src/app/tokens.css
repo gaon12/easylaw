@@ -73,6 +73,16 @@
   --el-bg-canvas: #fff;
   --el-bg-subtle: var(--el-gray-10);
   --el-bg-muted: var(--el-secondary-10);
+  /*
+   * 히어로 면. **네 번째 표면이고, 의도한 예외다**(`DESIGN.md` §5.1).
+   *
+   * 기존 세 표면은 밝기가 전부 96~100% 안에 몰려 있어(canvas 100 / subtle 96.5 /
+   * muted 96) 넓은 화면에서 띠로 읽히지 않는다. 첫 화면이 통째로 흰 종이처럼 보이는
+   * 이유가 이것이다. data.go.kr·krds.go.kr의 첫 화면은 상단에 색이 분명한 면을 둔다.
+   *
+   * 첫 화면 히어로에만 쓴다. 본문 표면으로 쓰지 않는다 — 그러면 표면이 넷이 된다.
+   */
+  --el-bg-hero: oklch(0.945 0.028 254);
   --el-bg-inverse: var(--el-gray-100);
 
   /* ── 시맨틱: 선 ─────────────────────────────────────────── */
@@ -207,6 +217,8 @@
   --el-bg-canvas: var(--el-gray-100);
   --el-bg-subtle: var(--el-gray-95);
   --el-bg-muted: var(--el-gray-90);
+  /* 어두운 모드에서는 히어로도 어두운 면이어야 한다. 밝은 파랑을 그대로 두면 눈을 찌른다. */
+  --el-bg-hero: oklch(0.28 0.035 254);
   --el-bg-inverse: #fff;
 
   --el-fg-1: #fff;

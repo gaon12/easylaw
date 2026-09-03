@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import styles from "./section.module.css";
 
-type SectionTone = "canvas" | "subtle" | "muted";
+/**
+ * 섹션 표면. `DESIGN.md` §5.1
+ *
+ * `hero`는 **네 번째 표면이고 의도한 예외다.** 나머지 셋은 밝기가 96~100%에 몰려 있어
+ * 넓은 면에서 띠로 읽히지 않는다. 첫 화면 맨 위에만 쓴다.
+ */
+type SectionTone = "canvas" | "subtle" | "muted" | "hero";
 type SectionSize = "default" | "tight";
 
 interface SectionProps {
