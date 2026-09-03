@@ -35,3 +35,8 @@
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
 }
+
+/* 라이선스 전문 링크. 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.licenseLink {
+  color: var(--el-action);
+}

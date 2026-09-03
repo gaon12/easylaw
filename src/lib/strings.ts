@@ -567,15 +567,30 @@ export const legal = {
   ],
   licensesTitle: "쓰고 있는 오픈소스",
   licenses: [
-    { name: "Pretendard", version: "글꼴", license: "SIL Open Font License 1.1" },
+    {
+      name: "Pretendard",
+      version: "글꼴",
+      license: "SIL Open Font License 1.1",
+      /**
+       * **글꼴만 전문을 함께 싣는다.** OFL 1.1은 글꼴을 재배포할 때 라이선스 전문을
+       * 함께 두도록 요구하고, 우리는 글꼴 파일을 실제로 이 서버에서 내주고 있다
+       * (외부 요청을 만들지 않으려고 자체 호스팅한다). 나머지는 코드 의존성이라
+       * 재배포하지 않으므로 이름과 종류만 밝힌다.
+       */
+      href: "/fonts/pretendard/OFL.txt",
+    },
     { name: "Next.js", version: "16.3.3", license: "MIT" },
     { name: "React", version: "19.2.8", license: "MIT" },
     { name: "Drizzle ORM", version: "0.45.2", license: "Apache-2.0" },
     { name: "better-sqlite3", version: "13.0.3", license: "MIT" },
     { name: "es-hangul", version: "2.4.0", license: "MIT" },
     { name: "Zod", version: "4.4.3", license: "MIT" },
+    { name: "DiceBear", version: "9.4", license: "MIT" },
   ],
   licenseLine: (version: string, license: string) => `${version} · ${license}`,
+  /** 라이선스 줄과 전문 링크 사이의 구분자. 화면 코드에 리터럴을 흩지 않는다(§9). */
+  licenseSeparator: " · ",
+  licenseFullText: "라이선스 전문",
   licenseNote: "각 라이선스 전문은 해당 프로젝트의 저장소에서 보실 수 있어요.",
 } as const;
 

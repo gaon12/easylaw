@@ -29,7 +29,22 @@ export default function LegalPage() {
         <StructuredList
           rows={legal.licenses.map((entry) => ({
             label: entry.name,
-            value: legal.licenseLine(entry.version, entry.license),
+            value:
+              "href" in entry ? (
+                <>
+                  {legal.licenseLine(entry.version, entry.license)}
+                  {legal.licenseSeparator}
+                  {/*
+                    글꼴은 우리가 실제로 재배포하므로 전문을 함께 둔다(OFL 1.1의 요구).
+                    링크가 아니라 파일 그 자체를 가리킨다 — 남의 저장소가 사라져도 남는다.
+                  */}
+                  <a className={styles.licenseLink} href={entry.href}>
+                    {legal.licenseFullText}
+                  </a>
+                </>
+              ) : (
+                legal.licenseLine(entry.version, entry.license)
+              ),
           }))}
         />
         <p className={styles.note}>{legal.licenseNote}</p>
