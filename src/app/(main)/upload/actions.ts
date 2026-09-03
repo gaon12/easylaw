@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { appDb } from "@/db/client";
 import type { RejectReason } from "@/lib/text/prepare";
+import { type FileProblem, readUploadedFile } from "@/lib/text/upload-file";
 import { currentOwnerId } from "@/server/owner";
 import { ingestUpload, isRetentionChoice } from "@/server/upload";
 
@@ -13,7 +14,7 @@ import { ingestUpload, isRetentionChoice } from "@/server/upload";
  * 그래서 들어오는 값을 전부 다시 검사한다 — 화면에서 select로 골랐다는 사실은 보증이 아니다.
  */
 
-type ErrorCode = RejectReason | "file_unreadable" | "sign_in_required";
+type ErrorCode = RejectReason | FileProblem | "sign_in_required";
 
 interface UploadState {
   readonly error?: ErrorCode;
@@ -34,13 +35,13 @@ async function createUpload(_previous: UploadState, formData: FormData): Promise
   let filename: string | null = null;
 
   if (file instanceof File && file.size > 0) {
-    try {
-      // 파일을 골랐으면 파일이 이긴다. 둘 다 채운 경우를 조용히 합치면 무엇이 저장됐는지 알 수 없다.
-      raw = await file.text();
-      filename = file.name;
-    } catch {
-      return { error: "file_unreadable", text: pasted };
+    // 파일을 골랐으면 파일이 이긴다. 둘 다 채운 경우를 조용히 합치면 무엇이 저장됐는지 알 수 없다.
+    const read = await readUploadedFile(file);
+    if ("error" in read) {
+      return { error: read.error, text: pasted };
     }
+    raw = read.text;
+    filename = file.name;
   }
 
   const retentionRaw = field(formData, "retention");

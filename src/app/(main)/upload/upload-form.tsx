@@ -43,7 +43,12 @@ function UploadForm() {
         {/* 점선 드롭존(`DESIGN.md` §6 `file-upload`). 라벨이 입력을 감싸 전체가 클릭 영역이 된다. */}
         <label className={styles.dropzone}>
           <span className={styles.dropzoneLabel}>{upload.fileLabel}</span>
-          <input accept=".txt,text/plain" className={styles.file} name="file" type="file" />
+          <input
+            accept=".pdf,application/pdf,.txt,text/plain"
+            className={styles.file}
+            name="file"
+            type="file"
+          />
           <span className={styles.hint}>{upload.fileHint}</span>
         </label>
 
