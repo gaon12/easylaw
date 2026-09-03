@@ -4,18 +4,24 @@ import { createTestCorpusDb } from "../testing";
 import {
   claimGenerationJob,
   findJudgmentByCaseNo,
+  findLawArticle,
+  findLawVersionAt,
+  findLawVersionByMst,
   findRendition,
   finishGenerationJob,
   heartbeatGenerationJob,
+  listLawArticles,
   listSentences,
   listSpans,
   listStructureNodes,
   recordLookupMiss,
   STALE_AFTER_MS,
   saveJudgmentText,
+  saveLawArticles,
   saveRendition,
   saveStructure,
   upsertJudgment,
+  upsertLawVersions,
 } from "./repository";
 import { lookupMiss } from "./schema";
 
@@ -353,5 +359,174 @@ describe("saveStructure", () => {
   it("구조가 없는 판결문은 빈 배열을 낸다 — 추가 조회를 돌지 않는다", () => {
     const { judgmentId } = seedWithSpans();
     expect(listStructureNodes(db, judgmentId)).toEqual([]);
+  });
+});
+
+describe("법령 판 목록", () => {
+  /** 도로교통법의 실제 시행일 몇 개. `법령ID`는 같고 `MST`만 다르다. */
+  const 도로교통법 = [
+    { lawId: "001638", mst: "204786", name: "도로교통법", effectiveAt: new Date("2019-04-17") },
+    { lawId: "001638", mst: "210001", name: "도로교통법", effectiveAt: new Date("2020-06-09") },
+    { lawId: "001638", mst: "281875", name: "도로교통법", effectiveAt: new Date("2026-07-01") },
+  ];
+
+  it("판을 넣고 MST로 찾는다", () => {
+    expect(upsertLawVersions(db, 도로교통법)).toBe(3);
+  });
+
+  it("같은 MST라도 시행일이 다르면 다른 판이다", () => {
+    /*
+     * 한 번의 개정 안에서도 조문마다 시행일이 다르다. 그래서 법제처 목록은 같은 mst를
+     * 시행일만 바꿔 여러 번 준다 — 1쪽 500건 중 25건이 그랬다. mst에만 유일 제약을 걸면
+     * 그 행들이 조용히 사라진다(실제로 1,500건 중 93건이 사라졌다).
+     */
+    expect(
+      upsertLawVersions(db, [
+        { lawId: "011349", mst: "228097", name: "119구조법", effectiveAt: new Date("2021-07-06") },
+        { lawId: "011349", mst: "228097", name: "119구조법", effectiveAt: new Date("2022-01-06") },
+      ]),
+    ).toBe(2);
+  });
+
+  it("같은 MST를 다시 넣어도 늘지 않는다 — 동기화를 여러 번 돌려도 같다", () => {
+    upsertLawVersions(db, 도로교통법);
+    expect(upsertLawVersions(db, 도로교통법)).toBe(0);
+  });
+
+  it("이미 받아 둔 본문을 동기화가 지우지 않는다", () => {
+    upsertLawVersions(db, 도로교통법);
+    const version = findLawVersionAt(db, { lawId: "001638" }, new Date("2019-05-03"));
+    saveLawArticles(db, version?.id as string, [{ articleNo: "3", clauses: [], orderIdx: 0 }]);
+
+    // 과거 판은 변하지 않으므로 다시 받을 이유가 없다. 덮어쓰면 본문이 날아간다.
+    upsertLawVersions(db, 도로교통법);
+    expect(
+      findLawVersionAt(db, { lawId: "001638" }, new Date("2019-05-03"))?.bodyFetchedAt,
+    ).not.toBeNull();
+    expect(listLawArticles(db, version?.id as string)).toHaveLength(1);
+  });
+
+  it("**그 날짜에 시행 중이던 판**을 고른다 — 현행이 아니다", () => {
+    upsertLawVersions(db, 도로교통법);
+
+    // 2019-05-03 판결이면 2019-04-17 시행판이 근거다. 2026년 판이 아니다.
+    expect(findLawVersionAt(db, { lawId: "001638" }, new Date("2019-05-03"))?.mst).toBe("204786");
+    expect(findLawVersionAt(db, { lawId: "001638" }, new Date("2021-01-01"))?.mst).toBe("210001");
+  });
+
+  it("시행일 당일이면 그 판이 맞다", () => {
+    upsertLawVersions(db, 도로교통법);
+    expect(findLawVersionAt(db, { lawId: "001638" }, new Date("2019-04-17"))?.mst).toBe("204786");
+  });
+
+  it("가장 오래된 시행일보다 앞이면 없다 — 없는 것을 지어내지 않는다", () => {
+    upsertLawVersions(db, 도로교통법);
+    expect(findLawVersionAt(db, { lawId: "001638" }, new Date("1990-01-01"))).toBeUndefined();
+  });
+
+  it("이름으로도 시점 조회가 된다 — 판결문은 법을 이름으로 인용한다", () => {
+    upsertLawVersions(db, 도로교통법);
+    expect(findLawVersionAt(db, { name: "도로교통법" }, new Date("2019-05-03"))?.mst).toBe(
+      "204786",
+    );
+  });
+});
+
+describe("법령 조문", () => {
+  function seedVersion(): string {
+    upsertLawVersions(db, [
+      { lawId: "001638", mst: "204786", name: "도로교통법", effectiveAt: new Date("2019-04-17") },
+    ]);
+    return findLawVersionAt(db, { lawId: "001638" }, new Date("2019-05-03"))?.id as string;
+  }
+
+  it("조문을 저장하고 순서대로 읽는다. 본문 받음 표시가 함께 찍힌다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [
+      {
+        articleNo: "3",
+        title: "신호기",
+        clauses: [{ number: "①", text: "① 시장등은…" }],
+        orderIdx: 0,
+      },
+      { articleNo: "4", title: "종류", clauses: [], orderIdx: 1 },
+    ]);
+
+    const articles = listLawArticles(db, versionId);
+    expect(articles.map((article) => article.articleNo)).toEqual(["3", "4"]);
+    expect(articles[0]?.clauses).toEqual([{ number: "①", text: "① 시장등은…" }]);
+    expect(findLawVersionByMst(db, "204786")?.bodyFetchedAt).toBeInstanceOf(Date);
+  });
+
+  it("제4조와 제4조의2가 함께 저장된다 — 조 번호만으로는 유일하지 않다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [
+      { articleNo: "4", title: "교통안전시설의 종류", clauses: [], orderIdx: 0 },
+      { articleNo: "4", branchNo: "2", title: "무인 교통단속용 장비", clauses: [], orderIdx: 1 },
+    ]);
+
+    expect(listLawArticles(db, versionId)).toHaveLength(2);
+    expect(findLawArticle(db, versionId, "4")?.title).toBe("교통안전시설의 종류");
+    expect(findLawArticle(db, versionId, "4", "2")?.title).toBe("무인 교통단속용 장비");
+  });
+
+  it("없는 조문은 undefined다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [{ articleNo: "3", clauses: [], orderIdx: 0 }]);
+
+    expect(findLawArticle(db, versionId, "9999")).toBeUndefined();
+    // 가지번호를 안 준 조회가 가지번호 있는 조문을 집어 오면 안 된다.
+    expect(findLawArticle(db, versionId, "3", "2")).toBeUndefined();
+  });
+
+  it("다시 받으면 옛 조문을 남기지 않는다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [{ articleNo: "3", clauses: [], orderIdx: 0 }]);
+    saveLawArticles(db, versionId, [{ articleNo: "5", clauses: [], orderIdx: 0 }]);
+
+    expect(listLawArticles(db, versionId).map((a) => a.articleNo)).toEqual(["5"]);
+  });
+});
+
+describe("조문별 시행일", () => {
+  function seedVersion(): string {
+    upsertLawVersions(db, [
+      { lawId: "011349", mst: "228097", name: "119구조법", effectiveAt: new Date("2021-07-06") },
+    ]);
+    return findLawVersionAt(db, { lawId: "011349" }, new Date("2021-08-01"))?.id as string;
+  }
+
+  it("그날 아직 시행되지 않은 조문은 빼고 준다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [
+      { articleNo: "1", clauses: [], effectiveAt: new Date("2021-07-06"), orderIdx: 0 },
+      { articleNo: "2", clauses: [], effectiveAt: new Date("2022-01-06"), orderIdx: 1 },
+    ]);
+
+    // 2021-08-01 판결이면 제2조는 아직 시행 전이다. 근거로 붙이면 안 된다.
+    expect(listLawArticles(db, versionId, new Date("2021-08-01")).map((a) => a.articleNo)).toEqual([
+      "1",
+    ]);
+    expect(listLawArticles(db, versionId, new Date("2022-06-01")).map((a) => a.articleNo)).toEqual([
+      "1",
+      "2",
+    ]);
+  });
+
+  it("날짜를 주지 않으면 전부 준다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [
+      { articleNo: "1", clauses: [], effectiveAt: new Date("2021-07-06"), orderIdx: 0 },
+      { articleNo: "2", clauses: [], effectiveAt: new Date("2022-01-06"), orderIdx: 1 },
+    ]);
+
+    expect(listLawArticles(db, versionId)).toHaveLength(2);
+  });
+
+  it("시행일이 없는 조문은 남긴다 — 없는 것을 버리는 쪽이 더 위험하다", () => {
+    const versionId = seedVersion();
+    saveLawArticles(db, versionId, [{ articleNo: "1", clauses: [], orderIdx: 0 }]);
+
+    expect(listLawArticles(db, versionId, new Date("1990-01-01"))).toHaveLength(1);
   });
 });

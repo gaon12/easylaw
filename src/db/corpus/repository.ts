@@ -5,12 +5,14 @@
  * 테이블을 직접 만지지 않아야 `corpus`/`app` 양쪽에 같은 파이프라인을 쓸 수 있다.
  */
 
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, lte, or, sql } from "drizzle-orm";
 import type { CorpusDb } from "../client";
 import {
   generationJob,
   judgment,
   judgmentSpan,
+  lawArticle,
+  lawVersion,
   lookupMiss,
   nodeSpan,
   rendition,
@@ -468,6 +470,204 @@ function listStructureNodes(db: CorpusDb, judgmentId: string): StructureNodeRow[
   }));
 }
 
+interface LawVersionInput {
+  lawId: string;
+  mst: string;
+  name: string;
+  shortName?: string | undefined;
+  kind?: string | undefined;
+  ministry?: string | undefined;
+  promulgatedAt?: Date | undefined;
+  effectiveAt?: Date | undefined;
+  historyCode?: string | undefined;
+}
+
+/**
+ * SQLite 한 문장에 넣을 수 있는 바인딩 변수에는 상한이 있다. 법령 판이 168,496개라
+ * 한 번에 밀어 넣으면 그 상한에 걸린다. 열이 10개 남짓이라 넉넉히 잡아 500행씩 끊는다.
+ */
+const INSERT_CHUNK = 500;
+
+/**
+ * 법령 판 목록을 넣는다. `PRODUCT.md` §6.4
+ *
+ * **이미 있는 판은 덮어쓰지 않는다.** 과거 판의 내용은 변하지 않으므로(§6.4) 다시 받을
+ * 이유가 없고, 덮어쓰면 이미 받아 둔 본문(`bodyFetchedAt`)까지 날아간다.
+ * 목록 동기화를 여러 번 돌려도 결과가 같아야 한다.
+ */
+function upsertLawVersions(db: CorpusDb, versions: readonly LawVersionInput[]): number {
+  if (versions.length === 0) {
+    return 0;
+  }
+
+  return db.transaction((tx) => {
+    let added = 0;
+    for (let start = 0; start < versions.length; start += INSERT_CHUNK) {
+      const chunk = versions.slice(start, start + INSERT_CHUNK);
+      const result = tx
+        .insert(lawVersion)
+        .values(
+          chunk.map((version) => ({
+            id: newId(),
+            lawId: version.lawId,
+            mst: version.mst,
+            name: version.name,
+            shortName: version.shortName ?? null,
+            kind: version.kind ?? null,
+            ministry: version.ministry ?? null,
+            promulgatedAt: version.promulgatedAt ?? null,
+            effectiveAt: version.effectiveAt ?? null,
+            historyCode: version.historyCode ?? null,
+          })),
+        )
+        // mst 하나로는 유일하지 않다 — 시행일까지 봐야 한 판이다(스키마 주석 참조).
+        .onConflictDoNothing({ target: [lawVersion.mst, lawVersion.effectiveAt] })
+        .run();
+      added += result.changes;
+    }
+    return added;
+  });
+}
+
+/**
+ * **이 날짜에 시행 중이던 판**을 찾는다. `PRODUCT.md` §6.4 · [F-30]
+ *
+ * 시행일이 기준 날짜 **이하**인 것 중 가장 늦은 것이다. 판결이 2019-05-03에 났다면
+ * 그날 시행 중이던 법이 근거이지, 오늘 시행 중인 법이 아니다.
+ *
+ * 법제처에 묻지 않는다 — 목록을 미리 받아 두었으므로 인덱스 하나로 끝난다.
+ */
+function findLawVersionAt(db: CorpusDb, key: { lawId: string } | { name: string }, at: Date) {
+  const matchesLaw =
+    "lawId" in key ? eq(lawVersion.lawId, key.lawId) : eq(lawVersion.name, key.name);
+
+  return db
+    .select()
+    .from(lawVersion)
+    .where(and(matchesLaw, lte(lawVersion.effectiveAt, at)))
+    .orderBy(desc(lawVersion.effectiveAt))
+    .get();
+}
+
+/**
+ * 이 이름의 법이 **한 판이라도** 있는가.
+ *
+ * "우리가 모르는 법"과 "그때는 아직 없던 법"을 구분하는 데 쓴다. 둘은 인용 검증에서
+ * 결과가 달라야 한다 — 앞은 이름이 틀렸거나 동기화가 덜 된 것이고, 뒤는 판결일이
+ * 제정 전이라는 사실이다.
+ */
+function findLatestLawVersion(db: CorpusDb, name: string) {
+  return db
+    .select()
+    .from(lawVersion)
+    .where(eq(lawVersion.name, name))
+    .orderBy(desc(lawVersion.effectiveAt))
+    .get();
+}
+
+/** 같은 mst가 시행일만 다르게 여럿일 수 있다. 가장 늦게 시행된 것을 준다. */
+function findLawVersionByMst(db: CorpusDb, mst: string) {
+  return db
+    .select()
+    .from(lawVersion)
+    .where(eq(lawVersion.mst, mst))
+    .orderBy(desc(lawVersion.effectiveAt))
+    .get();
+}
+
+interface LawArticleInput {
+  articleNo: string;
+  /** 가지번호. `제4조의2`의 `2`. 없으면 빈 문자열 — null은 UNIQUE에서 서로 다르다. */
+  branchNo?: string | undefined;
+  title?: string | undefined;
+  body?: string | undefined;
+  clauses: readonly { number: string | undefined; text: string }[];
+  /** 이 조문의 시행일. 법 전체의 시행일과 다를 수 있다. */
+  effectiveAt?: Date | undefined;
+  orderIdx: number;
+}
+
+/**
+ * 한 판의 조문을 저장하고 "본문 받음"으로 표시한다.
+ *
+ * 저장과 표시를 한 트랜잭션으로 묶는다(§10.2). 중간에 끊기면 "본문이 있다고 표시됐지만
+ * 조문은 없는" 판이 남고, 그러면 실존 검증이 모든 인용을 "없는 조문"이라 답한다.
+ */
+function saveLawArticles(
+  db: CorpusDb,
+  lawVersionId: string,
+  articles: readonly LawArticleInput[],
+): void {
+  db.transaction((tx) => {
+    tx.delete(lawArticle).where(eq(lawArticle.lawVersionId, lawVersionId)).run();
+
+    for (let start = 0; start < articles.length; start += INSERT_CHUNK) {
+      const chunk = articles.slice(start, start + INSERT_CHUNK);
+      tx.insert(lawArticle)
+        .values(
+          chunk.map((article) => ({
+            id: newId(),
+            lawVersionId,
+            articleNo: article.articleNo,
+            branchNo: article.branchNo ?? "",
+            title: article.title ?? null,
+            body: article.body ?? null,
+            clauses: article.clauses,
+            effectiveAt: article.effectiveAt ?? null,
+            orderIdx: article.orderIdx,
+          })),
+        )
+        .run();
+    }
+
+    tx.update(lawVersion)
+      .set({ bodyFetchedAt: new Date() })
+      .where(eq(lawVersion.id, lawVersionId))
+      .run();
+  });
+}
+
+/**
+ * 조문 하나를 찾는다. **가지번호까지 맞춘다.**
+ *
+ * `제4조`를 찾을 때 `제4조의2`가 나오면 안 된다 — 조 번호가 같은 조문이 실제로 있고
+ * (도로교통법 209개 중 29건), 느슨하게 맞추면 조용히 틀린 근거를 붙인다.
+ */
+function findLawArticle(db: CorpusDb, lawVersionId: string, articleNo: string, branchNo = "") {
+  return db
+    .select()
+    .from(lawArticle)
+    .where(
+      and(
+        eq(lawArticle.lawVersionId, lawVersionId),
+        eq(lawArticle.articleNo, articleNo),
+        eq(lawArticle.branchNo, branchNo),
+      ),
+    )
+    .get();
+}
+
+/**
+ * 한 판의 조문. `at`을 주면 **그날 이미 시행된 조문만** 준다.
+ *
+ * 한 개정 안에서도 조문마다 시행일이 다르다. 판만 고르고 조문을 다 보여 주면, 판결
+ * 당시에는 아직 시행되지 않은 조문까지 근거로 붙일 수 있다. 시행일이 없는 조문은
+ * 남긴다 — 없는 것을 버리는 쪽이 더 위험하다.
+ */
+function listLawArticles(db: CorpusDb, lawVersionId: string, at?: Date) {
+  const rows = db
+    .select()
+    .from(lawArticle)
+    .where(eq(lawArticle.lawVersionId, lawVersionId))
+    .orderBy(asc(lawArticle.orderIdx))
+    .all();
+
+  if (at === undefined) {
+    return rows;
+  }
+  return rows.filter((row) => row.effectiveAt === null || row.effectiveAt <= at);
+}
+
 /**
  * 없는 사건번호를 기록한다.
  *
@@ -487,24 +687,33 @@ function recordLookupMiss(db: CorpusDb, caseNoCanonical: string, now: Date = new
 export {
   claimGenerationJob,
   findJudgmentByCaseNo,
+  findLatestLawVersion,
   findLatestRendition,
+  findLawArticle,
+  findLawVersionAt,
+  findLawVersionByMst,
   findRendition,
   finishGenerationJob,
   heartbeatGenerationJob,
+  listLawArticles,
   listSentences,
   listSpans,
   listStructureNodes,
   recordLookupMiss,
   saveJudgmentText,
+  saveLawArticles,
   saveRendition,
   saveStructure,
   STALE_AFTER_MS,
   upsertJudgment,
+  upsertLawVersions,
 };
 export type {
   ClaimResult,
   Confidence,
   JudgmentInput,
+  LawArticleInput,
+  LawVersionInput,
   Level,
   Outcome,
   SentenceInput,

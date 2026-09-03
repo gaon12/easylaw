@@ -261,6 +261,108 @@ const lookupMiss = sqliteTable(
   (table) => [index("lookup_miss_last_tried_idx").on(table.lastTriedAt)],
 );
 
+/**
+ * 법령의 **한 판(version)**. `PRODUCT.md` §6.4
+ *
+ * 판례는 요청할 때 만들지만 법령은 **미리 받아 둔다.** 이유는 두 가지다.
+ *
+ * 1. **과거 판이 필요하다.** 2019년 판결이 인용한 조문을 *현행* 법령으로 검증하면 틀린다.
+ *    그 사이 개정됐으면 조문 번호가 밀렸거나 아예 없어졌을 수 있고, 그러면 실존하는
+ *    인용을 "없는 조문"이라 하거나 반대로 엉뚱한 조문을 근거로 붙인다.
+ * 2. **과거 판은 변하지 않는다.** 이미 시행이 끝난 법령의 그 시점 내용은 다시 바뀌지
+ *    않으므로 영구 캐시해도 안전하다(§6.4).
+ *
+ * `lawId`(법령ID)는 법이 개정돼도 같고, `mst`(법령일련번호)가 공포된 판을 가리킨다.
+ * 그래서 **"이 법의, 이 날짜에 시행 중이던 판"** 은 `(lawId, effectiveAt)` 인덱스 하나로
+ * 찾는다 — 법제처에 묻지 않고 우리 DB에서 끝난다.
+ *
+ * ## `mst`는 유일하지 않다
+ *
+ * 한 번의 개정 안에서도 **조문마다 시행일이 다를 수 있다.** 그래서 법제처의 시행일법령
+ * 목록은 같은 `mst`를 시행일만 바꿔 여러 번 준다 — 실제로 1쪽 500건 중 25건이 그랬다.
+ * (예: `119구조ㆍ구급에 관한 법률` MST=228097은 2021-01-05 공포이고, 일부 조문은
+ * 2021-07-06에, 나머지는 2022-01-06에 시행됐다.)
+ *
+ * 유일 제약을 `mst`에만 걸면 그 행들이 **조용히 버려진다.** 실제로 그렇게 짰다가
+ * 1,500건 중 93건이 사라지는 것을 보고 고쳤다. 판 하나를 가리키는 것은
+ * `(mst, effectiveAt)` 두 값이다.
+ *
+ * 본문(`lawArticle`)은 여기 없다. 판이 168,496개라 본문까지 전부 받으면 10GB를 넘고
+ * 요청도 그만큼 나간다. **목록은 전부, 본문은 실제로 인용된 판만** 받는다.
+ */
+const lawVersion = sqliteTable(
+  "law_version",
+  {
+    id: text("id").primaryKey(),
+    /** 법령ID. 개정돼도 같은 값이라 "같은 법의 다른 판"을 묶는다. */
+    lawId: text("law_id").notNull(),
+    /** 법령일련번호(MST). 판 하나를 가리키는 조회 열쇠다. */
+    mst: text("mst").notNull(),
+    name: text("name").notNull(),
+    shortName: text("short_name"),
+    /** 법률·대통령령·부령 등. */
+    kind: text("kind"),
+    ministry: text("ministry"),
+    promulgatedAt: integer("promulgated_at", { mode: "timestamp_ms" }),
+    /** 시행일. 시점 조회의 기준이다. */
+    effectiveAt: integer("effective_at", { mode: "timestamp_ms" }),
+    /** 현행인가 연혁인가. 법제처가 주는 구분을 그대로 둔다. */
+    historyCode: text("history_code"),
+    /** 본문을 받아 둔 시각. null이면 아직 목록만 있는 판이다. */
+    bodyFetchedAt: integer("body_fetched_at", { mode: "timestamp_ms" }),
+    fetchedAt: createdAt(),
+  },
+  (table) => [
+    // mst 하나로는 유일하지 않다 — 위 설명 참조.
+    unique("law_version_mst_effective_unique").on(table.mst, table.effectiveAt),
+    // "이 법의 이 날짜 시행판" — 시점 조회가 이 인덱스 하나로 끝난다.
+    index("law_version_point_in_time_idx").on(table.lawId, table.effectiveAt),
+    // 판결문은 법을 이름으로 인용한다("「도로교통법」 제3조").
+    index("law_version_name_idx").on(table.name, table.effectiveAt),
+  ],
+);
+
+/**
+ * 법령 한 판의 조문.
+ *
+ * **조 번호만으로는 유일하지 않다.** `제4조`와 `제4조의2`는 둘 다 조문번호가 `4`이고
+ * 가지번호로 갈린다 — 도로교통법 2019년 판 209개 조문 중 29건이 그랬다. 가지번호를
+ * 빼고 유일 제약을 걸면 저장부터 실패하거나, 더 나쁘게는 조회가 엉뚱한 조문을 돌려준다.
+ *
+ * 항은 `clauses`에 JSON으로 둔다. 항을 따로 표로 빼지 않는 이유는 **항만 따로 조회할 일이
+ * 없기 때문**이다 — 언제나 조문을 찾고 그 안에서 항을 고른다.
+ */
+const lawArticle = sqliteTable(
+  "law_article",
+  {
+    id: text("id").primaryKey(),
+    lawVersionId: text("law_version_id")
+      .notNull()
+      .references(() => lawVersion.id, { onDelete: "cascade" }),
+    articleNo: text("article_no").notNull(),
+    /** `제4조의2`의 `2`. 가지번호가 없으면 빈 문자열로 둔다 — null은 UNIQUE에서 서로 다르다. */
+    branchNo: text("branch_no").notNull().default(""),
+    title: text("title"),
+    /** 조문 본문. 항이 있으면 대개 제목 줄만 들어 있다. */
+    body: text("body"),
+    /**
+     * **이 조문의** 시행일. 법 전체의 시행일과 다를 수 있다.
+     *
+     * 한 개정으로 바뀐 조문들이 서로 다른 날 시행되는 일이 흔하다. 그래서 "그 판결
+     * 당시의 법"을 정확히 보려면 판을 고르는 것만으로 부족하고, 그 판 안에서
+     * **그날 이미 시행된 조문만** 골라야 한다.
+     */
+    effectiveAt: integer("effective_at", { mode: "timestamp_ms" }),
+    /** `[{ number, text }]`. 원문 그대로 두어 대조에 쓴다(§5.5 [6a]). */
+    clauses: text("clauses", { mode: "json" }).notNull(),
+    orderIdx: integer("order_idx").notNull(),
+  },
+  (table) => [
+    unique("law_article_unique").on(table.lawVersionId, table.articleNo, table.branchNo),
+    index("law_article_version_idx").on(table.lawVersionId, table.orderIdx),
+  ],
+);
+
 /** 외부 API 응답 캐시. 법제처 호출 수를 줄이고, 장애 시에도 화면이 뜨게 한다([F-39]). */
 const apiCache = sqliteTable(
   "api_cache",
@@ -282,6 +384,8 @@ const corpusSchema = {
   generationJob,
   judgment,
   judgmentSpan,
+  lawArticle,
+  lawVersion,
   lookupMiss,
   nodeSpan,
   party,
@@ -298,6 +402,8 @@ export {
   generationJob,
   JOB_STATUSES,
   judgment,
+  lawArticle,
+  lawVersion,
   judgmentSpan,
   LEVELS,
   lookupMiss,
