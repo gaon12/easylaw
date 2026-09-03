@@ -5,9 +5,10 @@ import { Card } from "@/components/ui/card";
 import { appDb } from "@/db/client";
 import { admin, adminTest, setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
-import { listSettings, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
+import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
 import { saveSettings } from "@/server/setup-actions";
 import styles from "./page.module.css";
+import { SecretField } from "./secret-field";
 
 /** 화면에서 고칠 수 있는 항목. 설치 완료 표시는 여기서 건드리지 않는다. */
 const EDITABLE = [
@@ -44,31 +45,18 @@ function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly 
   );
 }
 
-/** 글로 적는 칸. 비밀 항목이면 값을 채우지 않고 설정 여부만 알린다. */
-function TextField({
-  name,
-  secret,
-  configured,
-  value,
-}: {
-  name: EditableKey;
-  secret: boolean;
-  configured: boolean;
-  value: string | undefined;
-}) {
+/** 가릴 것이 없는 칸. 비밀 항목은 `SecretField`가 따로 그린다. */
+function TextField({ name, value }: { name: EditableKey; value: string | undefined }) {
   return (
     <label className={styles.field}>
       <span className={styles.label}>{setup.settingNames[name]}</span>
       <input
         autoComplete="off"
         className={styles.input}
-        defaultValue={secret ? undefined : value}
+        defaultValue={value}
         name={name}
-        type={secret ? "password" : "text"}
+        type="text"
       />
-      {secret ? (
-        <span className={styles.hint}>{configured ? admin.secretSet : admin.secretUnset}</span>
-      ) : null}
     </label>
   );
 }
@@ -78,9 +66,9 @@ function TextField({
  *
  * 마법사에서 넣은 값을 나중에 못 고치면 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
  *
- * **비밀 항목은 값을 되돌려 보여 주지 않는다.** 대신 설정 여부만 알린다. 그래서 빈 칸은
- * "지우기"가 아니라 **"그대로 두기"** 로 읽는다 — 그러지 않으면 모델 이름 하나 고치려고
- * 저장을 눌렀다가 API 키가 지워진다. 지우는 방법은 화면에서 따로 안내한다.
+ * **비밀 항목은 가린 채로 값을 채워 준다**(`SecretField`). 예전에는 값을 아예 돌려주지
+ * 않아서 무엇이 들어 있는지 확인할 방법이 없었고, 그래서 빈 칸을 "그대로 두기"로 읽어야
+ * 했다. 지금은 **칸에 보이는 것이 곧 저장될 값**이고 비우면 지워진다 — 규칙이 하나다.
  */
 export default async function AdminPage(props: { searchParams: Promise<{ saved?: string }> }) {
   const [session, searchParams] = await Promise.all([currentSession(), props.searchParams]);
@@ -96,7 +84,7 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
   }
 
   const db = appDb();
-  const settings = listSettings(db);
+  const settings = listSettingsForEditing(db);
   const zones = Intl.supportedValuesOf("timeZone");
 
   return (
@@ -114,19 +102,19 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
 
       <form action={saveSettings}>
         <Card className={styles.form}>
-          {EDITABLE.map((key) =>
-            key === "time_zone" ? (
-              <TimeZoneField key={key} timeZone={siteTimeZone(db)} zones={zones} />
-            ) : (
-              <TextField
-                configured={settings.find((entry) => entry.key === key)?.configured ?? false}
-                name={key}
-                key={key}
-                secret={SECRET_KEYS.has(key)}
-                value={settings.find((entry) => entry.key === key)?.value}
-              />
-            ),
-          )}
+          {EDITABLE.map((key) => {
+            const value = settings.find((entry) => entry.key === key)?.value;
+
+            if (key === "time_zone") {
+              return <TimeZoneField key={key} timeZone={siteTimeZone(db)} zones={zones} />;
+            }
+            if (SECRET_KEYS.has(key)) {
+              return (
+                <SecretField key={key} label={setup.settingNames[key]} name={key} value={value} />
+              );
+            }
+            return <TextField key={key} name={key} value={value} />;
+          })}
 
           {/*
           https 설정은 값을 적는 칸이 아니라 켜고 끄는 것이라 따로 그린다.
@@ -143,8 +131,6 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
             <span className={styles.label}>{setup.httpsLabel}</span>
           </label>
           <p className={styles.hint}>{setup.httpsWarn}</p>
-
-          <p className={styles.hint}>{admin.secretClear}</p>
 
           <Button size="m" type="submit">
             {admin.save}

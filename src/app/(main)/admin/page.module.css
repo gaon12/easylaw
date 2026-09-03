@@ -95,3 +95,41 @@
   display: inline-flex;
   align-items: center;
 }
+
+/* 비밀 항목 — 입력 칸과 "보기" 버튼을 한 줄에. */
+.secretRow {
+  display: flex;
+  gap: var(--el-space-2);
+  align-items: stretch;
+}
+
+.secretRow .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 키는 글자 모양이 비슷한 것이 섞이기 쉽다. 눈으로 대조하려면 고정폭이 낫다. */
+  font-family: var(--el-font-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+}
+
+/* 손가락으로 누를 수 있어야 한다(§11). 글자만 있는 버튼이라 최소 크기를 직접 준다. */
+.reveal {
+  flex: 0 0 auto;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-4);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  color: var(--el-fg-1);
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  border-color: var(--el-fg-3);
+}
+
+/* 눌린 상태를 색으로만 알리지 않는다 — 글자도 "보기"↔"가리기"로 바뀐다. */
+.reveal[aria-pressed="true"] {
+  background: var(--el-action-weak);
+  border-color: var(--el-action);
+  color: var(--el-action-hover);
+}

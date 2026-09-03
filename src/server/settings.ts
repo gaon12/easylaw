@@ -118,6 +118,25 @@ function listSettings(db: AppDb): SettingView[] {
   });
 }
 
+/**
+ * 비밀 항목의 값까지 담아 낸다. **관리자 설정 화면 전용이다.**
+ *
+ * `listSettings`가 비밀을 가리는 것은 값이 실수로 흘러나가지 않게 하는 안전한 기본값이다.
+ * 그 기본값을 바꾸는 대신 통로를 하나 더 두는 이유는, 이 값을 화면에 싣는 결정이
+ * **부르는 쪽에서 눈에 보여야** 하기 때문이다. `listSettings`에 옵션을 다는 방식이면
+ * 나중에 다른 화면이 무심코 `true`를 넘겨도 아무도 알아채지 못한다.
+ *
+ * 부르는 쪽은 반드시 관리자인지 먼저 확인한다.
+ */
+function listSettingsForEditing(db: AppDb): SettingView[] {
+  return SETTING_KEYS.map((key) => ({
+    key,
+    secret: isSecret(key),
+    configured: readSetting(db, key) !== undefined,
+    value: readSetting(db, key),
+  }));
+}
+
 /** 설치 마법사를 마쳤는가. 마쳤으면 마법사는 더 열리지 않는다. */
 function isSetupComplete(db: AppDb = appDb()): boolean {
   return readSetting(db, "setup_completed_at") !== undefined;
@@ -209,6 +228,7 @@ export {
   isSetupComplete,
   lawApiKey,
   listSettings,
+  listSettingsForEditing,
   llmConfig,
   markSetupComplete,
   readSetting,

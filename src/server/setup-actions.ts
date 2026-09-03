@@ -149,17 +149,14 @@ async function saveSettings(formData: FormData): Promise<void> {
   };
 
   /*
-   * 비밀 항목은 화면에 값을 되돌려 주지 않으므로 폼에도 빈 칸으로 온다.
-   * 빈 칸을 그대로 저장하면 "저장" 한 번에 키가 지워진다 — 빈 칸은 "그대로 두기"로 읽는다.
-   * 지우고 싶을 때는 공백을 넣으라고 화면에서 안내한다.
+   * 빈 칸은 **지우기**다.
+   *
+   * 예전에는 "그대로 두기"였다. 비밀 항목의 값을 화면에 돌려주지 않아서 폼에도 빈 칸으로
+   * 왔고, 그것을 그대로 저장하면 모델 이름 하나 고치려다 API 키가 날아갔기 때문이다.
+   * 이제 관리자 화면이 저장된 값을 가린 채로 채워 주므로(`SecretField`), 폼이 비어 있다는
+   * 것은 사람이 실제로 지웠다는 뜻이다. 규칙이 하나가 됐다 —
+   * **칸에 보이는 것이 곧 저장될 값이다.**
    */
-  if (values.law_api_oc === "") {
-    values.law_api_oc = undefined;
-  }
-  if (values.llm_api_key === "") {
-    values.llm_api_key = undefined;
-  }
-
   writeSettings(appDb(), values, session.userId);
   redirect("/admin?saved=1");
 }
