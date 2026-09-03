@@ -17,6 +17,13 @@ import { extractPdfText } from "./pdf";
  */
 const DIR = ".dev/이지리드_연구보고서";
 
+/**
+ * 464쪽짜리 PDF를 파싱하는 데 vitest 기본값(5초)은 모자란다. 실측에서 5초 언저리라
+ * 기계가 바쁘면 그때그때 실패한다 — 우리 코드가 아니라 문서 크기 때문이다.
+ * 넉넉히 잡는다. 여기서 재는 것은 속도가 아니라 한글이 깨지지 않는지다.
+ */
+const REAL_PDF_TIMEOUT_MS = 60_000;
+
 describe.skipIf(!existsSync(DIR))("실제 PDF", () => {
   /** 파일 크기 순. 가장 큰 것이 글자가 든 본 보고서다. */
   function pdfs(): string[] {
@@ -25,34 +32,42 @@ describe.skipIf(!existsSync(DIR))("실제 PDF", () => {
       .sort((a, b) => statSync(join(DIR, b)).size - statSync(join(DIR, a)).size);
   }
 
-  it("글자가 든 문서에서 한글 본문을 꺼낸다", async () => {
-    const name = pdfs()[0];
-    if (name === undefined) {
-      return;
-    }
-    const result = await extractPdfText(new Uint8Array(readFileSync(join(DIR, name))));
+  it(
+    "글자가 든 문서에서 한글 본문을 꺼낸다",
+    async () => {
+      const name = pdfs()[0];
+      if (name === undefined) {
+        return;
+      }
+      const result = await extractPdfText(new Uint8Array(readFileSync(join(DIR, name))));
 
-    expect(result.kind).toBe("ok");
-    if (result.kind !== "ok") {
-      return;
-    }
-    expect(result.pages).toBeGreaterThan(100);
-    // 한글이 물음표나 빈칸으로 깨지지 않았는가. 서브셋·CID 글꼴에서 흔히 깨진다.
-    expect(result.text).toMatch(/[가-힣]{4,}/u);
-    expect(result.text.length).toBeGreaterThan(50_000);
-  });
+      expect(result.kind).toBe("ok");
+      if (result.kind !== "ok") {
+        return;
+      }
+      expect(result.pages).toBeGreaterThan(100);
+      // 한글이 물음표나 빈칸으로 깨지지 않았는가. 서브셋·CID 글꼴에서 흔히 깨진다.
+      expect(result.text).toMatch(/[가-힣]{4,}/u);
+      expect(result.text.length).toBeGreaterThan(50_000);
+    },
+    REAL_PDF_TIMEOUT_MS,
+  );
 
-  it("거의 다 그림인 문서를 '읽었다'고 하지 않는다", async () => {
-    /*
-     * 18쪽짜리 요약본은 슬라이드라 글자가 140자밖에 안 나온다 — 전체 하한(40자)은 넘지만
-     * 쪽당 8자다. 그런 문서를 통과시키면 사용자는 판결문 대신 부스러기를 받는다.
-     */
-    const name = pdfs().at(-1);
-    if (name === undefined) {
-      return;
-    }
-    const result = await extractPdfText(new Uint8Array(readFileSync(join(DIR, name))));
+  it(
+    "거의 다 그림인 문서를 '읽었다'고 하지 않는다",
+    async () => {
+      /*
+       * 18쪽짜리 요약본은 슬라이드라 글자가 140자밖에 안 나온다 — 전체 하한(40자)은 넘지만
+       * 쪽당 8자다. 그런 문서를 통과시키면 사용자는 판결문 대신 부스러기를 받는다.
+       */
+      const name = pdfs().at(-1);
+      if (name === undefined) {
+        return;
+      }
+      const result = await extractPdfText(new Uint8Array(readFileSync(join(DIR, name))));
 
-    expect(result.kind).toBe("no_text");
-  });
+      expect(result.kind).toBe("no_text");
+    },
+    REAL_PDF_TIMEOUT_MS,
+  );
 });
