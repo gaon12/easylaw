@@ -48,6 +48,37 @@ const summarySchema = z.object({
   데이터출처명: looseString,
 });
 
+/**
+ * 실패 응답 봉투.
+ *
+ * 법제처는 인증키가 틀려도 **HTTP 200**으로 답하고, 본문에만 `result`/`msg`를 담는다.
+ * 상태 코드만 보면 성공으로 읽히고, 그대로 목록 스키마에 넣으면 zod 오류 덤프가 나온다 —
+ * 화면에 그 덤프가 그대로 뜨면 사용자는 무엇을 고쳐야 하는지 알 수 없다.
+ *
+ * `msg`는 실제로 원인을 말해 준다("서버장비의 IP주소 및 도메인주소를 등록해 주세요").
+ * 이 API는 인증키만이 아니라 **호출하는 서버의 IP까지 등록**해야 통하기 때문에,
+ * 이 문장을 그대로 전하는 것이 우리가 지어내는 어떤 말보다 낫다.
+ */
+const rejectionSchema = z.object({
+  result: z.string(),
+  msg: z.string().optional(),
+});
+
+/**
+ * 실패 봉투이면 사람이 읽을 이유를 낸다. 아니면 undefined.
+ *
+ * 정상 응답에는 `result` 키가 없다(`PrecSearch`/`PrecService`가 최상위다). 그래서
+ * 키의 존재만으로 구분할 수 있다.
+ */
+function readRejection(payload: unknown): string | undefined {
+  const parsed = rejectionSchema.safeParse(payload);
+  if (!parsed.success) {
+    return;
+  }
+  const { result, msg } = parsed.data;
+  return msg === undefined ? result : `${result} ${msg}`;
+}
+
 const searchSchema = z.object({
   PrecSearch: z.object({
     totalCnt: looseString,
@@ -180,5 +211,5 @@ function parseDetailResponse(payload: unknown): PrecedentDetail {
   };
 }
 
-export { htmlToPlainText, parseDecidedAt, parseDetailResponse, parseSearchResponse };
+export { htmlToPlainText, parseDecidedAt, parseDetailResponse, parseSearchResponse, readRejection };
 export type { PrecedentDetail, PrecedentSummary };

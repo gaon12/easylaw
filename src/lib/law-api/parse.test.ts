@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import detailFixture from "./fixtures/detail.json" with { type: "json" };
 import searchEmptyFixture from "./fixtures/search-empty.json" with { type: "json" };
 import searchHitFixture from "./fixtures/search-hit.json" with { type: "json" };
-import { htmlToPlainText, parseDecidedAt, parseDetailResponse, parseSearchResponse } from "./parse";
+import {
+  htmlToPlainText,
+  parseDecidedAt,
+  parseDetailResponse,
+  parseSearchResponse,
+  readRejection,
+} from "./parse";
 
 // 픽스처는 2026-08-28에 법제처 공개 API(OC=test)에서 실제로 받은 응답이다.
 // 손으로 지어낸 형태로 테스트하면 실제 응답 형태가 바뀌어도 통과해 버린다.
@@ -98,5 +104,31 @@ describe("parseDecidedAt", () => {
     expect(parseDecidedAt("")).toBeUndefined();
     expect(parseDecidedAt("미상")).toBeUndefined();
     expect(parseDecidedAt(undefined)).toBeUndefined();
+  });
+});
+
+describe("readRejection", () => {
+  /**
+   * 법제처는 인증키가 틀려도 HTTP 200으로 답한다. 실제로 받은 본문 그대로다.
+   * 상태 코드만 보면 성공으로 읽히는 자리라 여기서 반드시 걸러야 한다.
+   */
+  const realRejection = {
+    result: "사용자 정보 검증에 실패하였습니다.",
+    msg: "OPEN API 호출 시 사용자 검증을 위하여 정확한 서버장비의 IP주소 및 도메인주소를 등록해 주세요.",
+  };
+
+  it("실패 봉투에서 원인을 그대로 전한다 — IP 등록이 필요하다는 말이 핵심이다", () => {
+    const reason = readRejection(realRejection);
+    expect(reason).toContain("사용자 정보 검증에 실패");
+    expect(reason).toContain("IP주소");
+  });
+
+  it("msg가 없으면 result만 낸다", () => {
+    expect(readRejection({ result: "실패했습니다." })).toBe("실패했습니다.");
+  });
+
+  it("정상 응답은 실패 봉투가 아니다 — result 키가 없다", () => {
+    expect(readRejection({ PrecSearch: { totalCnt: "1" } })).toBeUndefined();
+    expect(readRejection({ PrecService: { 사건번호: "2019도12345" } })).toBeUndefined();
   });
 });

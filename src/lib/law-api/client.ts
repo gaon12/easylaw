@@ -5,6 +5,7 @@ import {
   type PrecedentSummary,
   parseDetailResponse,
   parseSearchResponse,
+  readRejection,
 } from "./parse";
 
 /**
@@ -59,12 +60,25 @@ async function requestJson(url: URL, signal: AbortSignal | undefined): Promise<u
   }
 
   const text = await response.text();
+
+  let payload: unknown;
   try {
-    return JSON.parse(text) as unknown;
+    payload = JSON.parse(text) as unknown;
   } catch {
     // 인증키가 틀리면 JSON 대신 HTML 안내 페이지가 온다. 그대로 파싱하면 알 수 없는 오류가 된다.
     throw new LawApiError("법제처 API가 JSON이 아닌 응답을 보냈습니다. 인증키를 확인하세요.");
   }
+
+  /*
+   * 법제처는 인증 실패에도 200으로 답한다. 여기서 걸러 내지 않으면 목록 스키마가 터지고,
+   * zod 오류 덤프가 그대로 화면까지 올라간다(`/search`의 `api_error` 경로).
+   */
+  const rejection = readRejection(payload);
+  if (rejection !== undefined) {
+    throw new LawApiError(rejection);
+  }
+
+  return payload;
 }
 
 function createLawApi(oc: string): LawApi {
@@ -75,7 +89,17 @@ function createLawApi(oc: string): LawApi {
       url.searchParams.set("target", "prec");
       url.searchParams.set("type", "JSON");
       url.searchParams.set("nb", caseNo);
-      return parseSearchResponse(await requestJson(url, signal));
+      const payload = await requestJson(url, signal);
+      try {
+        return parseSearchResponse(payload);
+      } catch {
+        /*
+         * 여기까지 왔다는 것은 200이고, JSON이고, 실패 봉투도 아닌데 형태가 다르다는 뜻이다.
+         * zod가 만든 이슈 배열을 그대로 올리면 화면에 JSON 덩어리가 뜬다 — 사용자가 할 수
+         * 있는 일이 아무것도 없는 메시지다.
+         */
+        throw new LawApiError("법제처 응답의 형태가 예상과 다릅니다.");
+      }
     },
 
     async fetchDetail(precedentId, signal) {
