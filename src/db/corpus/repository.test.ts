@@ -9,10 +9,12 @@ import {
   heartbeatGenerationJob,
   listSentences,
   listSpans,
+  listStructureNodes,
   recordLookupMiss,
   STALE_AFTER_MS,
   saveJudgmentText,
   saveRendition,
+  saveStructure,
   upsertJudgment,
 } from "./repository";
 import { lookupMiss } from "./schema";
@@ -231,5 +233,125 @@ describe("recordLookupMiss", () => {
     expect(row?.count).toBe(2);
     expect(row?.lastTriedAt).toEqual(new Date("2026-08-29T00:00:00Z"));
     expect(row?.firstTriedAt).toEqual(new Date("2026-08-28T00:00:00Z"));
+  });
+});
+
+describe("saveStructure", () => {
+  /** 판결문 하나와 문장 두 개. 구조 노드가 근거로 삼을 span을 만든다. */
+  function seedWithSpans(): { judgmentId: string; spanIds: string[] } {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 10, text: "원고는 …" },
+      { paraIdx: 0, sentIdx: 1, charStart: 11, charEnd: 20, text: "피고는 …" },
+    ]);
+    return { judgmentId, spanIds: listSpans(db, judgmentId).map((span) => span.id) };
+  }
+
+  it("노드와 근거 연결을 함께 저장하고 순서대로 읽는다", () => {
+    const { judgmentId, spanIds } = seedWithSpans();
+
+    saveStructure(db, judgmentId, [
+      {
+        kind: "issue",
+        payload: { text: "소멸시효가 지났는가" },
+        orderIdx: 1,
+        spanIds: [spanIds[1] as string],
+      },
+      {
+        kind: "fact_event",
+        payload: { text: "계약을 맺었다" },
+        occurredOn: new Date("2019-05-03T00:00:00Z"),
+        orderIdx: 0,
+        spanIds,
+      },
+    ]);
+
+    const nodes = listStructureNodes(db, judgmentId);
+    expect(nodes.map((node) => node.kind)).toEqual(["fact_event", "issue"]);
+    expect(nodes[0]?.payload).toEqual({ text: "계약을 맺었다" });
+    expect(nodes[0]?.occurredOn).toEqual(new Date("2019-05-03T00:00:00Z"));
+    expect([...(nodes[0]?.spanIds ?? [])].sort()).toEqual([...spanIds].sort());
+    expect(nodes[1]?.spanIds).toEqual([spanIds[1]]);
+  });
+
+  it("근거 span이 없는 노드를 받지 않는다 — P2를 여기서 막는다", () => {
+    const { judgmentId } = seedWithSpans();
+
+    expect(() =>
+      saveStructure(db, judgmentId, [
+        { kind: "holding", payload: { text: "…" }, orderIdx: 0, spanIds: [] },
+      ]),
+    ).toThrow("근거 span이 없는");
+  });
+
+  it("다른 판결문의 span을 근거로 받지 않는다 — 외래 키는 이것을 못 막는다", () => {
+    const { judgmentId } = seedWithSpans();
+
+    const other = seedJudgment("2020다1111");
+    saveJudgmentText(db, other, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 5, text: "남의 판결문" },
+    ]);
+    const otherSpan = listSpans(db, other)[0]?.id as string;
+
+    expect(() =>
+      saveStructure(db, judgmentId, [
+        { kind: "holding", payload: { text: "…" }, orderIdx: 0, spanIds: [otherSpan] },
+      ]),
+    ).toThrow("이 판결문의 span이 아닙니다");
+  });
+
+  it("하나라도 어긋나면 옛 구조를 지우지도, 새 구조를 넣지도 않는다", () => {
+    const { judgmentId, spanIds } = seedWithSpans();
+    saveStructure(db, judgmentId, [
+      {
+        kind: "issue",
+        payload: { text: "멀쩡한 것" },
+        orderIdx: 0,
+        spanIds: [spanIds[0] as string],
+      },
+    ]);
+
+    expect(() =>
+      saveStructure(db, judgmentId, [
+        { kind: "issue", payload: { text: "새 것" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
+        { kind: "holding", payload: {}, orderIdx: 1, spanIds: ["없는-span"] },
+      ]),
+    ).toThrow();
+
+    // 검사를 트랜잭션 **앞에서** 하므로 옛 구조가 그대로 남아야 한다.
+    const nodes = listStructureNodes(db, judgmentId);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.payload).toEqual({ text: "멀쩡한 것" });
+  });
+
+  it("같은 span을 두 번 적어 와도 한 번만 잇는다", () => {
+    const { judgmentId, spanIds } = seedWithSpans();
+    const spanId = spanIds[0] as string;
+
+    saveStructure(db, judgmentId, [
+      { kind: "conclusion", payload: {}, orderIdx: 0, spanIds: [spanId, spanId] },
+    ]);
+
+    expect(listStructureNodes(db, judgmentId)[0]?.spanIds).toEqual([spanId]);
+  });
+
+  it("다시 추출하면 옛 구조를 남기지 않는다", () => {
+    const { judgmentId, spanIds } = seedWithSpans();
+
+    saveStructure(db, judgmentId, [
+      { kind: "issue", payload: { text: "옛 것" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
+    ]);
+    saveStructure(db, judgmentId, [
+      { kind: "issue", payload: { text: "새 것" }, orderIdx: 0, spanIds: [spanIds[1] as string] },
+    ]);
+
+    const nodes = listStructureNodes(db, judgmentId);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.payload).toEqual({ text: "새 것" });
+  });
+
+  it("구조가 없는 판결문은 빈 배열을 낸다 — 추가 조회를 돌지 않는다", () => {
+    const { judgmentId } = seedWithSpans();
+    expect(listStructureNodes(db, judgmentId)).toEqual([]);
   });
 });

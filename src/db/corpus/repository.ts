@@ -5,18 +5,21 @@
  * 테이블을 직접 만지지 않아야 `corpus`/`app` 양쪽에 같은 파이프라인을 쓸 수 있다.
  */
 
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { CorpusDb } from "../client";
 import {
   generationJob,
   judgment,
   judgmentSpan,
   lookupMiss,
+  nodeSpan,
   rendition,
   renditionSentence,
+  structureNode,
 } from "./schema";
 
 type Level = (typeof rendition.level.enumValues)[number];
+type StructureKind = (typeof structureNode.kind.enumValues)[number];
 type Confidence = (typeof renditionSentence.confidence.enumValues)[number];
 type Outcome = (typeof judgment.outcome.enumValues)[number];
 
@@ -319,6 +322,152 @@ function finishGenerationJob(
     .run();
 }
 
+interface StructureNodeInput {
+  kind: StructureKind;
+  /** 종류마다 다른 필드. 형태 검증은 이 계층이 아니라 추출 단계의 zod가 한다. */
+  payload: unknown;
+  occurredOn?: Date | null;
+  orderIdx: number;
+  /** 이 노드의 근거가 되는 원문 span. **비어 있으면 안 된다**(아래 참고). */
+  spanIds: readonly string[];
+}
+
+interface StructureNodeRow {
+  readonly id: string;
+  readonly kind: StructureKind;
+  readonly payload: unknown;
+  readonly occurredOn: Date | null;
+  readonly orderIdx: number;
+  readonly spanIds: readonly string[];
+}
+
+/**
+ * 구조화 추출 결과를 저장한다. `PRODUCT.md` §5.5 [4]
+ *
+ * **근거 없는 노드를 받지 않는다.** P2("근거 없는 문장은 표시하지 않는다")는 렌더 단계의
+ * 규칙처럼 보이지만, 근거가 비어 있는 노드를 여기서 통과시키면 그 노드에서 파생된 문장은
+ * 되짚을 원문이 없는 채로 태어난다. 화면에서 막는 것보다 **들어오지 못하게 하는 것**이 싸다.
+ *
+ * **span이 이 판결문의 것인지도 확인한다.** 외래 키는 span이 존재한다는 것만 보장하고
+ * 어느 판결문의 span인지는 보지 않는다. 모델이 다른 판결문의 id를 지어내면 FK는 통과하고,
+ * 근거 하이라이트가 남의 판결문을 가리키게 된다. 여기가 그것을 막을 마지막 자리다.
+ *
+ * 노드와 근거 연결을 한 트랜잭션으로 묶는다(§10.2) — 중간에 끊기면 근거가 반쯤 붙은
+ * 구조가 남고, 그것은 근거가 없는 것보다 나쁘다.
+ */
+function saveStructure(
+  db: CorpusDb,
+  judgmentId: string,
+  nodes: readonly StructureNodeInput[],
+): string[] {
+  const valid = new Set(
+    db
+      .select({ id: judgmentSpan.id })
+      .from(judgmentSpan)
+      .where(eq(judgmentSpan.judgmentId, judgmentId))
+      .all()
+      .map((row) => row.id),
+  );
+
+  for (const node of nodes) {
+    if (node.spanIds.length === 0) {
+      throw new Error(
+        `근거 span이 없는 구조 노드입니다 (kind=${node.kind}, order=${node.orderIdx}).`,
+      );
+    }
+    for (const spanId of node.spanIds) {
+      if (!valid.has(spanId)) {
+        throw new Error(`이 판결문의 span이 아닙니다 (node kind=${node.kind}, span=${spanId}).`);
+      }
+    }
+  }
+
+  return db.transaction((tx) => {
+    // 다시 추출하면 옛 구조를 남기지 않는다. node_span은 cascade로 함께 지워진다.
+    tx.delete(structureNode).where(eq(structureNode.judgmentId, judgmentId)).run();
+    if (nodes.length === 0) {
+      return [];
+    }
+
+    const ids = nodes.map(() => newId());
+    tx.insert(structureNode)
+      .values(
+        nodes.map((node, index) => ({
+          id: ids[index] as string,
+          judgmentId,
+          kind: node.kind,
+          payload: node.payload,
+          occurredOn: node.occurredOn ?? null,
+          orderIdx: node.orderIdx,
+        })),
+      )
+      .run();
+
+    tx.insert(nodeSpan)
+      .values(
+        nodes.flatMap((node, index) =>
+          // 같은 span을 두 번 적어 오는 모델이 있다. 복합 기본키가 터지기 전에 여기서 줄인다.
+          [...new Set(node.spanIds)].map((spanId) => ({
+            structureNodeId: ids[index] as string,
+            spanId,
+          })),
+        ),
+      )
+      .run();
+
+    return ids;
+  });
+}
+
+/**
+ * 구조 노드를 근거 span과 함께 읽는다.
+ *
+ * 노드마다 span을 따로 조회하지 않는다(§10.2 N+1 금지) — 판결문 하나에 노드가 수십 개고,
+ * 레벨 렌더링은 그 전부를 한 번에 본다.
+ */
+function listStructureNodes(db: CorpusDb, judgmentId: string): StructureNodeRow[] {
+  const nodes = db
+    .select()
+    .from(structureNode)
+    .where(eq(structureNode.judgmentId, judgmentId))
+    .orderBy(structureNode.orderIdx)
+    .all();
+
+  if (nodes.length === 0) {
+    return [];
+  }
+
+  const links = db
+    .select()
+    .from(nodeSpan)
+    .where(
+      inArray(
+        nodeSpan.structureNodeId,
+        nodes.map((node) => node.id),
+      ),
+    )
+    .all();
+
+  const byNode = new Map<string, string[]>();
+  for (const link of links) {
+    const bucket = byNode.get(link.structureNodeId);
+    if (bucket === undefined) {
+      byNode.set(link.structureNodeId, [link.spanId]);
+    } else {
+      bucket.push(link.spanId);
+    }
+  }
+
+  return nodes.map((node) => ({
+    id: node.id,
+    kind: node.kind,
+    payload: node.payload,
+    occurredOn: node.occurredOn,
+    orderIdx: node.orderIdx,
+    spanIds: byNode.get(node.id) ?? [],
+  }));
+}
+
 /**
  * 없는 사건번호를 기록한다.
  *
@@ -344,10 +493,23 @@ export {
   heartbeatGenerationJob,
   listSentences,
   listSpans,
+  listStructureNodes,
   recordLookupMiss,
   saveJudgmentText,
   saveRendition,
+  saveStructure,
   STALE_AFTER_MS,
   upsertJudgment,
 };
-export type { ClaimResult, Confidence, JudgmentInput, Level, Outcome, SentenceInput, SpanInput };
+export type {
+  ClaimResult,
+  Confidence,
+  JudgmentInput,
+  Level,
+  Outcome,
+  SentenceInput,
+  SpanInput,
+  StructureKind,
+  StructureNodeInput,
+  StructureNodeRow,
+};
