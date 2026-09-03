@@ -162,13 +162,30 @@ function branchNumber(raw: unknown): string | undefined {
   return text === undefined || text === "0" ? undefined : text;
 }
 
+/**
+ * 조문 본문 앞에 붙은 `제2조(보통재판적) ` 머리를 뗀다.
+ *
+ * 항이 없는 조문은 `조문내용`에 **제목까지 포함한 한 줄**이 통째로 온다. 화면은 제목을
+ * 따로 그리므로 그대로 두면 `제2조 (보통재판적)` 밑에 `제2조(보통재판적) 소는…`이 다시
+ * 나온다. 머리가 없으면 아무것도 하지 않는다 — 못 찾았다고 본문을 자르지 않는다.
+ */
+function stripArticleHead(text: string, number: string, branch: string | undefined): string {
+  const label = branch === undefined ? `제${number}조` : `제${number}조의${branch}`;
+  const head = new RegExp(`^\s*${label}\s*(?:\([^)]*\))?\s*`, "u");
+  return text.replace(head, "");
+}
+
 function toArticle(raw: unknown): LawArticle {
   const parsed = articleSchema.parse(raw);
+  const number = String(parsed.조문번호 ?? "").trim();
+  const branch = branchNumber(parsed.조문가지번호);
+  const body = optionalText(parsed.조문내용 && htmlToPlainText(String(parsed.조문내용)));
+
   return {
-    number: String(parsed.조문번호 ?? "").trim(),
-    branchNumber: branchNumber(parsed.조문가지번호),
+    number,
+    branchNumber: branch,
     title: optionalText(parsed.조문제목),
-    text: optionalText(parsed.조문내용 && htmlToPlainText(String(parsed.조문내용))),
+    text: body === undefined ? undefined : optionalText(stripArticleHead(body, number, branch)),
     clauses: asArray(parsed.항).map(toClause),
     effectiveAt: parseApiDate(parsed.조문시행일자),
   };

@@ -140,3 +140,20 @@ describe("parseArticleRef", () => {
     expect(parseArticleRef("도로교통법에 따라")).toBeUndefined();
   });
 });
+
+describe("조문 머리 떼기", () => {
+  const detail = parseLawDetailResponse(lawDetail);
+
+  it("본문 앞의 `제N조(제목)`를 뗀다 — 화면이 제목을 따로 그린다", () => {
+    // 항이 없는 조문은 조문내용에 제목까지 포함한 한 줄이 통째로 온다.
+    for (const article of detail.articles) {
+      expect(article.text ?? "").not.toMatch(new RegExp(`^제${article.number}조`, "u"));
+    }
+  });
+
+  it("머리가 없으면 본문을 건드리지 않는다", () => {
+    const article = findArticle(detail, 3);
+    // 제3조는 항으로 나뉘어 있어 조문내용에 머리가 없다. 항은 그대로여야 한다.
+    expect(findClause(article as never, 1)?.text.startsWith("①")).toBe(true);
+  });
+});

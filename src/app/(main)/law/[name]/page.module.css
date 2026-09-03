@@ -1,0 +1,80 @@
+/* 법령 본문. 조문이 수백 개라 목록 화면에 가깝다(`DESIGN.md` §5.1 — 단일 canvas). */
+
+.page {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-3);
+  max-width: 62ch;
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.note {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+}
+
+.articles {
+  display: grid;
+  gap: var(--el-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* 조문은 법조인이 읽는 글이다 — L1 규격의 줄 길이를 쓴다(§7). */
+  max-width: 72ch;
+}
+
+.article {
+  display: grid;
+  gap: var(--el-space-2);
+  /* 앵커로 뛰어왔을 때 제목이 헤더 밑에 숨지 않게 한다. */
+  scroll-margin-top: var(--el-space-8);
+}
+
+.articleHead,
+.articleHeadHit {
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  align-items: baseline;
+}
+
+/*
+ * 인용에서 온 조문. 배경으로 표시한다 — 색만으로 알리지 않도록 왼쪽에 굵은 표식을 함께
+ * 둔다(§11). 카드가 아니라 제목에 붙이므로 §11의 "카드 좌측 보더 금지"에 걸리지 않는다.
+ */
+.articleHeadHit {
+  background: var(--el-action-weak);
+  border-left: 4px solid var(--el-action);
+  padding: var(--el-space-2) var(--el-space-3);
+  border-radius: var(--el-radius-s);
+}
+
+.articleTitle {
+  font-weight: 400;
+  color: var(--el-fg-2);
+}
+
+.body {
+  line-height: var(--el-leading-body);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
+  }
+}

@@ -9,6 +9,7 @@ import { SummaryCard } from "@/components/viewer/summary-card";
 import { corpusDb } from "@/db/client";
 import { findJudgmentByCaseNo, listSpans } from "@/db/corpus/repository";
 import { viewer } from "@/lib/strings";
+import { findCitations } from "@/server/citations";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import { llmConfig, siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
@@ -78,6 +79,12 @@ export default async function CasePage(props: {
   const row = findJudgmentByCaseNo(db, summary.caseNoCanonical);
   const spans = row === undefined ? [] : listSpans(db, row.id);
 
+  /*
+   * 인용 찾기를 **여기서 한 번에** 한다. 문장마다 컴포넌트 안에서 찾으면 사전 조회가
+   * 문장 수만큼 붙는다. 결과는 span id로 묶어 넘긴다.
+   */
+  const citations = new Map(spans.map((span) => [span.id, findCitations(span.text)]));
+
   return (
     <div className={styles.page}>
       <SummaryCard
@@ -108,7 +115,7 @@ export default async function CasePage(props: {
         <section className={styles.panel}>
           <h2 className={styles.panelTitle}>{viewer.originalPanel}</h2>
           {textResult.ok ? (
-            <OriginalPanel spans={spans} />
+            <OriginalPanel citations={citations} decidedAt={summary.decidedAt} spans={spans} />
           ) : (
             <p className={styles.notice}>{textResult.reason}</p>
           )}

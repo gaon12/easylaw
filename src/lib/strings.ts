@@ -751,7 +751,49 @@ export const search = {
   apiErrorTitle: "판례를 가져오지 못했어요",
 } as const;
 
+/**
+ * 법령 화면.
+ *
+ * **판결 당시의 법**을 보여 준다는 사실을 화면에서 분명히 말한다. 현행법으로 착각하면
+ * 지금 상황에 그대로 적용해 버릴 수 있고, 그건 이 서비스가 가장 피해야 할 오해다.
+ */
+export const law = {
+  effectiveAt: "이 판의 시행일",
+  articleCount: "조문 수",
+  articles: (count: number) => `${count}개`,
+  source: "출처",
+  sourceName: "국가법령정보센터",
+  asOfNote:
+    "이 판결이 선고될 때 시행 중이던 법이에요. 지금 시행 중인 법과 다를 수 있으니, 현재 상황에 적용하시려면 최신 법을 다시 확인해 주세요.",
+  /** 조 제목을 괄호에 넣는다. 리터럴을 화면 코드에 흩지 않는다(§9). */
+  articleTitle: (title: string) => `(${title})`,
+  articleLabel: (articleNo: string, branchNo: string) =>
+    branchNo.length > 0 ? `제${articleNo}조의${branchNo}` : `제${articleNo}조`,
+
+  problems: {
+    unknown_law: {
+      title: "이 법을 아직 몰라요",
+      body: "저희가 가진 법령 목록에 없어요. 이름이 조금 다르거나, 아직 받아 오지 않았을 수 있어요.",
+    },
+    not_in_force: {
+      title: "그때는 아직 없던 법이에요",
+      body: "이 법은 판결이 선고된 뒤에 만들어졌거나 시행됐어요.",
+    },
+    api_unavailable: {
+      title: "법령 본문을 가져올 수 없어요",
+      body: "법제처 연결이 아직 설정되지 않았어요.",
+    },
+    api_error: {
+      title: "법령 본문을 가져오지 못했어요",
+      body: "잠시 뒤에 다시 열어 봐 주세요.",
+    },
+  },
+} as const;
+
 export const viewer = {
+  /** 인용 링크의 툴팁. 어디로 가는지 미리 알려 준다. */
+  citationHint: (lawName: string, article: string) => `${lawName} ${article} 보기`,
+
   levels: {
     L0: "원문",
     L1: "법조",

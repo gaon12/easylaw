@@ -669,6 +669,23 @@ function listLawArticles(db: CorpusDb, lawVersionId: string, at?: Date) {
 }
 
 /**
+ * 우리가 아는 법 이름 전부.
+ *
+ * 판결문에서 인용을 찾을 때 **사전으로 쓴다**(`lib/law-citation`). 법 이름에는 공백이
+ * 들어가서(`채무자 회생 및 파산에 관한 법률`) 글만 봐서는 어디까지가 이름인지 알 수 없고,
+ * 아는 이름 목록에 대고 맞추는 수밖에 없다.
+ *
+ * 판 수는 168,494개지만 서로 다른 이름은 13,265개다. 한 번 읽어 두고 재사용한다.
+ */
+function listLawNames(db: CorpusDb): string[] {
+  return db
+    .selectDistinct({ name: lawVersion.name })
+    .from(lawVersion)
+    .all()
+    .map((row) => row.name);
+}
+
+/**
  * 없는 사건번호를 기록한다.
  *
  * 하급심 대부분은 공개되지 않아 이 경로가 흔하다(`PRODUCT.md` §5.4).
@@ -696,6 +713,7 @@ export {
   finishGenerationJob,
   heartbeatGenerationJob,
   listLawArticles,
+  listLawNames,
   listSentences,
   listSpans,
   listStructureNodes,
