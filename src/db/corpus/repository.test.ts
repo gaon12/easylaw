@@ -4,6 +4,7 @@ import { createTestCorpusDb } from "../testing";
 import {
   claimGenerationJob,
   countGenerationsOn,
+  findGenerationProgress,
   findJudgmentByCaseNo,
   findLawArticle,
   findLawVersionAt,
@@ -22,6 +23,7 @@ import {
   saveLawArticles,
   saveRendition,
   saveStructure,
+  setGenerationStage,
   upsertJudgment,
   upsertLawVersions,
 } from "./repository";
@@ -570,5 +572,63 @@ describe("reserveGenerationSlot", () => {
 
   it("센 적 없는 날은 0이다", () => {
     expect(countGenerationsOn(db, "2026-01-01")).toBe(0);
+  });
+});
+
+describe("생성 진행 상태", () => {
+  const base = { level: "L2" as const, promptVersion: "v1" };
+
+  it("작업이 없으면 진행도 없다", () => {
+    const judgmentId = seedJudgment();
+    expect(findGenerationProgress(db, { ...base, judgmentId })).toBeUndefined();
+  });
+
+  it("단계를 적으면 그대로 읽힌다", () => {
+    const judgmentId = seedJudgment();
+    const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1" });
+    setGenerationStage(db, claim.jobId, "verify");
+
+    expect(findGenerationProgress(db, { ...base, judgmentId })).toMatchObject({
+      status: "running",
+      stage: "verify",
+    });
+  });
+
+  it("단계를 적는 것이 곧 heartbeat다 — 좀비로 회수되지 않는다", () => {
+    const judgmentId = seedJudgment();
+    const start = new Date("2026-09-04T00:00:00Z");
+    const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1", now: start });
+
+    const later = new Date(start.getTime() + STALE_AFTER_MS - 1_000);
+    setGenerationStage(db, claim.jobId, "render", later);
+
+    // 처음 선점한 시각으로는 이미 좀비지만, 단계를 적은 시각 기준으로는 살아 있다.
+    const wouldBeStale = new Date(start.getTime() + STALE_AFTER_MS + 1_000);
+    expect(
+      claimGenerationJob(db, { ...base, judgmentId, workerId: "w2", now: wouldBeStale }).kind,
+    ).toBe("running");
+  });
+
+  it("끝난 작업에는 단계가 남지 않는다 — 화면이 '아직 만드는 중'으로 읽는다", () => {
+    const judgmentId = seedJudgment();
+    const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1" });
+    setGenerationStage(db, claim.jobId, "save");
+    finishGenerationJob(db, claim.jobId, { ok: true });
+
+    expect(findGenerationProgress(db, { ...base, judgmentId })).toMatchObject({
+      status: "done",
+      stage: null,
+    });
+  });
+
+  it("실패한 까닭을 남긴다", () => {
+    const judgmentId = seedJudgment();
+    const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1" });
+    finishGenerationJob(db, claim.jobId, { ok: false, error: "AI 서버에 연결하지 못했습니다" });
+
+    expect(findGenerationProgress(db, { ...base, judgmentId })).toMatchObject({
+      status: "failed",
+      error: "AI 서버에 연결하지 못했습니다",
+    });
   });
 });

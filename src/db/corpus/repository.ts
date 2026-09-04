@@ -22,6 +22,8 @@ import {
 } from "./schema";
 
 type Level = (typeof rendition.level.enumValues)[number];
+type JobStage = (typeof generationJob.stage.enumValues)[number];
+type JobStatus = (typeof generationJob.status.enumValues)[number];
 type StructureKind = (typeof structureNode.kind.enumValues)[number];
 type Confidence = (typeof renditionSentence.confidence.enumValues)[number];
 type Outcome = (typeof judgment.outcome.enumValues)[number];
@@ -308,6 +310,49 @@ function heartbeatGenerationJob(db: CorpusDb, jobId: string, now: Date = new Dat
   db.update(generationJob).set({ heartbeatAt: now }).where(eq(generationJob.id, jobId)).run();
 }
 
+/**
+ * 지금 무엇을 하고 있는지 적는다. 기다리는 사람이 볼 유일한 창이다(`PRODUCT.md` §5.3).
+ *
+ * **단계를 적는 것이 곧 heartbeat다.** 두 번 쓰지 않는다 — 단계가 바뀌었다는 것은
+ * 그 작업이 살아 있다는 뜻이고, 따로 찍으면 언젠가 한쪽만 남는다.
+ */
+function setGenerationStage(
+  db: CorpusDb,
+  jobId: string,
+  stage: JobStage,
+  now: Date = new Date(),
+): void {
+  db.update(generationJob)
+    .set({ stage, heartbeatAt: now })
+    .where(eq(generationJob.id, jobId))
+    .run();
+}
+
+interface JobProgress {
+  readonly status: JobStatus;
+  readonly stage: JobStage | null;
+  readonly error: string | null;
+  /** 마지막으로 살아 있다고 말한 시각. 이것이 멈추면 좀비다(`STALE_AFTER_MS`). */
+  readonly heartbeatAt: Date | null;
+}
+
+/** 이 변환본을 만드는 작업이 지금 어떤 상태인가. 없으면 undefined. */
+function findGenerationProgress(
+  db: CorpusDb,
+  input: { judgmentId: string; level: Level; promptVersion: string },
+): JobProgress | undefined {
+  const row = findJob(db, input.judgmentId, input.level, input.promptVersion);
+  if (row === undefined) {
+    return;
+  }
+  return {
+    status: row.status,
+    stage: row.stage,
+    error: row.error,
+    heartbeatAt: row.heartbeatAt,
+  };
+}
+
 function finishGenerationJob(
   db: CorpusDb,
   jobId: string,
@@ -317,6 +362,8 @@ function finishGenerationJob(
   db.update(generationJob)
     .set({
       status: result.ok ? "done" : "failed",
+      // 끝난 작업에 단계가 남아 있으면 화면이 "아직 만드는 중"으로 읽는다.
+      stage: null,
       error: result.ok ? null : result.error,
       finishedAt: now,
       heartbeatAt: now,
@@ -819,6 +866,7 @@ export {
   findLatestRendition,
   findLawArticle,
   findLawVersionAt,
+  findGenerationProgress,
   findLawVersionByMst,
   findRendition,
   finishGenerationJob,
@@ -836,6 +884,7 @@ export {
   saveRendition,
   saveStructure,
   searchLawVersions,
+  setGenerationStage,
   STALE_AFTER_MS,
   upsertJudgment,
   upsertLawVersions,
@@ -843,6 +892,9 @@ export {
 export type {
   ClaimResult,
   Confidence,
+  JobProgress,
+  JobStage,
+  JobStatus,
   JudgmentInput,
   LawArticleInput,
   LawNameEntry,
