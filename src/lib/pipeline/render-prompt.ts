@@ -19,7 +19,7 @@ const LEVEL_BRIEF: Readonly<Record<Level, { reader: string; question: string; sh
   L2: {
     reader: "이 사건의 당사자인 성인",
     question: "나에게 무슨 일이 일어났나",
-    shape: "결론 → 그렇게 된 이유 → 나에게 미치는 효과 → 다음 절차 순서로 씁니다.",
+    shape: "결론 → 그렇게 된 법적 이유 → 당사자에게 미치는 효과 → 다음 절차 순서로 씁니다.",
   },
   L3: {
     reader: "초등학교 고학년~중학생",
@@ -70,10 +70,17 @@ const COMMON_RULES = [
   '- **승패를 단정하지 않습니다.** "이겼습니다", "졌습니다", "승소했습니다", "패소했습니다",',
   '  "끝났습니다", "확정됐습니다" 를 쓰지 않습니다. 아직 다툴 수 있는 단계일 수 있습니다.',
   "- **구조에 적힌 것만 씁니다.** 일반적인 법 지식으로 빈칸을 메우지 않습니다.",
-  "- **당사자의 주장과 법원의 판단을 섞지 않습니다.** `claim`은 그 사람이 그렇게 주장한 것이고,",
-  "  `holding`만 법원이 그렇게 판단한 것입니다.",
-  "- 해요체로 씁니다.",
+  "- **당사자의 주장과 법원의 판단을 섞지 않습니다.** `원고 측의 주장`·`피고 측의 주장`·",
+  "  `검사의 주장`·`그 밖의 당사자의 주장`은 그 주체가 그렇게 주장한 것이고,",
+  "  `법원의 판단과 이유`만 법원이 그렇게 판단한 것입니다.",
 ];
+
+function styleLine(level: Level): string {
+  if (level === "L2") {
+    return "- 일반 성인에게 설명하는 단계입니다. 정중한 **-합니다**체로 씁니다.";
+  }
+  return "- **-어요**체로 씁니다.";
+}
 
 /**
  * 지시문을 만든다.
@@ -92,7 +99,10 @@ function renderInstruction(level: Level): string {
     "",
     "## 받는 것",
     "",
-    "판결문에서 뽑아낸 구조입니다. 각 줄이 `[n0] 종류: 내용` 형태입니다.",
+    "판결문에서 뽑아낸 구조입니다. 각 줄은 `[n0] 한국어 라벨: 내용` 형태입니다.",
+    "주장은 `원고 측의 주장`·`피고 측의 주장`처럼 **누가 한 말인지 라벨에 표시**됩니다.",
+    "사실의 날짜는 알 수 있을 때 `사실관계(발생일: YYYY-MM-DD)`처럼 표시됩니다.",
+    "인용 법령은 법령명, 조, 항, 호 순서로 표시됩니다.",
     "**원문은 주지 않습니다. 이 구조에 적힌 것만 가지고 씁니다.**",
     "",
     "## 쓰는 법",
@@ -100,6 +110,7 @@ function renderInstruction(level: Level): string {
     `- ${brief.shape}`,
     ...ruleLines(level),
     ...COMMON_RULES,
+    styleLine(level),
     "",
     "## 근거",
     "",
@@ -117,6 +128,6 @@ function renderInstruction(level: Level): string {
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-03";
+const RENDER_PROMPT_VERSION = "render-2026-09-04-v2";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CompletionRequest, LlmClient } from "@/lib/llm/client";
 import { LEVEL_RULES } from "@/lib/rendition/lint";
 import { renderLevel } from "./render";
-import { renderInstruction } from "./render-prompt";
+import { RENDER_PROMPT_VERSION, renderInstruction } from "./render-prompt";
 import { parseRendition } from "./render-schema";
 
 /** `CONVENTIONS.md` §8 — 실호출하지 않는다. */
@@ -41,10 +41,50 @@ describe("프롬프트", () => {
     await renderLevel(client, "L2", nodes);
 
     const document = client.lastRequest?.documents?.[0]?.text ?? "";
-    expect(document).toContain("[n0] conclusion:");
-    expect(document).toContain("[n2] claim:");
+    expect(document).toContain("[n0] 재판의 결론: 상고 기각");
+    expect(document).toContain("[n2] 피고 측의 주장: 법리 오해");
     // 노드 id를 프롬프트에 싣지 않는다.
     expect(document).not.toContain("node-a");
+    expect(document).not.toContain('{"party":"defendant"');
+  });
+
+  it("모든 구조 필드를 모델이 바로 읽을 수 있는 한국어 한 줄로 보낸다", async () => {
+    const client = fakeClient(goodL2);
+    await renderLevel(client, "L2", [
+      { id: "f", kind: "fact_event", payload: { text: "계약을\n맺음", occurred_on: "2019-03-01" } },
+      { id: "i", kind: "issue", payload: { text: "대금을 주어야 하는지" } },
+      { id: "c1", kind: "claim", payload: { party: "plaintiff", text: "대금을 받지 못함" } },
+      { id: "c2", kind: "claim", payload: { party: "prosecutor", text: "유죄라고 주장함" } },
+      { id: "h", kind: "holding", payload: { text: "청구에 이유가 없음" } },
+      { id: "o", kind: "conclusion", payload: { text: "상고 기각" } },
+      {
+        id: "law",
+        kind: "citation",
+        payload: { law_name: "민법", article: "제390조", clause: "제1항", item: "제2호" },
+      },
+    ]);
+
+    expect(client.lastRequest?.documents?.[0]?.text).toBe(
+      [
+        "[n0] 사실관계(발생일: 2019-03-01): 계약을 맺음",
+        "[n1] 사건의 쟁점: 대금을 주어야 하는지",
+        "[n2] 원고 측의 주장: 대금을 받지 못함",
+        "[n3] 검사의 주장: 유죄라고 주장함",
+        "[n4] 법원의 판단과 이유: 청구에 이유가 없음",
+        "[n5] 재판의 결론: 상고 기각",
+        "[n6] 인용 법령: 민법 제390조 제1항 제2호",
+      ].join("\n"),
+    );
+  });
+
+  it("지시문이 실제 한국어 입력 모양과 주장 주체를 설명하고 버전을 구분한다", () => {
+    const instruction = renderInstruction("L2");
+
+    expect(instruction).toContain("[n0] 한국어 라벨: 내용");
+    expect(instruction).toContain("피고 측의 주장");
+    expect(instruction).toContain("법원의 판단과 이유");
+    expect(instruction).not.toContain("[n0] 종류: 내용");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-04-v2");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {

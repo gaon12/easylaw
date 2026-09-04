@@ -42,6 +42,93 @@ interface RenderResult {
   readonly unknownNodeLabels: readonly string[];
 }
 
+const PARTY_LABELS: Readonly<Record<string, string>> = {
+  plaintiff: "원고 측",
+  defendant: "피고 측",
+  prosecutor: "검사",
+  other: "그 밖의 당사자",
+};
+
+function payloadRecord(payload: unknown): Readonly<Record<string, unknown>> {
+  if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+    return payload as Readonly<Record<string, unknown>>;
+  }
+  return {};
+}
+
+/** 한 노드를 반드시 한 줄로 보낸다. 줄바꿈이 라벨 경계로 오인되지 않게 한다. */
+function inlineText(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return;
+  }
+  const text = value.replace(/\s+/gu, " ").trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function fallbackPayload(payload: unknown): string {
+  const serialized = JSON.stringify(payload);
+  return serialized === undefined ? String(payload) : serialized;
+}
+
+type NodeDescriber = (payload: Readonly<Record<string, unknown>>) => string | undefined;
+
+function describeFact(payload: Readonly<Record<string, unknown>>): string | undefined {
+  const text = inlineText(payload.text);
+  if (text === undefined) {
+    return;
+  }
+  const date = inlineText(payload.occurred_on);
+  return date === undefined ? `사실관계: ${text}` : `사실관계(발생일: ${date}): ${text}`;
+}
+
+function describeText(label: string): NodeDescriber {
+  return (payload) => {
+    const text = inlineText(payload.text);
+    return text === undefined ? undefined : `${label}: ${text}`;
+  };
+}
+
+function describeClaim(payload: Readonly<Record<string, unknown>>): string | undefined {
+  const text = inlineText(payload.text);
+  if (text === undefined) {
+    return;
+  }
+  const party = inlineText(payload.party);
+  const partyLabel = party === undefined ? "주체가 표시되지 않은 당사자" : PARTY_LABELS[party];
+  return `${partyLabel ?? `당사자(${party})`}의 주장: ${text}`;
+}
+
+function describeCitation(payload: Readonly<Record<string, unknown>>): string | undefined {
+  const lawName = inlineText(payload.law_name);
+  const article = inlineText(payload.article);
+  if (lawName === undefined || article === undefined) {
+    return;
+  }
+  const parts = [lawName, article, inlineText(payload.clause), inlineText(payload.item)];
+  return `인용 법령: ${parts.filter((part) => part !== undefined).join(" ")}`;
+}
+
+const NODE_DESCRIBERS: Readonly<Record<string, NodeDescriber>> = {
+  fact_event: describeFact,
+  issue: describeText("사건의 쟁점"),
+  claim: describeClaim,
+  holding: describeText("법원의 판단과 이유"),
+  conclusion: describeText("재판의 결론"),
+  citation: describeCitation,
+};
+
+/**
+ * [4]의 저장 모양(JSON 키)이 아니라, [5]가 뜻을 바로 알아볼 수 있는 한국어 한 줄로 바꾼다.
+ * 특히 주장의 주체를 라벨에 넣어 당사자의 말을 법원의 판단으로 잘못 옮길 여지를 줄인다.
+ */
+function describeNode(node: RenderableNode): string {
+  const payload = payloadRecord(node.payload);
+  const description = NODE_DESCRIBERS[node.kind]?.(payload);
+
+  // 저장소 경계가 이미 스키마를 검사하지만, 오래된 데이터나 새 종류가 와도 정보를 버리지 않는다.
+  return description ?? `기타 구조(${node.kind}): ${fallbackPayload(node.payload)}`;
+}
+
 /** 노드에 프롬프트용 이름을 붙인다. `[4]`의 `p0.s3`과 같은 이유로 id를 그대로 쓰지 않는다. */
 function labelNodes(nodes: readonly RenderableNode[]): {
   document: string;
@@ -53,7 +140,7 @@ function labelNodes(nodes: readonly RenderableNode[]): {
   for (const [index, node] of nodes.entries()) {
     const label = `n${index}`;
     byLabel.set(label, node.id);
-    lines.push(`[${label}] ${node.kind}: ${JSON.stringify(node.payload)}`);
+    lines.push(`[${label}] ${describeNode(node)}`);
   }
 
   return { document: lines.join("\n"), resolve: (label) => byLabel.get(label.trim()) };
