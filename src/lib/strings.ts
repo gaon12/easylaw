@@ -133,6 +133,25 @@ export const home = {
 } as const;
 
 /**
+ * 소리 내어 읽기. `FEATURES.md` [F-11]
+ *
+ * 버튼 이름을 **동작으로** 쓴다("음성 켜기"가 아니라 "읽어 주기") — 무엇이 일어나는지가
+ * 이름에 있어야 한다.
+ */
+export const speech = {
+  label: "읽어 주기",
+  play: "읽어 주기",
+  pause: "잠깐 멈춤",
+  resume: "이어 읽기",
+  stop: "그만 읽기",
+  rateLabel: "읽는 속도",
+  /** 속도 이름. 숫자를 화면에 그대로 보이지 않는다 — "1.25배"는 고르는 데 도움이 안 된다. */
+  rateNames: ["느리게", "보통", "빠르게"] as const,
+  statusSpeaking: "읽고 있어요.",
+  statusPaused: "잠깐 멈췄어요.",
+} as const;
+
+/**
  * 점자. `PAGES.md` §5 · `FEATURES.md` [F-11] 계열
  *
  * **화면에 점자를 그리는 것이 목적이 아니다.** 눈으로 점자를 읽는 사람은 없다 —

@@ -70,6 +70,9 @@ const SYMBOL_MAP: Readonly<Record<string, string>> = {
   "←": "<-",
 };
 
+/** 낱말을 가르는 공백. 최상위에 둔다 — 호출마다 정규식을 다시 만들지 않는다. */
+const WHITESPACE = /\s+/u;
+
 const SYMBOLS = new RegExp(`[${Object.keys(SYMBOL_MAP).join("")}]`, "gu");
 
 /** 변환기에 넣기 전에 기호를 정리한다. 글자 수가 바뀔 수 있으므로 좌표에 쓰지 않는다. */
@@ -104,7 +107,7 @@ function toBrailleWithNotes(text: string): BrailleResult {
 
   const pieces: string[] = [];
   let dropped = 0;
-  for (const word of clean.split(/\s+/u)) {
+  for (const word of clean.split(WHITESPACE)) {
     if (word.length === 0) {
       continue;
     }
