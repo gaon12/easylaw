@@ -989,6 +989,8 @@ export const workspace = {
  * 사용자는 그것이 다른 기능인 줄 안다.
  */
 export const wiki = {
+  /** 구간 번호 표기. `2.`처럼 번호 뒤에 점을 찍는다. */
+  sectionNumber: (number: string) => `${number}.`,
   /** 구간 링크. 위키의 문단 링크와 같은 뜻이고, 글자는 하나면 된다. */
   sectionLinkMark: "§",
   sectionLinkLabel: (section: string) => `${section} 구간 링크`,

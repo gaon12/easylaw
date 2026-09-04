@@ -61,14 +61,26 @@
   max-width: 72ch;
 }
 
-/* 장 제목. 조문보다 한 단 크게 두어 구간이 눈에 들어오게 한다. */
+/*
+ * 장 제목. 위키의 구간 제목 띠다 — 아래 선과 왼쪽 표식으로 구간을 나눈다.
+ * 색 면을 넓게 깔지 않는 이유는 조문 수백 개짜리 문서에서 그 띠가 수십 번 반복되기 때문이다.
+ */
 .sectionTitle {
   font-size: var(--el-text-heading-s);
   font-weight: 700;
   margin-top: var(--el-space-8);
-  padding-bottom: var(--el-space-2);
-  border-bottom: 1px solid var(--el-border-subtle);
+  padding: var(--el-space-2) 0 var(--el-space-2) var(--el-space-3);
+  border-bottom: 2px solid var(--el-action);
+  border-left: 4px solid var(--el-action);
+  background: var(--el-bg-subtle);
   scroll-margin-top: var(--el-space-8);
+}
+
+/* 구간 번호. 제목보다 한 톤 흐리게 — 번호는 길잡이지 제목이 아니다. */
+.sectionNumber {
+  margin-right: var(--el-space-2);
+  color: var(--el-action-hover);
+  font-variant-numeric: tabular-nums;
 }
 
 .sectionTitle:first-child {
