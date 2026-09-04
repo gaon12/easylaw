@@ -1,4 +1,3 @@
-import process from "node:process";
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
@@ -15,6 +14,14 @@ import { type NextRequest, NextResponse } from "next/server";
  *
  * 모든 화면이 이미 요청 시점 렌더다(헤더가 세션 쿠키를 읽는다). nonce는 그때만 쓸 수 있다.
  */
+
+/*
+ * 개발 중인가. 프록시는 Node 런타임이 아니라 `node:process`를 가져올 수 없고,
+ * `process.env.NODE_ENV`는 빌드 시점에 값이 박히는 특별한 형태라 여기서 읽을 수 있다.
+ */
+// biome-ignore lint/correctness/noProcessGlobal: 프록시 런타임에는 node:process가 없다. Next가 이 표현을 빌드 시점에 값으로 바꾼다.
+// biome-ignore lint/style/noProcessEnv: 같은 이유. 이 파일은 `lib/env.ts`(부팅 설정)와 달리 DB를 열기 전에 도는 자리다.
+const IS_DEV = process.env.NODE_ENV === "development";
 
 /** `unsafe-eval`은 개발 중 React가 오류 스택을 복원하는 데 쓴다. 운영에는 넣지 않는다. */
 function scriptSrc(nonce: string, isDev: boolean): string {
@@ -61,7 +68,7 @@ const HSTS = "max-age=31536000; includeSubDomains";
 
 function proxy(request: NextRequest): NextResponse {
   const nonce = crypto.randomUUID().replaceAll("-", "");
-  const csp = policy(nonce, process.env.NODE_ENV === "development");
+  const csp = policy(nonce, IS_DEV);
 
   /*
    * 요청 헤더에도 넣는다. Next가 렌더 중에 이 값을 읽어 자기 스크립트에 nonce를 붙이고,
@@ -106,4 +113,3 @@ export const config = {
 };
 
 export { proxy };
-export default proxy;
