@@ -24,12 +24,14 @@ const LEVEL_BRIEF: Readonly<Record<Level, { reader: string; question: string; sh
   L3: {
     reader: "초등학교 고학년~중학생",
     question: "무슨 일이었고 왜 그렇게 됐나",
-    shape: "무슨 일이 있었는지 이야기 순서로 쓰고, 왜 그런 결론이 났는지 설명합니다.",
+    shape:
+      "초등 고학년~중학생이 아는 일상 낱말을 씁니다. 사건을 시간 순서와 인물의 흐름으로 설명합니다. 피할 수 없는 법률 용어는 쓴 뒤 바로 다음 짧은 문장에서 그 용어의 문맥상 뜻만 풀이합니다.",
   },
   L4: {
     reader: "발달장애인",
     question: "나에게 무슨 일이 일어났나",
-    shape: "한 문장에 한 가지만 담습니다. 어려운 말이 나오면 바로 뒤에 쉬운 말로 풉니다.",
+    shape:
+      '한 문장에 한 가지 정보만 담습니다. 읽는 사람을 "당신"이라고 부릅니다. 법률 용어를 쓰면 바로 다음 별도 문장에서 그 용어의 문맥상 뜻만 풀이합니다. 마지막에는 이해 확인 질문을 넣습니다.',
   },
 };
 
@@ -128,6 +130,6 @@ function renderInstruction(level: Level): string {
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-04-v2";
+const RENDER_PROMPT_VERSION = "render-2026-09-05-v3";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };
