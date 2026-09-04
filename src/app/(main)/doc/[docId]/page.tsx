@@ -3,18 +3,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Infobox } from "@/components/ui/infobox";
+import { LevelTabs } from "@/components/viewer/level-tabs";
+import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
+import { RenditionSection } from "@/components/viewer/rendition-section";
+import type { PlaceholderState } from "@/components/viewer/rendition-state";
 import { TableOfContents } from "@/components/wiki/toc";
+import {
+  findUploadJobProgress,
+  findUploadRendition,
+  listUploadSentences,
+} from "@/db/app/generation";
 import { findUploadForOwner, listMaskCounts, listUploadSpans } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
 import { doc, upload, viewer } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
+import type { MaskKind } from "@/lib/text/mask";
 import { findCitations } from "@/server/citations";
+import { generationBudget, PIPELINE_VERSION } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
-import { siteTimeZone } from "@/server/settings";
+import { llmConfig, siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
-import { deleteDoc } from "./actions";
+import { deleteDoc, requestDocGeneration } from "./actions";
 import styles from "./page.module.css";
 
 /** 보관 기한 안내. 기한이 없으면 없다고 말한다 — 빈칸은 안내가 아니다. */
@@ -28,6 +39,68 @@ function retentionNotice(retentionUntil: Date | null, timeZone: string): string 
     : doc.retentionUntil(formatDate(retentionUntil, timeZone), remaining);
 }
 
+/** 무엇을 몇 건 가렸는지. 가린 내용은 저장하지 않으므로 종류와 건수만 말한다. */
+function MaskSummary({ masks }: { masks: readonly { kind: MaskKind; count: number }[] }) {
+  return (
+    <Card as="section" padding="tight">
+      <h2 className={styles.sectionTitle}>{doc.maskTitle}</h2>
+      {masks.length === 0 ? (
+        <p className={styles.hint}>{doc.maskEmpty}</p>
+      ) : (
+        <>
+          <ul className={styles.maskList}>
+            {masks.map((mask) => (
+              <li key={mask.kind}>
+                {/* 무엇을 몇 개 가렸는지는 상태다 — 배지로 말한다(`DESIGN.md` §6). */}
+                <Badge tone="grounded">{doc.maskCount(doc.maskKinds[mask.kind], mask.count)}</Badge>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.hint}>{doc.maskHint}</p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * 설명 칸이 무엇을 말해야 하나. 공개 판례 화면과 같은 판단을 한다.
+ *
+ * **올린 문서의 설명본은 나만의 것이다**(`PAGES.md` §5). 남이 만들어 둔 것을 물려받지
+ * 않으므로 캐시가 있어도 이 사람 것뿐이다.
+ */
+function placeholderState(docId: string, level: Exclude<ViewLevel, "L0">): PlaceholderState {
+  if (llmConfig() === undefined) {
+    return { kind: "off" };
+  }
+
+  const progress = findUploadJobProgress(appDb(), {
+    uploadId: docId,
+    level,
+    promptVersion: PIPELINE_VERSION,
+  });
+  if (progress?.status === "running" || progress?.status === "queued") {
+    return { kind: "running", stage: progress.stage };
+  }
+  if (generationBudget().remaining <= 0) {
+    return { kind: "limited" };
+  }
+  if (progress?.status === "failed") {
+    return { kind: "failed", reason: progress.error };
+  }
+  return { kind: "ready" };
+}
+
+/** 이 문서, 이 레벨의 설명본. 없으면 빈 배열이고 화면이 만들기 자리를 낸다. */
+function loadSentences(docId: string, level: ViewLevel) {
+  if (level === "L0") {
+    return [];
+  }
+  const db = appDb();
+  const rendition = findUploadRendition(db, docId, level, PIPELINE_VERSION);
+  return rendition === undefined ? [] : listUploadSentences(db, rendition.id);
+}
+
 /**
  * 내 문서 뷰어. `PAGES.md` §5 · `PRODUCT.md` §6.1
  *
@@ -37,7 +110,7 @@ function retentionNotice(retentionUntil: Date | null, timeZone: string): string 
  */
 export default async function DocPage(props: {
   params: Promise<{ docId: string }>;
-  searchParams: Promise<{ again?: string | string[] }>;
+  searchParams: Promise<{ again?: string | string[]; level?: string | string[] }>;
 }) {
   const [{ docId }, searchParams] = await Promise.all([props.params, props.searchParams]);
 
@@ -69,6 +142,8 @@ export default async function DocPage(props: {
   const headings = detectHeadings(spans);
   const timeZone = siteTimeZone();
   const isAgain = searchParams.again !== undefined;
+  const level = toLevel(searchParams.level);
+  const basePath = `/doc/${encodeURIComponent(docId)}`;
 
   return (
     <div className={styles.page}>
@@ -84,26 +159,25 @@ export default async function DocPage(props: {
         <p className={styles.retention}>{retentionNotice(row.retentionUntil, timeZone)}</p>
       </header>
 
-      <Card as="section" padding="tight">
-        <h2 className={styles.sectionTitle}>{doc.maskTitle}</h2>
-        {masks.length === 0 ? (
-          <p className={styles.hint}>{doc.maskEmpty}</p>
-        ) : (
-          <>
-            <ul className={styles.maskList}>
-              {masks.map((mask) => (
-                <li key={mask.kind}>
-                  {/* 무엇을 몇 개 가렸는지는 상태다 — 배지로 말한다(`DESIGN.md` §6). */}
-                  <Badge tone="grounded">
-                    {doc.maskCount(doc.maskKinds[mask.kind], mask.count)}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-            <p className={styles.hint}>{doc.maskHint}</p>
-          </>
-        )}
-      </Card>
+      <MaskSummary masks={masks} />
+
+      <div className={styles.levels}>
+        <LevelTabs basePath={basePath} current={level} />
+        {/* 고른 단계가 어떤 말로 쓰는지 한 줄로 알린다. 탭 이름만으로는 알 수 없다. */}
+        <p className={styles.levelNote}>{viewer.levelNotes[level]}</p>
+      </div>
+
+      {level === "L0" ? null : (
+        <RenditionSection
+          action={requestDocGeneration}
+          basePath={basePath}
+          fields={{ docId }}
+          level={level}
+          progressPath={`/api/generation/doc/${encodeURIComponent(docId)}/${level}`}
+          sentences={loadSentences(docId, level)}
+          state={placeholderState(docId, level)}
+        />
+      )}
 
       <section className={styles.panel}>
         <h2 className={styles.sectionTitle}>{viewer.originalPanel}</h2>

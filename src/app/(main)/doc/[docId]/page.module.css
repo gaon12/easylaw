@@ -60,3 +60,14 @@
     gap: var(--el-space-6);
   }
 }
+
+/* 레벨 탭과 그 설명 한 줄. 공개 판례 화면과 같은 자리, 같은 간격이다. */
+.levels {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.levelNote {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
