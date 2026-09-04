@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { SiteShell } from "@/components/site-shell";
 import { isSetupComplete } from "@/server/settings";
@@ -20,7 +21,10 @@ import { isSetupComplete } from "@/server/settings";
  * 서비스 셸도 여기에 있다. 헤더의 메뉴는 이 그룹 안의 화면들을 가리키므로, 그룹 밖에서는
  * 그릴 이유가 없다.
  */
-export default function MainLayout({ children }: { children: ReactNode }) {
+export default async function MainLayout({ children }: { children: ReactNode }) {
+  // better-sqlite3는 동기 호출이라 이 경계가 없으면 Next가 빌드 중 빈 DB를 읽으려 한다.
+  await connection();
+
   if (!isSetupComplete()) {
     redirect("/setup");
   }
