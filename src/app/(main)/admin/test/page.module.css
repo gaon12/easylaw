@@ -1,0 +1,55 @@
+/* 연결 시험. 관리자 설정과 같은 폭·간격을 쓴다(`DESIGN.md` §5.1). */
+
+.page {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.results {
+  display: grid;
+  gap: var(--el-space-4);
+}
+
+.note {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-4);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.link {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+  min-height: var(--el-touch-target);
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+}

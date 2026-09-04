@@ -1,0 +1,1 @@
+ALTER TABLE `user` DROP COLUMN `owner_key_hash`;

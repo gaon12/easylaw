@@ -1,0 +1,63 @@
+/*
+ * 카드. `DESIGN.md` §6 — 세 상태가 전부다.
+ * 색상 좌측 보더 액센트는 §11이 금지한다. 상태는 안쪽 배지가 말한다.
+ */
+
+.card {
+  display: grid;
+  gap: var(--el-space-4);
+  border-radius: var(--el-radius-l);
+  background: var(--el-bg-canvas);
+  align-content: start;
+}
+
+.pad-default {
+  padding: var(--el-space-6);
+}
+
+.pad-tight {
+  padding: var(--el-space-5);
+}
+
+.pad-none {
+  padding: 0;
+}
+
+/* 기본 — 위계는 1px 보더가 만든다(§11 "표면 3단, 위계는 1px gray-30 보더"). */
+.default {
+  border: 1px solid var(--el-border-default);
+}
+
+/*
+ * 떠 있는 표면 — 그림자만 쓴다. 보더를 함께 두면 경계가 두 번 그려져 무거워진다.
+ * 선명한 화면 모드에서는 그림자가 사라지므로(토큰이 none) 보더로 대신한다.
+ */
+.elevated {
+  box-shadow: var(--el-shadow-2);
+}
+
+:root[data-contrast="more"] .elevated {
+  border: 1px solid var(--el-border-default);
+}
+
+/* 고른 것 — 굵기와 배경을 함께 바꾼다. 색만으로 알리지 않는다(§11). */
+.selected {
+  border: 2px solid var(--el-action);
+  background: var(--el-action-weak);
+  /* 보더가 1px 굵어진 만큼 안쪽을 줄여 칸이 흔들리지 않게 한다. */
+  padding: calc(var(--el-space-6) - 1px);
+}
+
+.selected.pad-tight {
+  padding: calc(var(--el-space-5) - 1px);
+}
+
+@media (max-width: 640px) {
+  .pad-default {
+    padding: var(--el-space-4);
+  }
+
+  .selected.pad-default {
+    padding: calc(var(--el-space-4) - 1px);
+  }
+}

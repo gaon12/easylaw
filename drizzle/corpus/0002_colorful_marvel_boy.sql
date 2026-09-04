@@ -1,0 +1,1 @@
+ALTER TABLE `law_version` ADD `sections` text;

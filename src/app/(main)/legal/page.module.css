@@ -1,0 +1,42 @@
+/* 라이선스 목록. 표처럼 읽히되 좁은 화면에서는 줄로 접힌다. */
+
+.section {
+  display: grid;
+  gap: var(--el-space-4);
+}
+
+.heading {
+  font-size: var(--el-text-heading-m);
+}
+
+.sources {
+  display: grid;
+  gap: var(--el-space-5);
+  margin: 0;
+}
+
+.source {
+  display: grid;
+  gap: var(--el-space-1);
+}
+
+.sourceName {
+  font-weight: 700;
+}
+
+.sourceBody {
+  margin: 0;
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+  max-width: 62ch;
+}
+
+.note {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 라이선스 전문 링크. 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.licenseLink {
+  color: var(--el-action);
+}

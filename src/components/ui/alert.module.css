@@ -1,0 +1,81 @@
+/*
+ * 알림. `DESIGN.md` §6 — 파스텔 배경 + 동색 1px 보더.
+ * 좌측 색 보더 액센트를 쓰지 않는다(§11). 테두리 전체가 색을 갖는다.
+ */
+
+.alert {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--el-space-3);
+  padding: var(--el-space-4) var(--el-space-5);
+  border: 1px solid transparent;
+  border-radius: var(--el-radius-l);
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  /* 제목 첫 줄과 눈높이를 맞춘다. */
+  margin-top: 1px;
+}
+
+.body {
+  display: grid;
+  gap: var(--el-space-2);
+  min-width: 0;
+}
+
+.title {
+  font-weight: 700;
+  line-height: var(--el-leading-tight);
+}
+
+.text {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-3);
+  padding-top: var(--el-space-1);
+}
+
+.success {
+  background: var(--el-grounded-bg);
+  border-color: var(--el-grounded-line);
+}
+
+.success .mark {
+  color: var(--el-grounded-fg);
+}
+
+.warning {
+  background: var(--el-needs-check-bg);
+  border-color: var(--el-needs-check-line);
+}
+
+/* `warning`은 텍스트 색으로 쓰지 않는다(§11). 아이콘도 -70을 쓴다. */
+.warning .mark {
+  color: var(--el-needs-check-fg);
+}
+
+.danger {
+  background: var(--el-ungrounded-bg);
+  border-color: var(--el-ungrounded-line);
+}
+
+.danger .mark {
+  color: var(--el-ungrounded-fg);
+}
+
+@media (max-width: 640px) {
+  .alert {
+    padding: var(--el-space-4);
+  }
+}

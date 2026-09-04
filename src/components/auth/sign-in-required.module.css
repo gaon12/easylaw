@@ -1,0 +1,36 @@
+/*
+ * 로그인 관문. 화면 안에 놓이는 카드이지 별도 페이지가 아니다 —
+ * 원래 하려던 일의 맥락(업로드 화면·문서함)을 잃지 않아야 한다.
+ */
+
+.gate {
+  display: grid;
+  gap: var(--el-space-4);
+  justify-items: start;
+  padding: var(--el-space-8);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-l);
+  background: var(--el-bg-subtle);
+}
+
+.title {
+  font-size: var(--el-text-heading-s);
+}
+
+.body {
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+  max-width: 52ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-3);
+}
+
+@media (max-width: 640px) {
+  .gate {
+    padding: var(--el-space-5);
+  }
+}

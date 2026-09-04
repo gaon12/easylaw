@@ -1,0 +1,89 @@
+/* 내 문서함. 목록 화면이라 단일 canvas를 쓴다(`DESIGN.md` §5.1). */
+
+.page {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro,
+.count {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 비어 있는 상태만 가운데로 모은다. 목록이 생기면 왼쪽 정렬로 돌아간다. */
+.empty {
+  display: grid;
+  gap: var(--el-space-4);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-10) var(--el-space-8);
+  border: 1px dashed var(--el-border-default);
+  border-radius: var(--el-radius-l);
+}
+
+.emptyTitle {
+  font-size: var(--el-text-heading-s);
+}
+
+/* 카드 사이 간격만 둔다. 카드 자체는 `Card`가 그린다. */
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--el-space-4);
+}
+
+.cardLink {
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+  color: var(--el-fg-1);
+  text-decoration: none;
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+.cardMeta {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.cardRetention {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-4);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.link {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+  min-height: var(--el-touch-target);
+  display: inline-flex;
+  align-items: center;
+}

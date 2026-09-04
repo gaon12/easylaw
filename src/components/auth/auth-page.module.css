@@ -1,0 +1,60 @@
+/* 가입·로그인 화면 공용. 폼 화면이라 단일 canvas를 쓴다(`DESIGN.md` §5.1). */
+
+.page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--el-space-12) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+}
+
+.why {
+  display: grid;
+  gap: var(--el-space-3);
+  padding: var(--el-space-5);
+  background: var(--el-bg-subtle);
+  border-radius: var(--el-radius-l);
+}
+
+.whyTitle {
+  font-size: var(--el-text-heading-xs);
+}
+
+.whyList {
+  display: grid;
+  gap: var(--el-space-2);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.whyItem::before {
+  content: "·";
+  margin-right: var(--el-space-2);
+  color: var(--el-fg-3);
+}
+
+.switch {
+  justify-self: center;
+  font-size: var(--el-text-body-s);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+}

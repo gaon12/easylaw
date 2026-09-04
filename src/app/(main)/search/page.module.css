@@ -1,0 +1,117 @@
+.page {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.interpretation {
+  color: var(--el-fg-2);
+}
+
+.hits {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.hit {
+  display: grid;
+  gap: var(--el-space-2);
+  padding: var(--el-space-5);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-m);
+  background: var(--el-bg-canvas);
+  text-decoration: none;
+  color: inherit;
+}
+
+.hit:hover {
+  border-color: var(--el-action);
+}
+
+.hitCaseNo {
+  font-size: var(--el-text-body-s);
+  color: var(--el-fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.hitName {
+  font-size: var(--el-text-heading-xs);
+}
+
+/* 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
+.help {
+  gap: var(--el-space-2);
+}
+
+.helpTitle {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.helpBody {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.codeList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  margin-top: var(--el-space-2);
+}
+
+.code {
+  padding: var(--el-space-1) var(--el-space-3);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-pill);
+  background: var(--el-bg-canvas);
+  font-size: var(--el-text-body-xs);
+  color: var(--el-fg-2);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+}
+
+/* ── 결과 묶음 ─────────────────────────────────────────── */
+
+.group {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.groupTitle {
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+}
+
+.hits {
+  display: grid;
+  /* 결과가 많으면 화면 폭을 쓴다. 좁아지면 저절로 한 줄이 된다. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--el-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hitLink {
+  color: var(--el-fg-1);
+  font-weight: 700;
+  display: block;
+  min-height: var(--el-touch-target);
+}
+
+.hitMeta {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  line-height: var(--el-leading-body);
+}

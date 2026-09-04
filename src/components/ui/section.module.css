@@ -1,0 +1,63 @@
+/*
+ * 섹션 표면. `DESIGN.md` §5.1
+ *
+ * 배경은 화면 폭 전체를 채우고 콘텐츠만 컨테이너로 가둔다. 가운데만 색을 칠하면
+ * 띠가 아니라 또 하나의 카드가 되어 위계가 흐려진다.
+ */
+
+.band {
+  width: 100%;
+}
+
+.canvas {
+  background: var(--el-bg-canvas);
+}
+
+.subtle {
+  background: var(--el-bg-subtle);
+}
+
+.muted {
+  background: var(--el-bg-muted);
+}
+
+/*
+ * 히어로 면. 첫 화면 맨 위에만 쓴다(`DESIGN.md` §5.1의 의도한 예외).
+ * 다른 세 표면은 밝기가 96~100%에 몰려 있어 넓은 면에서 띠로 읽히지 않는다.
+ */
+.hero {
+  background: var(--el-bg-hero);
+}
+
+.inner {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-16) var(--el-space-6);
+  display: grid;
+  gap: var(--el-space-6);
+}
+
+/* 첫 화면의 히어로 띠는 위쪽 여백을 조금 더 준다. */
+.leading .inner {
+  padding-top: var(--el-space-12);
+}
+
+.wide .inner {
+  max-width: var(--el-container-viewer);
+}
+
+.tight .inner {
+  padding-top: var(--el-space-10);
+  padding-bottom: var(--el-space-10);
+}
+
+@media (max-width: 640px) {
+  .inner {
+    padding: var(--el-space-10) var(--el-space-4);
+  }
+
+  .tight .inner {
+    padding-top: var(--el-space-8);
+    padding-bottom: var(--el-space-8);
+  }
+}

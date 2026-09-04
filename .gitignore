@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 예시 파일은 올린다 — 무엇을 넣어야 하는지 알려면 필요하다. 값은 들어 있지 않다.
+!.env.example
 
 # vercel
 .vercel
@@ -42,3 +44,15 @@ next-env.d.ts
 
 # dev docs
 /.dev/
+
+# 로컬 데이터 — 절대 커밋하지 않는다.
+# 판결문 원문·업로드 문서·마스킹 전 텍스트가 들어 있다. 한 번 올라가면 히스토리에서 지우기 어렵다.
+/data/
+/uploads/
+# 경로를 옮겨도(CORPUS_DB_PATH·APP_DB_PATH) 확장자로 한 번 더 막는다.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm

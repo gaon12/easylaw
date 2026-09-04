@@ -1,0 +1,102 @@
+/*
+ * 법령 본문. `DESIGN.md` §11.5 — 위키식
+ *
+ * 조문이 수백 개인 문서다. 목차를 옆에 두고 본문이 화면 폭을 쓴다.
+ */
+
+.page {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-3);
+  max-width: 62ch;
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.note {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+}
+
+/*
+ * 목차 + 본문 2단.
+ *
+ * 좁은 화면에서는 한 단이 되고 목차가 위로 온다 — 문서를 열었을 때 먼저 보이는 것이
+ * 목차여야 한다는 점은 화면 크기와 무관하다.
+ */
+.layout {
+  display: grid;
+  gap: var(--el-space-6);
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--el-space-10);
+  }
+}
+
+.aside {
+  min-width: 0;
+}
+
+.articles {
+  display: grid;
+  /* 위키식 밀도. 조문 사이를 카드 간격만큼 벌리면 문서가 아니라 목록으로 읽힌다. */
+  gap: var(--el-space-5);
+  min-width: 0;
+  /* 조문은 법조인이 읽는 글이다 — L1 규격의 줄 길이를 쓴다(§7). */
+  max-width: 72ch;
+}
+
+/* 장 제목. 조문보다 한 단 크게 두어 구간이 눈에 들어오게 한다. */
+.sectionTitle {
+  font-size: var(--el-text-heading-s);
+  font-weight: 700;
+  margin-top: var(--el-space-8);
+  padding-bottom: var(--el-space-2);
+  border-bottom: 1px solid var(--el-border-subtle);
+  scroll-margin-top: var(--el-space-8);
+}
+
+.sectionTitle:first-child {
+  margin-top: 0;
+}
+
+/*
+ * 인용에서 온 조문.
+ *
+ * 배경과 왼쪽 표식을 함께 준다 — 색만으로 알리면 색을 구별하지 못하는 사람에게는
+ * 아무 정보도 아니다(§11). 카드가 아니라 구간 표시라 §11의 "카드 좌측 보더 금지"에
+ * 걸리지 않는다.
+ */
+.hit {
+  background: var(--el-action-weak);
+  border-left: 4px solid var(--el-action);
+  border-radius: var(--el-radius-s);
+  padding: var(--el-space-3) var(--el-space-4);
+  margin-left: calc(var(--el-space-4) * -1);
+}
+
+.body {
+  line-height: var(--el-leading-body);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
+  }
+}

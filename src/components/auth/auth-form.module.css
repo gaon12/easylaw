@@ -1,0 +1,40 @@
+/* 가입·로그인 폼. 폼 화면이라 배경 띠를 쓰지 않는다(`DESIGN.md` §5.1). */
+
+/* 폼 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
+.form {
+  gap: var(--el-space-5);
+}
+
+.field {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.label {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.hint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+}
+
+.input:hover {
+  border-color: var(--el-fg-3);
+}
+
+@media (max-width: 640px) {
+  .form {
+    padding: var(--el-space-4);
+  }
+}

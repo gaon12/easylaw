@@ -1,0 +1,18 @@
+/*
+ * 법령 인용 링크.
+ *
+ * 원문 안에 섞이는 링크라 **밑줄을 지우지 않는다**(§11) — 색만으로 구분하면 색을
+ * 구별하지 못하는 사람에게는 그냥 글자다. 원문을 읽는 흐름을 끊지 않도록 굵기는
+ * 본문과 같게 두고, 밑줄을 점선으로 해 "여기에 더 있다"는 신호만 준다.
+ */
+.citation {
+  color: var(--el-action);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.citation:hover {
+  text-decoration-style: solid;
+  background: var(--el-action-weak);
+}

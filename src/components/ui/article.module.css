@@ -1,0 +1,58 @@
+/*
+ * 긴 글 화면(처리방침·라이선스) 공용. 읽는 화면이라 배경 띠를 쓰지 않는다.
+ * 폭을 좁게 잡는 이유는 한 줄이 길면 다음 줄 첫 글자를 찾기 어려워지기 때문이다.
+ */
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-8);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+}
+
+/* 적용 날짜. 처리방침에서는 이 한 줄이 문서의 나이를 말해 준다. */
+.updatedAt {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: grid;
+  gap: var(--el-space-8);
+}
+
+.section {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.heading {
+  font-size: var(--el-text-heading-m);
+}
+
+.paragraph {
+  line-height: var(--el-leading-body);
+  max-width: 62ch;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+}

@@ -1,0 +1,203 @@
+/* 관리자 설정. 폼 화면이라 단일 canvas를 쓴다(`DESIGN.md` §5.1). */
+
+.page {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 폼 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
+.form {
+  gap: var(--el-space-5);
+}
+
+.usage {
+  gap: var(--el-space-3);
+}
+
+.sectionTitle {
+  font-size: var(--el-text-heading-s);
+}
+
+.usageSummary {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.meter {
+  width: 100%;
+  height: 12px;
+  accent-color: var(--el-action);
+}
+
+.field {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.label {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.hint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+}
+
+.input:hover {
+  border-color: var(--el-fg-3);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+
+  .form {
+    padding: var(--el-space-4);
+  }
+}
+
+/* 켜고 끄는 설정. 손가락으로 눌러야 하므로 기본 크기보다 키운다. */
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-3);
+  min-height: var(--el-touch-target);
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--el-action);
+}
+
+/* 폼 아래의 이동 통로. 저장과 섞이지 않게 카드 밖에 둔다. */
+.afterForm {
+  display: flex;
+  gap: var(--el-space-4);
+}
+
+.usersSection {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.userList {
+  display: grid;
+  gap: var(--el-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.userRow {
+  align-items: center;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  display: flex;
+  gap: var(--el-space-3);
+  justify-content: space-between;
+  min-height: var(--el-touch-target);
+  padding: var(--el-space-3) var(--el-space-4);
+}
+
+.userIdentity {
+  display: grid;
+  gap: var(--el-space-1);
+  min-width: 0;
+}
+
+.userIdentity span {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  overflow-wrap: anywhere;
+}
+
+.roleBadge {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  white-space: nowrap;
+}
+
+.roleError {
+  color: var(--el-danger);
+  display: block;
+  font-size: var(--el-text-body-xs);
+  margin-top: var(--el-space-1);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.link {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+  min-height: var(--el-touch-target);
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 비밀 항목 — 입력 칸과 "보기" 버튼을 한 줄에. */
+.secretRow {
+  display: flex;
+  gap: var(--el-space-2);
+  align-items: stretch;
+}
+
+.secretRow .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 키는 글자 모양이 비슷한 것이 섞이기 쉽다. 눈으로 대조하려면 고정폭이 낫다. */
+  font-family: var(--el-font-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+}
+
+/* 손가락으로 누를 수 있어야 한다(§11). 글자만 있는 버튼이라 최소 크기를 직접 준다. */
+.reveal {
+  flex: 0 0 auto;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-4);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  color: var(--el-fg-1);
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  border-color: var(--el-fg-3);
+}
+
+/* 눌린 상태를 색으로만 알리지 않는다 — 글자도 "보기"↔"가리기"로 바뀐다. */
+.reveal[aria-pressed="true"] {
+  background: var(--el-action-weak);
+  border-color: var(--el-action);
+  color: var(--el-action-hover);
+}

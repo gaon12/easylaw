@@ -1,0 +1,166 @@
+/*
+ * 업로드. 폼 화면이라 배경 띠를 쓰지 않는다(`DESIGN.md` §5.1) —
+ * 입력에 집중해야 하는 화면에서 배경이 바뀌면 시선이 흩어진다.
+ */
+
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.intro {
+  color: var(--el-fg-2);
+  max-width: 56ch;
+}
+
+.privacyList {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.privacyItem::before {
+  content: "·";
+  margin-right: var(--el-space-2);
+  color: var(--el-fg-3);
+}
+
+/* 폼 껍데기는 `Card`가 그린다. 여기에는 안쪽 간격만 둔다. */
+.form {
+  gap: var(--el-space-5);
+  justify-items: stretch;
+}
+
+.field {
+  display: grid;
+  gap: var(--el-space-2);
+  width: 100%;
+}
+
+.label {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.hint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.confirm {
+  display: flex;
+  gap: var(--el-space-2);
+  align-items: flex-start;
+  padding: var(--el-space-3);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-subtle);
+  line-height: var(--el-leading-body);
+}
+
+.confirm input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.input,
+.select {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+}
+
+.textarea {
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  width: 100%;
+  resize: vertical;
+  line-height: var(--el-leading-body);
+  /* 판결문은 줄바꿈이 의미를 갖는다. 폼에서도 원문 모양을 유지한다. */
+  white-space: pre-wrap;
+}
+
+.input:hover,
+.select:hover,
+.textarea:hover {
+  border-color: var(--el-fg-3);
+}
+
+/*
+ * 파일 고르기. `DESIGN.md` §6 — `file-upload`: 점선 드롭존, hover `primary-50`.
+ *
+ * 기본 `<input type="file">`은 작고 눈에 띄지 않는다. 판결문을 올리러 온 사람이
+ * 가장 먼저 찾을 것인데 글자 한 줄로 지나가면 안 된다.
+ */
+.dropzone {
+  display: grid;
+  gap: var(--el-space-2);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-6);
+  border: 2px dashed var(--el-border-strong);
+  border-radius: var(--el-radius-l);
+  cursor: pointer;
+  transition:
+    border-color var(--el-duration-fast) var(--el-ease),
+    background var(--el-duration-fast) var(--el-ease);
+}
+
+.dropzone:hover {
+  border-color: var(--el-action);
+  background: var(--el-action-weak);
+}
+
+/* 입력이 숨겨져 있으므로 포커스 링을 드롭존이 받는다. */
+.dropzone:has(input:focus-visible) {
+  outline: 2px solid var(--el-border-focus);
+  outline-offset: 2px;
+}
+
+.dropzoneLabel {
+  font-weight: 700;
+}
+
+.file {
+  width: 100%;
+  max-width: 20rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--el-space-4);
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  }
+
+  .form {
+    padding: var(--el-space-4);
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+}

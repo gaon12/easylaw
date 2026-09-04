@@ -1,0 +1,219 @@
+/**
+ * biome-ignore-all lint/style/useNamingConvention: 손으로 만든 응답의 키가 한국어다.
+ * 실제 API 필드명과 글자 그대로 같아야 파서를 시험하는 의미가 있다.
+ */
+
+import { describe, expect, it } from "vitest";
+import { parseListPage } from "./envelope";
+import lawDetail from "./fixtures/law-detail.json" with { type: "json" };
+import lawDetail2019 from "./fixtures/law-detail-2019.json" with { type: "json" };
+import lawSearch from "./fixtures/law-search.json" with { type: "json" };
+import {
+  circledToNumber,
+  findArticle,
+  findClause,
+  parseArticleRef,
+  parseLawDetailResponse,
+  parseLawSummary,
+} from "./parse-law";
+import { TARGETS } from "./targets";
+
+/**
+ * 픽스처는 **실제 법제처 응답**이다(2026-09-03, 인증키만 지웠다). 본문은 조문이 229개라
+ * 앞쪽 6개만 남기고 부칙·개정문을 덜어 냈다 — 파서가 보는 모양은 그대로다.
+ */
+
+describe("법령 목록", () => {
+  it("항목과 총건수를 읽는다", () => {
+    const page = parseListPage(lawSearch, TARGETS.law, parseLawSummary);
+
+    expect(page.total).toBeGreaterThan(0);
+    expect(page.items.length).toBeGreaterThan(0);
+    expect(page.items[0]?.name).toBe("도로교통법");
+  });
+
+  it("본문 조회 열쇠(법령일련번호)를 담는다 — 법령ID와 다르다", () => {
+    const first = parseListPage(lawSearch, TARGETS.law, parseLawSummary).items[0];
+
+    expect(first?.lawSerial).toMatch(/^\d+$/u);
+    expect(first?.lawSerial).not.toBe(first?.lawId);
+  });
+
+  it("공포일·시행일을 Date로 바꾼다", () => {
+    const first = parseListPage(lawSearch, TARGETS.law, parseLawSummary).items[0];
+
+    expect(first?.promulgatedAt).toBeInstanceOf(Date);
+    expect(first?.effectiveAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("법령 본문", () => {
+  const detail = parseLawDetailResponse(lawDetail);
+
+  it("기본 정보를 읽는다. 소관부처·법종구분은 객체로 와도 글자만 꺼낸다", () => {
+    expect(detail.name).toBe("도로교통법");
+    expect(detail.ministry).toBe("경찰청");
+    expect(detail.kind).toBe("법률");
+  });
+
+  it("장 제목(조문여부=전문)을 조문으로 세지 않는다", () => {
+    // 픽스처 6건 중 "제1장 총칙" 같은 전문이 섞여 있다. 그것까지 조문으로 세면
+    // 실존 검증이 장 제목을 조문으로 착각한다.
+    const raw = lawDetail.법령.조문.조문단위;
+    expect(raw.length).toBeGreaterThan(detail.articles.length);
+    expect(detail.articles.every((article) => article.number.length > 0)).toBe(true);
+  });
+
+  it("조를 번호로 찾는다", () => {
+    const article = findArticle(detail, 3);
+
+    expect(article).toBeDefined();
+    expect(article?.title).toContain("신호기");
+  });
+
+  it("없는 조를 찾으면 undefined다 — 지어내지 않는다", () => {
+    expect(findArticle(detail, 9999)).toBeUndefined();
+  });
+
+  it("항을 아라비아 숫자로도 동그라미 숫자로도 찾는다", () => {
+    const article = findArticle(detail, 3);
+    if (article === undefined) {
+      throw new Error("제3조를 찾지 못했습니다.");
+    }
+
+    // 판결문은 `제1항`이라 쓰고 API는 `①`로 준다. 양쪽 다 통해야 한다.
+    expect(findClause(article, 1)?.text).toContain("교통안전시설");
+    expect(findClause(article, "①")?.text).toContain("교통안전시설");
+    expect(findClause(article, 99)).toBeUndefined();
+  });
+
+  it("항 내용의 항 번호를 지우지 않는다 — 대조는 손대지 않은 글자로 한다", () => {
+    const clause = findClause(findArticle(detail, 3) as never, 1);
+
+    expect(clause?.text.startsWith("①")).toBe(true);
+  });
+});
+
+describe("circledToNumber", () => {
+  it("동그라미 숫자를 아라비아 숫자로 바꾼다", () => {
+    expect(circledToNumber("①")).toBe("1");
+    expect(circledToNumber("⑳")).toBe("20");
+  });
+
+  it("동그라미 숫자가 아니면 undefined다", () => {
+    expect(circledToNumber("1")).toBeUndefined();
+    expect(circledToNumber("가")).toBeUndefined();
+    expect(circledToNumber("")).toBeUndefined();
+  });
+});
+
+describe("가지 번호 (제4조의2)", () => {
+  /** 2019-04-17 시행 도로교통법. 제4조와 제4조의2가 함께 있는 앞부분만 남겼다. */
+  const detail = parseLawDetailResponse(lawDetail2019);
+
+  it("조 번호가 같아도 가지 번호로 갈린다", () => {
+    const plain = findArticle(detail, 4);
+    const branch = findArticle(detail, 4, 2);
+
+    expect(plain?.branchNumber).toBeUndefined();
+    expect(branch?.branchNumber).toBe("2");
+    expect(plain?.title).not.toBe(branch?.title);
+  });
+
+  it("제4조를 찾을 때 제4조의2가 나오지 않는다", () => {
+    // 느슨하게 맞추면 조용히 틀린 조문을 돌려준다. [F-30]에서 가장 나쁜 오답이다.
+    expect(findArticle(detail, 4)?.title).toContain("교통안전시설의 종류");
+    expect(findArticle(detail, 4, 2)?.title).toContain("무인 교통단속용 장비");
+  });
+
+  it("없는 가지 번호는 undefined다", () => {
+    expect(findArticle(detail, 4, 9)).toBeUndefined();
+  });
+});
+
+describe("parseArticleRef", () => {
+  it("판결문이 쓰는 표기를 조·가지로 나눈다", () => {
+    expect(parseArticleRef("제3조")).toEqual({ number: "3" });
+    expect(parseArticleRef("제4조의2")).toEqual({ number: "4", branchNumber: "2" });
+    expect(parseArticleRef("도로교통법 제 44 조 의 2 를 위반하여")).toEqual({
+      number: "44",
+      branchNumber: "2",
+    });
+  });
+
+  it("조문 표기가 없으면 undefined다", () => {
+    expect(parseArticleRef("도로교통법에 따라")).toBeUndefined();
+  });
+});
+
+describe("조문 머리 떼기", () => {
+  const detail = parseLawDetailResponse(lawDetail);
+
+  /** 머리 떼기만 보기 위한 최소 응답. 실제 조문내용의 형태를 그대로 옮겼다. */
+  function bodyOf(articleNo: string, branchNo: string | undefined, content: string) {
+    const unit: Record<string, unknown> = {
+      조문번호: articleNo,
+      조문여부: "조문",
+      조문내용: content,
+    };
+    if (branchNo !== undefined) {
+      unit.조문가지번호 = branchNo;
+    }
+    const parsed = parseLawDetailResponse({
+      법령: { 기본정보: { 법령명_한글: "시험법" }, 조문: { 조문단위: [unit] } },
+    });
+    return parsed.articles[0]?.text;
+  }
+
+  it("`제N조(제목)` 머리를 통째로 뗀다", () => {
+    // 이스케이프를 한 겹 놓치면 `제2조(보통재판적`까지 삼키고 `) 소…`를 남긴다.
+    expect(bodyOf("2", undefined, "제2조(보통재판적) 소(訴)는 피고의 법원이 관할한다.")).toBe(
+      "소(訴)는 피고의 법원이 관할한다.",
+    );
+  });
+
+  it("가지 조문의 머리도 뗀다", () => {
+    expect(bodyOf("4", "2", "제4조의2(무인 장비) 시장등은 장비를 설치할 수 있다.")).toBe(
+      "시장등은 장비를 설치할 수 있다.",
+    );
+  });
+
+  it("괄호 제목이 없는 머리도 뗀다", () => {
+    expect(bodyOf("7", undefined, "제7조 이 법은 공포한 날부터 시행한다.")).toBe(
+      "이 법은 공포한 날부터 시행한다.",
+    );
+  });
+
+  it("머리가 없으면 본문을 자르지 않는다", () => {
+    expect(bodyOf("9", undefined, "머리가 없는 본문은 그대로 남는다.")).toBe(
+      "머리가 없는 본문은 그대로 남는다.",
+    );
+  });
+
+  it("픽스처의 모든 조문에 머리가 남아 있지 않다", () => {
+    for (const article of detail.articles) {
+      expect(article.text ?? "").not.toMatch(new RegExp(`^제${article.number}조`, "u"));
+      // 번호만 떼고 남으면 `(목적) 이 법은…` 또는 `) 소…`로 시작한다.
+      expect(article.text ?? "").not.toMatch(/^[()]/u);
+    }
+  });
+
+  it("머리가 없으면 본문을 건드리지 않는다", () => {
+    const article = findArticle(detail, 3);
+    // 제3조는 항으로 나뉘어 있어 조문내용에 머리가 없다. 항은 그대로여야 한다.
+    expect(findClause(article as never, 1)?.text.startsWith("①")).toBe(true);
+  });
+});
+
+describe("장·절 제목", () => {
+  const detail = parseLawDetailResponse(lawDetail);
+
+  it("장 제목을 조문과 따로 낸다 — 목차의 뼈대다", () => {
+    // 조문이 수백 개인 법의 목차를 조문으로만 만들면 아무도 못 읽는다.
+    expect(detail.sections).toEqual([{ title: "제1장 총칙", beforeArticleNo: "1" }]);
+  });
+
+  it("장 제목은 조문 목록에 섞이지 않는다", () => {
+    expect(detail.articles.some((article) => article.title === "제1장 총칙")).toBe(false);
+  });
+});

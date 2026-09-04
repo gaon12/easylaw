@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787875826908,
+      "tag": "0000_quick_expediter",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788416583833,
+      "tag": "0001_flowery_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788428834136,
+      "tag": "0002_colorful_marvel_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788483462015,
+      "tag": "0003_marvelous_microbe",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788484570252,
+      "tag": "0004_amusing_invisible_woman",
+      "breakpoints": true
+    }
+  ]
+}

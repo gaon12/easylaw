@@ -1,0 +1,39 @@
+/*
+ * 레벨별 본문. `DESIGN.md` §7 · §4의 레벨별 본문 규격.
+ *
+ * 크기·줄 길이·문단 간격이 한 벌로 움직인다. 셋 중 하나만 바꾸면 단계가 뒤섞인다 —
+ * 예를 들어 L4를 21px로 키우고 줄 길이를 76ch로 두면, 한 줄이 너무 길어져 오히려 읽기 어렵다.
+ */
+
+.body {
+  display: grid;
+}
+
+/* L0·L1·L2 — 기본 본문 17px / 1.55, 76ch. */
+.L0,
+.L1,
+.L2 {
+  max-width: 76ch;
+  gap: var(--el-space-4);
+  font-size: var(--el-text-body-m);
+  line-height: var(--el-leading-body);
+}
+
+/* L3 어린이 — 19px, 60ch. `fg-3` 이하를 본문에 쓰지 않는다(§4). */
+.L3 {
+  max-width: 60ch;
+  gap: var(--el-space-5);
+  font-size: var(--el-text-body-l);
+  line-height: var(--el-leading-body);
+}
+
+/*
+ * L4 이지리드 — 21px / 1.7, 46ch.
+ * `body-xl` 토큰에 21px 하한이 들어 있어 글자 크기를 `작게`로 줄여도 내려가지 않는다(§11).
+ */
+.L4 {
+  max-width: 46ch;
+  gap: var(--el-space-6);
+  font-size: var(--el-text-body-xl);
+  line-height: var(--el-leading-loose);
+}

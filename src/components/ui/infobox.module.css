@@ -1,0 +1,59 @@
+/*
+ * 법적 고지 배너. `DESIGN.md` §3.4 — 흰 배경 + 1px `info` 보더 + `info` 아이콘 원.
+ *
+ * 경고·오류의 파스텔 배경은 `alert`의 것이다. 여기는 흰 배경 하나뿐이다.
+ */
+
+.box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--el-space-3);
+  padding: var(--el-space-4) var(--el-space-5);
+  border: 1px solid var(--el-info);
+  border-radius: var(--el-radius-l);
+  background: var(--el-bg-canvas);
+}
+
+/* 32px 아이콘 원. 규격에 적힌 크기 그대로다. */
+.mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--el-radius-pill);
+  background: var(--el-info-10);
+  color: var(--el-info-70);
+}
+
+.body {
+  display: grid;
+  gap: var(--el-space-2);
+  min-width: 0;
+  /* 아이콘 원과 제목 첫 줄의 눈높이를 맞춘다. */
+  padding-top: var(--el-space-1);
+}
+
+.title {
+  font-weight: 700;
+  line-height: var(--el-leading-tight);
+}
+
+.text {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-3);
+  padding-top: var(--el-space-1);
+}
+
+@media (max-width: 640px) {
+  .box {
+    padding: var(--el-space-4);
+  }
+}

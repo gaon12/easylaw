@@ -1,0 +1,487 @@
+import { eq } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AppDb } from "../client";
+import { createTestAppDb } from "../testing";
+import {
+  createSession,
+  createUser,
+  deleteAccount,
+  deleteAllUploads,
+  deleteExpiredSessions,
+  deleteExpiredUploads,
+  deleteSession,
+  deleteUpload,
+  findLiveSession,
+  findUploadForOwner,
+  findUserByEmail,
+  findUserById,
+  listMaskCounts,
+  listUploadSpans,
+  listUploadsForOwner,
+  listUsersForAdmin,
+  saveUpload,
+  setUserRole,
+  summarizeOwnerData,
+  type UploadInput,
+  updateNickname,
+  updateRetention,
+} from "./repository";
+import { auditLog, session, upload, uploadMask, uploadSpan } from "./schema";
+
+let db: AppDb;
+let close: () => void;
+
+beforeEach(() => {
+  ({ db, close } = createTestAppDb());
+  userSeq = 0;
+});
+
+afterEach(() => {
+  close();
+});
+
+let userSeq = 0;
+
+/** 테스트용 계정 하나. 이메일은 매번 다르게 만든다. */
+function makeUser(): string {
+  userSeq += 1;
+  const id = createUser(db, { email: `user${userSeq}@example.com`, passwordHash: "hash" });
+  if (id === undefined) {
+    throw new Error("계정을 만들지 못했다");
+  }
+  return id;
+}
+
+function uploadInput(userId: string, overrides: Partial<UploadInput> = {}): UploadInput {
+  return {
+    userId,
+    title: "2019가단1234 판결문",
+    filename: null,
+    docHash: "hash-a",
+    charCount: 42,
+    caseNoCanonical: null,
+    retentionUntil: null,
+    spans: [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 10, text: "원고의 청구를 기각한다." },
+      { paraIdx: 0, sentIdx: 1, charStart: 10, charEnd: 20, text: "소송비용은 원고가 부담한다." },
+    ],
+    maskCounts: { name: 2, phone: 1 },
+    ...overrides,
+  };
+}
+
+describe("계정", () => {
+  it("이메일로 계정을 만들고 찾는다", () => {
+    const id = createUser(db, { email: "hong@example.com", passwordHash: "hash" });
+    expect(findUserByEmail(db, "hong@example.com")?.id).toBe(id);
+  });
+
+  it("이미 쓰는 이메일이면 만들지 않는다", () => {
+    const first = createUser(db, { email: "hong@example.com", passwordHash: "hash" });
+    expect(createUser(db, { email: "hong@example.com", passwordHash: "hash2" })).toBeUndefined();
+    // 기존 계정의 비밀번호가 덮이면 안 된다.
+    expect(findUserByEmail(db, "hong@example.com")?.id).toBe(first);
+    expect(findUserByEmail(db, "hong@example.com")?.passwordHash).toBe("hash");
+  });
+
+  it("관리자는 비밀번호 해시 없이 계정 목록을 본다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
+    expect(adminId).toBeDefined();
+    expect(memberId).toBeDefined();
+    const rows = listUsersForAdmin(db);
+    expect(rows.map((row) => row.email)).toEqual(
+      expect.arrayContaining(["member@example.com", "admin@example.com"]),
+    );
+    expect(rows[0]).not.toHaveProperty("passwordHash");
+  });
+
+  it("관리자가 기존 계정을 관리자로 지정하고 감사 로그를 남긴다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
+    expect(setUserRole(db, adminId as string, memberId as string, "admin")).toBe("updated");
+    expect(findUserById(db, memberId as string)?.role).toBe("admin");
+    expect(db.select().from(auditLog).all().at(-1)?.action).toBe("user.role_changed");
+  });
+
+  it("마지막 관리자는 강등할 수 없고 비관리자 요청은 거절한다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
+    expect(setUserRole(db, adminId as string, adminId as string, "member")).toBe("last_admin");
+    expect(setUserRole(db, memberId as string, adminId as string, "member")).toBe("forbidden");
+  });
+});
+
+describe("세션", () => {
+  const future = new Date("2999-01-01T00:00:00Z");
+
+  it("살아 있는 세션을 토큰 해시로 찾는다", () => {
+    const userId = makeUser();
+    const id = createSession(db, userId, "token-hash", future);
+    expect(findLiveSession(db, "token-hash")?.id).toBe(id);
+  });
+
+  it("만료된 세션은 찾지 못한다", () => {
+    const userId = makeUser();
+    createSession(db, userId, "old", new Date("2020-01-01T00:00:00Z"));
+    expect(findLiveSession(db, "old")).toBeUndefined();
+  });
+
+  it("한 사용자가 기기마다 세션을 가질 수 있다", () => {
+    // 사용자 행에 토큰 하나를 두면 다른 기기에서 로그인할 때마다 앞의 기기가 튕긴다.
+    const userId = makeUser();
+    createSession(db, userId, "phone", future);
+    createSession(db, userId, "laptop", future);
+
+    expect(findLiveSession(db, "phone")).toBeDefined();
+    expect(findLiveSession(db, "laptop")).toBeDefined();
+  });
+
+  it("로그아웃은 그 기기의 세션만 닫는다", () => {
+    const userId = makeUser();
+    const phone = createSession(db, userId, "phone", future);
+    createSession(db, userId, "laptop", future);
+
+    deleteSession(db, phone);
+    expect(findLiveSession(db, "phone")).toBeUndefined();
+    expect(findLiveSession(db, "laptop")).toBeDefined();
+  });
+
+  it("만료된 세션을 치운다", () => {
+    const userId = makeUser();
+    createSession(db, userId, "old", new Date("2020-01-01T00:00:00Z"));
+    createSession(db, userId, "live", future);
+
+    expect(deleteExpiredSessions(db, new Date("2021-01-01T00:00:00Z"))).toBe(1);
+    expect(findLiveSession(db, "live")).toBeDefined();
+  });
+});
+
+describe("saveUpload", () => {
+  it("문서·문장·마스킹 요약을 함께 저장한다", () => {
+    const userId = makeUser();
+    const { id, duplicate } = saveUpload(db, uploadInput(userId));
+
+    expect(duplicate).toBe(false);
+    expect(listUploadSpans(db, id)).toHaveLength(2);
+    expect(listMaskCounts(db, id)).toEqual([
+      { kind: "name", count: 2 },
+      { kind: "phone", count: 1 },
+    ]);
+    expect(findUploadForOwner(db, id, userId)?.maskedAt).toBeInstanceOf(Date);
+  });
+
+  it("건수가 0인 종류는 저장하지 않는다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId, { maskCounts: { name: 0 } }));
+    expect(listMaskCounts(db, id)).toEqual([]);
+  });
+
+  it("같은 문서를 다시 올리면 기존 문서를 돌려준다", () => {
+    const userId = makeUser();
+    const first = saveUpload(db, uploadInput(userId));
+    const again = saveUpload(db, uploadInput(userId, { title: "다른 이름" }));
+
+    expect(again).toEqual({ id: first.id, duplicate: true });
+    expect(listUploadsForOwner(db, userId)).toHaveLength(1);
+  });
+
+  it("사용자가 다르면 같은 내용도 각자 저장한다", () => {
+    const a = makeUser();
+    const b = makeUser();
+    saveUpload(db, uploadInput(a));
+    const second = saveUpload(db, uploadInput(b));
+
+    expect(second.duplicate).toBe(false);
+    expect(listUploadsForOwner(db, a)).toHaveLength(1);
+    expect(listUploadsForOwner(db, b)).toHaveLength(1);
+  });
+});
+
+describe("소유자 격리", () => {
+  it("남의 문서는 조회되지 않는다", () => {
+    const owner = makeUser();
+    const stranger = makeUser();
+    const { id } = saveUpload(db, uploadInput(owner));
+
+    expect(findUploadForOwner(db, id, owner)).toBeDefined();
+    expect(findUploadForOwner(db, id, stranger)).toBeUndefined();
+  });
+
+  it("남의 문서는 지워지지 않는다", () => {
+    const owner = makeUser();
+    const stranger = makeUser();
+    const { id } = saveUpload(db, uploadInput(owner));
+
+    expect(deleteUpload(db, id, stranger)).toBe(false);
+    expect(findUploadForOwner(db, id, owner)).toBeDefined();
+  });
+
+  it("목록에는 자기 문서만 나온다", () => {
+    const owner = makeUser();
+    const stranger = makeUser();
+    saveUpload(db, uploadInput(owner));
+    saveUpload(db, uploadInput(stranger, { docHash: "hash-b" }));
+
+    const list = listUploadsForOwner(db, owner);
+    expect(list).toHaveLength(1);
+    expect(list[0]?.userId).toBe(owner);
+  });
+});
+
+describe("삭제", () => {
+  it("문서를 지우면 문장과 마스킹 요약도 사라진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+
+    expect(deleteUpload(db, id, userId)).toBe(true);
+    expect(listUploadSpans(db, id)).toEqual([]);
+    expect(listMaskCounts(db, id)).toEqual([]);
+    expect(findUploadForOwner(db, id, userId)).toBeUndefined();
+  });
+
+  it("보관 기간이 지난 문서를 지운다", () => {
+    const userId = makeUser();
+    const past = new Date("2020-01-01T00:00:00Z");
+    const future = new Date("2999-01-01T00:00:00Z");
+
+    const expired = saveUpload(db, uploadInput(userId, { retentionUntil: past }));
+    const alive = saveUpload(db, uploadInput(userId, { docHash: "b", retentionUntil: future }));
+    const forever = saveUpload(db, uploadInput(userId, { docHash: "c", retentionUntil: null }));
+
+    expect(deleteExpiredUploads(db, new Date("2021-01-01T00:00:00Z"))).toBe(1);
+    expect(findUploadForOwner(db, expired.id, userId)).toBeUndefined();
+    // 기간을 정하지 않은 문서는 시간이 지나도 지우지 않는다. 사용자가 그렇게 골랐다.
+    expect(findUploadForOwner(db, alive.id, userId)).toBeDefined();
+    expect(findUploadForOwner(db, forever.id, userId)).toBeDefined();
+  });
+
+  it("지울 것이 없으면 아무것도 하지 않는다", () => {
+    expect(deleteExpiredUploads(db, new Date())).toBe(0);
+  });
+});
+
+describe("updateNickname", () => {
+  it("이름을 바꾸고 감사 로그를 남긴다", () => {
+    const id = createUser(db, { email: "hong@example.com", passwordHash: "hash" }) as string;
+
+    updateNickname(db, id, "법돌이");
+
+    expect(findUserById(db, id)?.nickname).toBe("법돌이");
+    const log = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "user.nickname_changed"))
+      .all();
+    expect(log).toHaveLength(1);
+    // 옛 이름을 함께 남겨야 "누가 무엇을 무엇으로 바꿨나"를 되짚을 수 있다.
+    expect(log[0]?.meta).toEqual({ from: null, to: "법돌이" });
+  });
+
+  it("가입할 때 넣은 이름을 바꾸면 옛 이름이 로그에 남는다", () => {
+    const id = createUser(db, {
+      email: "kim@example.com",
+      passwordHash: "hash",
+      nickname: "처음이름",
+    }) as string;
+
+    updateNickname(db, id, "바꾼이름");
+
+    expect(findUserById(db, id)?.nickname).toBe("바꾼이름");
+    const log = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "user.nickname_changed"))
+      .all();
+    expect(log[0]?.meta).toEqual({ from: "처음이름", to: "바꾼이름" });
+  });
+
+  it("같은 이름을 여럿이 쓸 수 있다 — 호칭이지 식별자가 아니다", () => {
+    const first = createUser(db, { email: "a@example.com", passwordHash: "hash" }) as string;
+    const second = createUser(db, { email: "b@example.com", passwordHash: "hash" }) as string;
+
+    updateNickname(db, first, "법돌이");
+    updateNickname(db, second, "법돌이");
+
+    expect(findUserById(db, first)?.nickname).toBe("법돌이");
+    expect(findUserById(db, second)?.nickname).toBe("법돌이");
+  });
+});
+
+describe("보관 기간 바꾸기", () => {
+  it("기간을 늘리면 그 시각이 저장된다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    const until = new Date("2030-01-01T00:00:00Z");
+
+    expect(updateRetention(db, id, userId, until)).toBe(true);
+    expect(findUploadForOwner(db, id, userId)?.retentionUntil).toEqual(until);
+  });
+
+  it("'직접 지울 때까지'로 바꾸면 만료가 없어진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId, { retentionUntil: new Date("2030-01-01") }));
+
+    expect(updateRetention(db, id, userId, null)).toBe(true);
+    expect(findUploadForOwner(db, id, userId)?.retentionUntil).toBeNull();
+  });
+
+  it("남의 문서는 바꾸지 못한다", () => {
+    const owner = makeUser();
+    const stranger = makeUser();
+    const { id } = saveUpload(db, uploadInput(owner));
+
+    expect(updateRetention(db, id, stranger, new Date("2030-01-01"))).toBe(false);
+    // 조용히 실패하는 것으로 끝나지 않는다. 원래 값이 그대로여야 한다.
+    expect(findUploadForOwner(db, id, owner)?.retentionUntil).toBeNull();
+  });
+
+  it("바꾼 사실을 기록에 남긴다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    updateRetention(db, id, userId, new Date("2030-01-01T00:00:00Z"));
+
+    const rows = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "upload.retention_changed"))
+      .all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.target).toBe(id);
+  });
+});
+
+describe("문서 전부 지우기", () => {
+  it("내 문서만 전부 지운다", () => {
+    const mine = makeUser();
+    const other = makeUser();
+    saveUpload(db, uploadInput(mine, { docHash: "a" }));
+    saveUpload(db, uploadInput(mine, { docHash: "b" }));
+    saveUpload(db, uploadInput(other, { docHash: "c" }));
+
+    expect(deleteAllUploads(db, mine)).toBe(2);
+    expect(listUploadsForOwner(db, mine)).toHaveLength(0);
+    // 남의 문서는 그대로다.
+    expect(listUploadsForOwner(db, other)).toHaveLength(1);
+  });
+
+  it("문장과 마스킹 요약도 함께 사라진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    expect(listUploadSpans(db, id).length).toBeGreaterThan(0);
+
+    deleteAllUploads(db, userId);
+
+    expect(listUploadSpans(db, id)).toHaveLength(0);
+    expect(listMaskCounts(db, id)).toHaveLength(0);
+  });
+
+  it("문서마다 기록을 하나씩 남긴다 — '전부 지웠다' 한 줄로 뭉치지 않는다", () => {
+    const userId = makeUser();
+    saveUpload(db, uploadInput(userId, { docHash: "a" }));
+    saveUpload(db, uploadInput(userId, { docHash: "b" }));
+
+    deleteAllUploads(db, userId);
+
+    const rows = db.select().from(auditLog).where(eq(auditLog.action, "upload.deleted")).all();
+    expect(rows).toHaveLength(2);
+  });
+
+  it("문서가 없으면 0을 준다", () => {
+    expect(deleteAllUploads(db, makeUser())).toBe(0);
+  });
+});
+
+describe("계정 지우기", () => {
+  it("계정과 함께 문서·문장·마스킹·세션이 전부 사라진다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    createSession(db, userId, "token-hash", new Date("2999-01-01T00:00:00Z"));
+
+    expect(deleteAccount(db, userId)).toBe(true);
+
+    // 외래 키가 실제로 도는지 본다. 코드가 표를 하나씩 지우지 않기 때문이다.
+    expect(findUserById(db, userId)).toBeUndefined();
+    expect(db.select().from(upload).where(eq(upload.userId, userId)).all()).toHaveLength(0);
+    expect(db.select().from(uploadSpan).where(eq(uploadSpan.uploadId, id)).all()).toHaveLength(0);
+    expect(db.select().from(uploadMask).where(eq(uploadMask.uploadId, id)).all()).toHaveLength(0);
+    expect(db.select().from(session).where(eq(session.userId, userId)).all()).toHaveLength(0);
+  });
+
+  it("남의 계정과 문서는 건드리지 않는다", () => {
+    const gone = makeUser();
+    const stays = makeUser();
+    saveUpload(db, uploadInput(stays));
+
+    deleteAccount(db, gone);
+
+    expect(findUserById(db, stays)).toBeDefined();
+    expect(listUploadsForOwner(db, stays)).toHaveLength(1);
+  });
+
+  it("지운 사실은 남는다 — 기록에는 건수만 있고 내용은 없다", () => {
+    const userId = makeUser();
+    saveUpload(db, uploadInput(userId, { docHash: "a" }));
+    saveUpload(db, uploadInput(userId, { docHash: "b" }));
+
+    deleteAccount(db, userId);
+
+    const rows = db.select().from(auditLog).where(eq(auditLog.action, "account.deleted")).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.meta).toEqual({ uploads: 2 });
+    // 계정이 사라져도 기록은 남는다 — audit_log에는 외래 키를 걸지 않았다.
+    expect(rows[0]?.actor).toBe(userId);
+  });
+
+  it("없는 계정을 지우면 false", () => {
+    expect(deleteAccount(db, "없는-아이디")).toBe(false);
+  });
+
+  it("계정이 사라진 뒤에는 그 세션으로 아무것도 못 한다", () => {
+    const userId = makeUser();
+    createSession(db, userId, "live-token", new Date("2999-01-01T00:00:00Z"));
+    expect(findLiveSession(db, "live-token")).toBeDefined();
+
+    deleteAccount(db, userId);
+
+    expect(findLiveSession(db, "live-token")).toBeUndefined();
+  });
+});
+
+describe("내 자료 요약", () => {
+  it("문서·문장·가린 건수를 센다", () => {
+    const userId = makeUser();
+    saveUpload(db, uploadInput(userId, { docHash: "a" }));
+    saveUpload(db, uploadInput(userId, { docHash: "b" }));
+
+    // 문서마다 문장 2개, 가린 것 3건(name 2 + phone 1)이다.
+    expect(summarizeOwnerData(db, userId)).toEqual({ docs: 2, sentences: 4, masks: 6 });
+  });
+
+  it("남의 자료는 세지 않는다", () => {
+    const mine = makeUser();
+    const other = makeUser();
+    saveUpload(db, uploadInput(other));
+
+    expect(summarizeOwnerData(db, mine)).toEqual({ docs: 0, sentences: 0, masks: 0 });
+  });
+
+  it("문서가 없어도 null이 아니라 0을 준다", () => {
+    // `sum`은 행이 없으면 null을 준다. 화면에 "null건"이 나오면 안 된다.
+    const summary = summarizeOwnerData(db, makeUser());
+    expect(summary.masks).toBe(0);
+    expect(Number.isNaN(summary.masks)).toBe(false);
+  });
+});

@@ -1,0 +1,85 @@
+/*
+ * 목차. `DESIGN.md` §11.5
+ *
+ * 넓은 화면에서는 옆에 붙어 따라오고, 좁은 화면에서는 접힌다.
+ */
+
+.toc {
+  font-size: var(--el-text-body-s);
+}
+
+.box {
+  border: 1px solid var(--el-border-subtle);
+  border-radius: var(--el-radius-m);
+  background: var(--el-bg-subtle);
+  padding: var(--el-space-4);
+}
+
+.summary {
+  font-weight: 700;
+  font-size: var(--el-text-body-m);
+  cursor: pointer;
+  /* 손가락으로 눌러야 한다. 기본 마커 높이는 작다. */
+  min-height: var(--el-touch-target);
+  display: flex;
+  align-items: center;
+}
+
+.list {
+  margin: var(--el-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--el-space-1);
+  /* 목차가 길면 그 안에서만 스크롤한다. 화면을 다 밀어내지 않는다. */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.top {
+  margin-top: var(--el-space-2);
+}
+
+.top:first-child {
+  margin-top: 0;
+}
+
+.sub {
+  padding-left: var(--el-space-4);
+}
+
+/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+.link {
+  color: var(--el-action);
+  display: block;
+  padding: var(--el-space-1) var(--el-space-2);
+  border-radius: var(--el-radius-xs);
+  line-height: var(--el-leading-tight);
+}
+
+.top > .link {
+  color: var(--el-fg-1);
+  font-weight: 700;
+}
+
+.link:hover {
+  background: var(--el-bg-canvas);
+}
+
+@media (min-width: 1024px) {
+  /* 넓은 화면에서는 본문을 따라온다. 519개 조문을 훑는 동안 목차가 사라지면 안 된다. */
+  .toc {
+    position: sticky;
+    top: var(--el-space-6);
+  }
+}
+
+@media (max-width: 1023px) {
+  /*
+   * 좁은 화면에서는 접어 둔다. 목차가 화면을 다 채우면 본문을 보려고 스크롤부터 해야 한다.
+   * `open` 속성은 마크업에 있으므로 CSS로 여닫지 못한다 — 대신 높이를 제한한다.
+   */
+  .list {
+    max-height: 40vh;
+  }
+}

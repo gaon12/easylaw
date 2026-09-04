@@ -1,0 +1,82 @@
+/*
+ * 버튼. `DESIGN.md` §6 — 사이즈와 라운드는 페어로 움직인다.
+ * 화면당 primary는 하나다.
+ */
+
+.base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--el-space-2);
+  border: 1px solid transparent;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--el-duration-fast) var(--el-ease),
+    border-color var(--el-duration-fast) var(--el-ease);
+}
+
+.base:disabled {
+  cursor: not-allowed;
+  /* 비활성은 투명도가 아니라 평면 색 전환으로 처리한다(KRDS). */
+  background: var(--el-bg-subtle);
+  border-color: var(--el-border-default);
+  color: var(--el-fg-4);
+}
+
+/* 사이즈 */
+.l {
+  height: 56px;
+  padding: 0 var(--el-space-6);
+  border-radius: var(--el-radius-m);
+  font-size: var(--el-text-body-l);
+}
+
+.m {
+  height: 48px;
+  padding: 0 var(--el-space-5);
+  border-radius: var(--el-radius-s);
+  font-size: var(--el-text-body-m);
+}
+
+.s {
+  /* 40px는 데스크톱 전용이다. 모바일 표면에서는 m 이상을 쓴다. */
+  height: 40px;
+  padding: 0 var(--el-space-4);
+  border-radius: var(--el-radius-s);
+  font-size: var(--el-text-body-s);
+}
+
+/* 변형 */
+.primary {
+  background: var(--el-action);
+  color: var(--el-fg-inverse);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--el-action-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--el-action-pressed);
+}
+
+.secondary {
+  background: var(--el-action-weak);
+  color: var(--el-action-hover);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--el-primary-20);
+}
+
+.tertiary {
+  background: var(--el-bg-canvas);
+  border-color: var(--el-border-default);
+  color: var(--el-fg-1);
+}
+
+.tertiary:hover:not(:disabled) {
+  border-color: var(--el-fg-3);
+}

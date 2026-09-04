@@ -1,0 +1,257 @@
+.skipLink {
+  position: absolute;
+  left: var(--el-space-4);
+  top: -100px;
+  z-index: 100;
+  padding: var(--el-space-2) var(--el-space-4);
+  background: var(--el-action);
+  color: var(--el-fg-inverse);
+  border-radius: var(--el-radius-s);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+  text-decoration: none;
+  transition: top var(--el-duration-fast) var(--el-ease);
+}
+
+.skipLink:focus-visible {
+  top: var(--el-space-2);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.header {
+  border-bottom: 1px solid var(--el-border-subtle);
+  background: var(--el-bg-canvas);
+}
+
+/*
+ * 넓은 화면에서는 한 줄: [브랜드] [메뉴] [계정].
+ * 좁은 화면에서는 두 줄로 접힌다 — 아래 미디어 쿼리에서 영역만 다시 배치한다.
+ * 마크업은 하나다. 화면 크기마다 다른 마크업을 두면 둘이 어긋난다.
+ */
+.headerInner {
+  display: grid;
+  grid-template-areas: "brand nav account";
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--el-space-4);
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: 0 var(--el-space-6);
+  min-height: 72px;
+}
+
+.brand {
+  grid-area: brand;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  color: var(--el-fg-1);
+  font-size: var(--el-text-heading-s);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.nav {
+  grid-area: nav;
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-1);
+  /* 서비스 메뉴는 왼쪽 브랜드에 붙는다. 계정 영역과 섞이지 않게. */
+  justify-content: flex-start;
+}
+
+.account {
+  grid-area: account;
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-1);
+  justify-content: flex-end;
+}
+
+/*
+ * 메뉴 글자.
+ *
+ * 예전에는 `body-s`(15px)였는데 헤더에서 작아 보였다 — 헤더는 본문보다 **크거나 같아야**
+ * 눈이 먼저 닿는다. data.go.kr·krds.go.kr의 상단 메뉴도 본문 크기다. `body-m`(17px)로 올리고
+ * 색도 `fg-2`에서 `fg-1`로 올려 또렷하게 한다.
+ */
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-4);
+  border-radius: var(--el-radius-s);
+  color: var(--el-fg-1);
+  font-size: var(--el-text-body-m);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.navLink:hover {
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
+}
+
+.navCta {
+  font-weight: 700;
+  color: var(--el-fg-link);
+}
+
+/*
+ * 로그인한 계정. 아바타 + 이름을 한 덩어리로 누를 수 있게 둔다.
+ * 이메일을 쓰지 않는 이유는 `site-shell.tsx`에 적었다.
+ *
+ * 이름이 `.account`가 아닌 이유는 그 클래스가 이미 그리드 영역 컨테이너이기 때문이다 —
+ * 같은 이름을 쓰면 `grid-area`가 이 링크에도 걸린다.
+ */
+.accountLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--el-space-2);
+  min-height: var(--el-touch-target);
+  padding: var(--el-space-1) var(--el-space-3) var(--el-space-1) var(--el-space-1);
+  border-radius: var(--el-radius-pill);
+  color: var(--el-fg-1);
+  text-decoration: none;
+}
+
+.accountLink:hover {
+  background: var(--el-bg-subtle);
+}
+
+/* 무늬가 배경과 붙어 보이지 않게 얇은 테두리를 준다. */
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--el-radius-pill);
+  border: 1px solid var(--el-border-subtle);
+  background: var(--el-bg-canvas);
+}
+
+/* 긴 이름이 헤더를 밀어내지 않도록 잘라 준다. */
+.accountName {
+  font-size: var(--el-text-body-m);
+  font-weight: 500;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 로그아웃은 폼 버튼이다. 옆의 링크들과 같아 보여야 한다. */
+.navButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  padding: 0 var(--el-space-3);
+  border: 0;
+  border-radius: var(--el-radius-s);
+  background: none;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+}
+
+/* 헤더를 조금 높인다. 글자가 커진 만큼 위아래 숨 쉴 자리가 필요하다. */
+
+.navButton:hover {
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+}
+
+/*
+ * 푸터도 하나의 띠다(`DESIGN.md` §5.1). 위쪽 여백을 두지 않는다 —
+ * 배경 띠로 끝나는 화면에서 여백이 흰 틈으로 보여 띠가 끊긴다.
+ * 본문과의 간격은 각 페이지의 아래쪽 패딩이 만든다.
+ */
+.footer {
+  border-top: 1px solid var(--el-border-default);
+  background: var(--el-bg-subtle);
+}
+
+.footerInner {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6);
+  display: grid;
+  gap: var(--el-space-4);
+}
+
+.disclaimer {
+  margin: 0;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  max-width: 68ch;
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-4);
+}
+
+.footerLink {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+/* 출처 표기. 작게 두되 지우지 않는다 — KRDS 이용 조건이 요구하는 유일한 의무다. */
+.attribution {
+  margin: 0;
+  padding-top: var(--el-space-3);
+  border-top: 1px solid var(--el-border-default);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  max-width: 68ch;
+}
+
+@media (max-width: 720px) {
+  /*
+   * 두 줄로 접는다. 위: 브랜드와 계정, 아래: 서비스 메뉴.
+   * 계정을 위로 올리는 이유는 로그인 여부가 이 화면에서 가장 먼저 알아야 할 상태이기 때문이다.
+   */
+  .headerInner {
+    grid-template-areas:
+      "brand account"
+      "nav nav";
+    grid-template-columns: auto 1fr;
+    gap: var(--el-space-2) var(--el-space-4);
+    padding-top: var(--el-space-2);
+    padding-bottom: var(--el-space-2);
+  }
+
+  /* 메뉴가 넘치면 가로로 스크롤한다. 감추지 않는다 — 있는 줄 모르면 없는 것과 같다. */
+  .nav {
+    overflow-x: auto;
+    margin: 0 calc(var(--el-space-4) * -1);
+    padding: 0 var(--el-space-4);
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .accountEmail {
+    max-width: 12ch;
+  }
+}
+
+@media (max-width: 640px) {
+  .headerInner,
+  .footerInner {
+    padding-left: var(--el-space-4);
+    padding-right: var(--el-space-4);
+  }
+}

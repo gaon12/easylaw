@@ -1,0 +1,105 @@
+/*
+ * 설치 셸. 서비스와 **다른 바탕**을 깐다.
+ *
+ * 서비스 화면은 흰 canvas 위에서 돌아가는데, 설치 화면 전체를 `bg-subtle`로 깔면
+ * 같은 토큰만 쓰면서도 "여기는 다른 곳"이 한눈에 읽힌다. 그 위에 흰 카드를 얹는 것은
+ * `DESIGN.md` §5.1이 권하는 조합이기도 하다.
+ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--el-bg-subtle);
+}
+
+/*
+ * 헤더에 메뉴가 없다. 갈 곳이 없기 때문이다.
+ * 서비스 헤더처럼 아래 보더를 두지 않는다 — 바탕이 같은 색이라 선만 떠 보인다.
+ */
+.header {
+  width: 100%;
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  gap: var(--el-space-3);
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-6) var(--el-space-6) 0;
+}
+
+.brand {
+  color: var(--el-fg-1);
+  font-size: var(--el-text-heading-xs);
+  font-weight: 700;
+}
+
+/* 지금 무엇을 하는 화면인지 한 낱말로. 서비스 헤더에는 없는 표식이다. */
+.badge {
+  padding: var(--el-space-1) var(--el-space-3);
+  border-radius: var(--el-radius-pill);
+  background: var(--el-bg-inverse);
+  color: var(--el-fg-inverse);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+}
+
+/*
+ * 콘텐츠 폭.
+ *
+ * 예전에는 620px에 갇혀 있어서 넓은 화면에서 가운데 좁은 기둥 하나만 쓰고 양옆이
+ * 통째로 비었다. 이제 `--el-container`(1248px)까지 쓴다 — 서비스 화면과 같은 폭이라
+ * 설치를 마치고 넘어갈 때 폭이 튀지 않는다.
+ *
+ * 폭을 늘렸다고 모든 것을 늘리지는 않는다. 입력 칸이 1248px로 늘어나면 읽기도 채우기도
+ * 나빠진다. 늘어나야 할 것(점검 카드 목록)과 그대로 두어야 할 것(폼·문단)은
+ * `setup-steps.module.css`에서 각각 정한다.
+ */
+.inner {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-6) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-6);
+  align-content: start;
+}
+
+.footer {
+  width: 100%;
+}
+
+.footerInner {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: 0 var(--el-space-6) var(--el-space-8);
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.note {
+  margin: 0;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  line-height: var(--el-leading-body);
+}
+
+@media (max-width: 640px) {
+  .headerInner {
+    padding: var(--el-space-4) var(--el-space-4) 0;
+  }
+
+  .inner {
+    padding: var(--el-space-4) var(--el-space-4) var(--el-space-12);
+  }
+
+  .footerInner {
+    padding: 0 var(--el-space-4) var(--el-space-6);
+  }
+}
