@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CorpusDb } from "../client";
 import { createTestCorpusDb } from "../testing";
 import { saveJudgmentText, upsertJudgment } from "./repository";
-import { searchJudgments, toMatchQuery } from "./search";
+import { searchJudgments, searchLawIds, toMatchQuery } from "./search";
 
 let db: CorpusDb;
 let close: () => void;
@@ -94,5 +94,21 @@ describe("searchJudgments", () => {
     db.run(`delete from judgment where id = '${id}'`);
 
     expect(searchJudgments(db, "도로교통법")).toEqual([]);
+  });
+});
+
+describe("searchLawIds", () => {
+  /*
+   * 트라이그램 색인은 세 글자부터 걸린다. 그보다 짧으면 **색인으로 답할 수 없다**고
+   * 알려서, 부르는 쪽이 예전 방식(전체 훑기)으로 넘어가게 한다.
+   * 못 찾는 것보다는 느린 편이 낫다.
+   */
+  it("두 글자 이하는 색인이 답하지 않는다", () => {
+    expect(searchLawIds(db, "소송")).toBeUndefined();
+    expect(searchLawIds(db, "법")).toBeUndefined();
+  });
+
+  it("찾을 말이 없으면 빈 결과다", () => {
+    expect(searchLawIds(db, "   ")).toEqual([]);
   });
 });
