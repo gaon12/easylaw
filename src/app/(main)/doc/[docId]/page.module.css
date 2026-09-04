@@ -71,3 +71,10 @@
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
 }
+
+/* 점자 화면으로 가는 길. 공개 판례와 같은 자리에서 지금 보는 단계를 그대로 가져간다. */
+.brailleLink {
+  margin-left: var(--el-space-3);
+  color: var(--el-action);
+  font-weight: 700;
+}

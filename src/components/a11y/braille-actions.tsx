@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { braille } from "@/lib/strings";
-import styles from "./page.module.css";
+import styles from "./braille-document.module.css";
 
 type CopyState = "idle" | "copied" | "failed";
 
@@ -14,7 +14,7 @@ function copyStatusText(state: CopyState): string {
   return state === "failed" ? braille.copyFailed : "";
 }
 
-/** 점자 유니코드를 보조기기나 파일로 가져가는 두 통로. 변환 자체는 서버에서 끝난다. */
+/** 서버에서 만든 점자 유니코드를 보조기기나 파일로 가져가는 두 통로. */
 function BrailleActions({ text, filename }: { text: string; filename: string }) {
   const [copyState, setCopyState] = useState<CopyState>("idle");
 

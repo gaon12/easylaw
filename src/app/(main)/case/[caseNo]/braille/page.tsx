@@ -1,20 +1,17 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Infobox } from "@/components/ui/infobox";
+import { BrailleDocument } from "@/components/a11y/braille-document";
 import { toLevel } from "@/components/viewer/levels";
 import { corpusDb } from "@/db/client";
 import {
   findJudgmentByCaseNo,
+  findLatestRendition,
   findRendition,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { braille as strings, viewer } from "@/lib/strings";
-import { toBrailleDocument } from "@/server/braille";
 import { PIPELINE_VERSION } from "@/server/generate";
-import { BrailleActions } from "./braille-actions";
-import styles from "./page.module.css";
 
 /**
  * 점자로 보기. `PAGES.md` §5 · `FEATURES.md` [F-11] 계열
@@ -53,49 +50,23 @@ export default async function BraillePage(props: {
     level === "L0"
       ? listSpans(db, judgment.id).map((span) => span.text)
       : (() => {
-          const rendition = findRendition(db, judgment.id, level, PIPELINE_VERSION);
+          const current = findRendition(db, judgment.id, level, PIPELINE_VERSION);
+          const rendition = current ?? findLatestRendition(db, judgment.id, level);
           return rendition === undefined
             ? []
             : listSentences(db, rendition.id).map((sentence) => sentence.text);
         })();
-  const document = toBrailleDocument(lines);
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{strings.title}</h1>
-        <p className={styles.meta}>
-          {strings.meta(
-            judgment.caseNoDisplay,
-            level === "L0" ? strings.originalLabel : viewer.levels[level],
-          )}
-        </p>
-        <Link className={styles.back} href={viewerPath}>
-          {strings.backToViewer}
-        </Link>
-      </header>
-
-      {lines.length === 0 ? (
-        <div className={styles.empty}>
-          <h2 className={styles.emptyTitle}>{strings.emptyTitle}</h2>
-          <p className={styles.emptyBody}>{strings.emptyBody}</p>
-        </div>
-      ) : (
-        <>
-          <Infobox title={strings.title}>{strings.disclaimer}</Infobox>
-
-          <BrailleActions filename={`${judgment.caseNoCanonical}-${level}.txt`} text={document} />
-
-          {/*
-            점자는 **한 덩어리로** 둔다. 문장마다 상자를 두르면 드래그해서 복사할 때 상자
-            경계가 끼어든다. 줄바꿈은 문장 단위다(`toBrailleDocument`와 같은 규칙).
-          */}
-          <pre className={styles.braille}>{document}</pre>
-
-          <p className={styles.source}>{strings.source}</p>
-        </>
+    <BrailleDocument
+      backHref={viewerPath}
+      filename={`${judgment.caseNoCanonical}-${level}.txt`}
+      lines={lines}
+      meta={strings.meta(
+        judgment.caseNoDisplay,
+        level === "L0" ? strings.originalLabel : viewer.levels[level],
       )}
-    </div>
+    />
   );
 }
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import {
 import { findUploadForOwner, listMaskCounts, listUploadSpans } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { daysUntil, formatDate } from "@/lib/format";
-import { doc, upload, viewer } from "@/lib/strings";
+import { braille as brailleStrings, doc, upload, viewer } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
 import type { MaskKind } from "@/lib/text/mask";
 import { findCitations } from "@/server/citations";
@@ -171,7 +172,13 @@ export default async function DocPage(props: {
       <div className={styles.levels}>
         <LevelTabs basePath={basePath} current={level} />
         {/* 고른 단계가 어떤 말로 쓰는지 한 줄로 알린다. 탭 이름만으로는 알 수 없다. */}
-        <p className={styles.levelNote}>{viewer.levelNotes[level]}</p>
+        <p className={styles.levelNote}>
+          {viewer.levelNotes[level]}
+          {/* 점자 화면에서도 지금 보고 있는 설명 단계를 그대로 유지한다. */}
+          <Link className={styles.brailleLink} href={`${basePath}/braille?level=${level}`}>
+            {brailleStrings.cta}
+          </Link>
+        </p>
       </div>
 
       {level === "L0" ? null : (
