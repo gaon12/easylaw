@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
+import { GenerationProgress } from "@/components/viewer/generation-progress";
 import { LevelTabs } from "@/components/viewer/level-tabs";
 import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
@@ -10,8 +11,10 @@ import { SummaryCard } from "@/components/viewer/summary-card";
 import { TableOfContents } from "@/components/wiki/toc";
 import { corpusDb } from "@/db/client";
 import {
+  findGenerationProgress,
   findJudgmentByCaseNo,
   findRendition,
+  type JobStage,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
@@ -31,12 +34,45 @@ import styles from "./page.module.css";
  * 세 가지가 다르다 — 생성기가 꺼져 있는 것, 오늘 몫이 없는 것, 아직 아무도 안 만든 것.
  * 셋을 한 문장으로 뭉뚱그리면 **눌러도 되는지**를 알 수 없다.
  */
-function placeholderState(): "off" | "limited" | "ready" {
+type PlaceholderState =
+  | { kind: "off" | "limited" | "ready" }
+  /** 지금 만들고 있다. 내가 눌렀든 남이 눌렀든 화면이 하는 말은 같다(§5.3). */
+  | { kind: "running"; stage: JobStage | null }
+  | { kind: "failed"; reason: string | null };
+
+function placeholderState(
+  judgmentId: string | null,
+  level: Exclude<ViewLevel, "L0">,
+): PlaceholderState {
   if (llmConfig() === undefined) {
-    return "off";
+    return { kind: "off" };
   }
+  // 코퍼스에 판결문이 없으면 걸릴 작업도 없다. 이 경우 만들기 버튼이 액션에서 막힌다.
+  if (judgmentId === null) {
+    return { kind: "ready" };
+  }
+
+  /*
+   * 만들고 있는 작업이 먼저다. 오늘 몫이 없어도 이미 돌고 있는 것은 끝난다 —
+   * 그 사람에게 "몫이 없어요"라고 말하면 눈앞에서 만들어지는 것과 어긋난다.
+   */
+  const progress = findGenerationProgress(corpusDb(), {
+    judgmentId,
+    level,
+    promptVersion: PIPELINE_VERSION,
+  });
+  if (progress?.status === "running" || progress?.status === "queued") {
+    return { kind: "running", stage: progress.stage };
+  }
+
   // 상한은 만들려는 사람에게만 의미가 있다. 생성기가 꺼져 있으면 세어 볼 것도 없다.
-  return generationBudget().remaining > 0 ? "ready" : "limited";
+  if (generationBudget().remaining <= 0) {
+    return { kind: "limited" };
+  }
+  if (progress?.status === "failed") {
+    return { kind: "failed", reason: progress.error };
+  }
+  return { kind: "ready" };
 }
 
 const PLACEHOLDER_COPY = {
@@ -45,6 +81,21 @@ const PLACEHOLDER_COPY = {
   ready: { title: viewer.generateHint, body: viewer.generateBody },
 } as const;
 
+/** 다시 눌러 볼 수 있는 자리. 처음 만들 때와 실패한 뒤가 같은 폼을 쓴다. */
+function GenerateForm({ caseNo, level, label }: { caseNo: string; level: string; label: string }) {
+  // 자바스크립트 없이 동작한다. 누르면 서버가 자리를 잡고, 만드는 일은 응답 뒤에 이어진다.
+  return (
+    <form action={requestGeneration}>
+      <input name="caseNo" type="hidden" value={caseNo} />
+      <input name="level" type="hidden" value={level} />
+      <Button size="l" type="submit">
+        {label}
+      </Button>
+      <p className={styles.emptyBody}>{viewer.generateWait}</p>
+    </form>
+  );
+}
+
 /**
  * 설명이 아직 없을 때. 생성기가 꺼져 있으면 그 사실을 숨기지 않는다.
  *
@@ -52,9 +103,44 @@ const PLACEHOLDER_COPY = {
  * 안내 상자 하나로 끝내지 않고 자리를 갖춘 빈 상태로 그린다. 옆 칸에는 원문이 있으니
  * "아무것도 없는 화면"은 아니라는 것도 함께 보여야 한다.
  */
-function RenditionPlaceholder({ caseNo, level }: { caseNo: string; level: string }) {
-  const state = placeholderState();
-  const copy = PLACEHOLDER_COPY[state];
+function RenditionPlaceholder({
+  caseNo,
+  judgmentId,
+  level,
+}: {
+  caseNo: string;
+  judgmentId: string | null;
+  level: Exclude<ViewLevel, "L0">;
+}) {
+  const state = placeholderState(judgmentId, level);
+
+  if (state.kind === "running") {
+    return (
+      <div className={styles.empty}>
+        <PaperFigure mood="empty" />
+        <h3 className={styles.emptyTitle}>{viewer.progressTitle}</h3>
+        <GenerationProgress caseNo={caseNo} initialStage={state.stage} level={level} />
+        {/* 스크립트가 없으면 위 줄이 저절로 바뀌지 않는다. 그때 누를 것을 함께 둔다. */}
+        <ButtonLink href={`/case/${caseNo}?level=${level}`} size="s" variant="secondary">
+          {viewer.progressRefresh}
+        </ButtonLink>
+      </div>
+    );
+  }
+
+  if (state.kind === "failed") {
+    return (
+      <div className={styles.empty}>
+        <PaperFigure mood="empty" />
+        <h3 className={styles.emptyTitle}>{viewer.failedTitle}</h3>
+        {/* 왜 실패했는지 그대로 적는다. 감추면 관리자도 무엇을 고칠지 알 수 없다. */}
+        {state.reason === null ? null : <p className={styles.emptyBody}>{state.reason}</p>}
+        <GenerateForm caseNo={caseNo} label={viewer.regenerate} level={level} />
+      </div>
+    );
+  }
+
+  const copy = PLACEHOLDER_COPY[state.kind];
 
   return (
     <div className={styles.empty}>
@@ -62,19 +148,8 @@ function RenditionPlaceholder({ caseNo, level }: { caseNo: string; level: string
       <h3 className={styles.emptyTitle}>{copy.title}</h3>
       <p className={styles.emptyBody}>{copy.body}</p>
 
-      {state === "ready" ? (
-        /*
-          자바스크립트 없이 동작한다. 누르면 서버가 만들고 화면을 다시 그린다 —
-          수십 초가 걸리므로 진행 표시(SSE, §5.3)를 붙이는 것이 다음 일이다.
-        */
-        <form action={requestGeneration}>
-          <input name="caseNo" type="hidden" value={caseNo} />
-          <input name="level" type="hidden" value={level} />
-          <Button size="l" type="submit">
-            {viewer.generateCta}
-          </Button>
-          <p className={styles.emptyBody}>{viewer.generateWait}</p>
-        </form>
+      {state.kind === "ready" ? (
+        <GenerateForm caseNo={caseNo} label={viewer.generateCta} level={level} />
       ) : null}
     </div>
   );
@@ -157,10 +232,12 @@ function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
 /** 설명 칸. 만들어진 것이 있으면 그것을, 없으면 만들기 버튼을 그린다. */
 function RenditionSection({
   caseNo,
+  judgmentId,
   level,
   sentences,
 }: {
   caseNo: string;
+  judgmentId: string | null;
   level: Exclude<ViewLevel, "L0">;
   sentences: readonly {
     id: string;
@@ -182,9 +259,28 @@ function RenditionSection({
           sentences={sentences}
         />
       ) : (
-        <RenditionPlaceholder caseNo={caseNo} level={level} />
+        <RenditionPlaceholder caseNo={caseNo} judgmentId={judgmentId} level={level} />
       )}
     </section>
+  );
+}
+
+/** 조회는 됐지만 공개본이 없거나 API가 막힌 경우. 자세한 안내는 검색 화면이 맡는다. */
+function NotAvailable({ query }: { query: string }) {
+  return (
+    <div className={styles.page}>
+      <Alert
+        actions={
+          <ButtonLink href={`/search?q=${encodeURIComponent(query)}`}>
+            {viewer.seeSearchResult}
+          </ButtonLink>
+        }
+        title={viewer.notAvailableTitle}
+        tone="warning"
+      >
+        {viewer.notAvailableBody}
+      </Alert>
+    </div>
   );
 }
 
@@ -208,22 +304,7 @@ export default async function CasePage(props: {
   }
 
   if (result.kind !== "found") {
-    // 조회는 됐지만 공개본이 없거나 API가 막힌 경우. 자세한 안내는 검색 화면이 맡는다.
-    return (
-      <div className={styles.page}>
-        <Alert
-          actions={
-            <ButtonLink href={`/search?q=${encodeURIComponent(decoded)}`}>
-              {viewer.seeSearchResult}
-            </ButtonLink>
-          }
-          title={viewer.notAvailableTitle}
-          tone="warning"
-        >
-          {viewer.notAvailableBody}
-        </Alert>
-      </div>
-    );
+    return <NotAvailable query={decoded} />;
   }
 
   const { summary } = result;
@@ -254,7 +335,12 @@ export default async function CasePage(props: {
 
       <div className={styles.panels}>
         {level === "L0" ? null : (
-          <RenditionSection caseNo={summary.caseNoCanonical} level={level} sentences={sentences} />
+          <RenditionSection
+            caseNo={summary.caseNoCanonical}
+            judgmentId={row?.id ?? null}
+            level={level}
+            sentences={sentences}
+          />
         )}
 
         <section className={styles.panel}>
