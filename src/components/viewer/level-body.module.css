@@ -7,6 +7,8 @@
 
 .body {
   display: grid;
+  min-width: 0;
+  width: 100%;
 }
 
 /* L0·L1·L2 — 기본 본문 17px / 1.55, 76ch. */

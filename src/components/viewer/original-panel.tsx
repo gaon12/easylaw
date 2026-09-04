@@ -82,15 +82,15 @@ function OriginalPanel({
             const bodyStart =
               heading.contentStart + rawRemainder.length - rawRemainder.trimStart().length;
             const remainder = span.text.slice(bodyStart);
-            const headingText = span.text.slice(0, heading.contentStart).trim();
 
             /*
-             * 구간 제목과 같은 줄에 본문이 붙기도 한다. 닫는 `】`까지만 제목으로 그리고,
-             * 나머지는 평문으로 내려야 첫 문장 전체가 굵은 제목이 되지 않는다.
+             * 구간 제목과 같은 줄에 본문이 붙기도 한다. 화면에는 목차와 같은 정리된 제목을
+             * 보여 주고 나머지는 평문으로 내려야 첫 문장 전체가 굵은 제목이 되지 않는다.
+             * 원문 데이터와 점자용 텍스트는 바꾸지 않는다.
              */
             return (
               <Fragment key={span.id}>
-                <p className={styles.sentenceHeading} id={heading.id}>
+                <h3 className={styles.sentenceHeading} id={heading.id}>
                   <span className={styles.headingNumber}>
                     {wiki.sectionNumber(heading.id.replace("s-", ""))}
                   </span>
@@ -98,7 +98,7 @@ function OriginalPanel({
                     className={styles.headingText}
                     id={remainder.length === 0 ? span.id : undefined}
                   >
-                    {headingText}
+                    {heading.label}
                   </span>
                   <a
                     aria-label={wiki.sectionLinkLabel(heading.label)}
@@ -107,7 +107,7 @@ function OriginalPanel({
                   >
                     {wiki.sectionLinkMark}
                   </a>
-                </p>
+                </h3>
                 {remainder.length === 0 ? null : (
                   <p className={styles.sentence} id={span.id}>
                     <CitedText

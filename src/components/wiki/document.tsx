@@ -9,7 +9,7 @@ import styles from "./document.module.css";
  * 나무위키·위키백과가 긴 문서를 다루는 방식을 그대로 가져온다.
  *
  * - 회색 바닥 위에 **흰 시트 한 장**. 문서는 카드의 모음이 아니라 한 장의 종이다.
- * - 시트 맨 위에 **제목과 밑줄**, 그 아래 **목차 박스와 정보 틀이 나란히**, 그다음 본문.
+ * - 시트 맨 위에 **제목과 밑줄**, 그 아래 **목차·본문과 정보 틀이 나란히** 이어진다.
  * - 구간은 카드가 아니라 **밑줄**로 나뉜다(`section.module.css`).
  *
  * **KRDS 카드 문법을 문서 본문에는 쓰지 않는다.** 카드마다 여백과 그림자를 두면 문서가
@@ -22,6 +22,7 @@ function WikiDocument({
   info,
   toc,
   tocLabel,
+  bodyBesideInfo = false,
   children,
 }: {
   /** 문서 제목. 시트 맨 위에 온다. */
@@ -32,9 +33,12 @@ function WikiDocument({
   info?: ReactNode;
   toc: readonly TocEntry[];
   tocLabel?: string;
+  /** 넓은 화면에서 본문을 정보 틀 아래가 아니라 왼쪽 열에 이어 붙인다. */
+  bodyBesideInfo?: boolean;
   children: ReactNode;
 }) {
   const hasLead = toc.length > 1 || info !== undefined;
+  const hasToc = toc.length > 1;
 
   return (
     <div className={styles.page}>
@@ -45,13 +49,25 @@ function WikiDocument({
         </header>
 
         {hasLead ? (
-          <div className={styles.lead}>
-            {toc.length > 1 ? <TableOfContents entries={toc} label={tocLabel} /> : null}
-            {info === undefined ? null : <div className={styles.info}>{info}</div>}
+          <div
+            className={[
+              styles.layout,
+              hasToc ? styles.layoutWithToc : "",
+              info === undefined ? "" : styles.layoutWithInfo,
+              bodyBesideInfo ? styles.bodyBesideInfo : "",
+            ].join(" ")}
+          >
+            {hasToc ? (
+              <div className={styles.lead}>
+                <TableOfContents entries={toc} label={tocLabel} />
+              </div>
+            ) : null}
+            {info === undefined ? null : <aside className={styles.info}>{info}</aside>}
+            <div className={styles.body}>{children}</div>
           </div>
-        ) : null}
-
-        <div className={styles.body}>{children}</div>
+        ) : (
+          <div className={styles.body}>{children}</div>
+        )}
       </article>
     </div>
   );

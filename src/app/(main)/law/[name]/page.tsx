@@ -163,6 +163,7 @@ export default async function LawPage(props: {
 
   return (
     <WikiDocument
+      bodyBesideInfo={true}
       info={
         <WikiInfobox
           footer={asOfNote(query.때, dated)}

@@ -282,6 +282,7 @@ export default async function CasePage(props: {
    */
   return (
     <WikiDocument
+      bodyBesideInfo={level === "L0"}
       info={
         <SummaryCard
           {...summary}
