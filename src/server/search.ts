@@ -2,6 +2,7 @@ import "server-only";
 import { corpusDb } from "@/db/client";
 import { searchLawVersions } from "@/db/corpus/repository";
 import { parseCaseNumber } from "@/lib/case-number/normalize";
+import { expandCaseChoseongQuery } from "@/lib/case-number/search";
 import { lawApi } from "@/lib/law-api/client";
 import type { PrecedentSummary } from "@/lib/law-api/parse";
 import { type LookupResult, lookupCase } from "@/server/lookup";
@@ -53,25 +54,46 @@ interface SearchResults {
   readonly apiUnavailable: boolean;
 }
 
+const SEARCH_RESULT_LIMIT = 20;
+
 /**
  * 내용으로 판례를 찾는다.
  *
  * **실패를 "0건"과 구분해 올린다.** 법제처가 잠깐 죽었을 때 "그런 판례가 없어요"라고 하면
  * 사용자는 없는 것으로 믿고 떠난다(§5.4의 안내가 무의미해진다).
  */
-async function findPrecedents(query: string, signal?: AbortSignal): Promise<PrecedentSearch> {
+async function findPrecedents(
+  queries: readonly string[],
+  signal?: AbortSignal,
+): Promise<PrecedentSearch> {
   const api = lawApi();
   if (api === undefined) {
     return { items: [], unavailable: true };
   }
-  try {
-    return { items: await api.searchByKeyword(query, signal) };
-  } catch (error) {
-    return {
-      items: [],
-      error: error instanceof Error ? error.message : "판례를 찾지 못했습니다.",
-    };
+
+  const searches = await Promise.allSettled(
+    queries.map((query) => api.searchByKeyword(query, signal)),
+  );
+  const byId = new Map<string, PrecedentSummary>();
+  let firstError: string | undefined;
+
+  for (const search of searches) {
+    if (search.status === "rejected") {
+      firstError ??=
+        search.reason instanceof Error ? search.reason.message : "판례를 찾지 못했습니다.";
+      continue;
+    }
+    for (const item of search.value) {
+      if (!byId.has(item.precedentId)) {
+        byId.set(item.precedentId, item);
+      }
+    }
   }
+
+  return {
+    items: [...byId.values()].slice(0, SEARCH_RESULT_LIMIT),
+    error: firstError,
+  };
 }
 
 function toLawHit(row: {
@@ -92,6 +114,22 @@ function toLawHit(row: {
   };
 }
 
+/** 초성 후보별 결과를 순서대로 합치되, 같은 법의 여러 시행판은 한 번만 보여 준다. */
+function findLaws(queries: readonly string[]): readonly LawHit[] {
+  const byLaw = new Map<string, LawHit>();
+  const db = corpusDb();
+
+  for (const query of queries) {
+    for (const row of searchLawVersions(db, query)) {
+      if (!byLaw.has(row.lawId)) {
+        byLaw.set(row.lawId, toLawHit(row));
+      }
+    }
+  }
+
+  return [...byLaw.values()].slice(0, SEARCH_RESULT_LIMIT);
+}
+
 /**
  * 한 낱말로 세 곳을 찾는다.
  *
@@ -104,6 +142,8 @@ function toLawHit(row: {
 async function searchEverything(query: string, signal?: AbortSignal): Promise<SearchResults> {
   const trimmed = query.trim();
   const parsed = parseCaseNumber(trimmed);
+  const expanded = expandCaseChoseongQuery(trimmed);
+  const contentQueries = expanded.length > 0 ? expanded : [trimmed];
 
   const [caseLookup, precedents] = await Promise.all([
     parsed.ok ? lookupCase(trimmed, signal) : Promise.resolve(undefined),
@@ -111,13 +151,15 @@ async function searchEverything(query: string, signal?: AbortSignal): Promise<Se
      * 사건번호로 정확히 읽혔으면 내용 검색을 하지 않는다. 그 경우 화면이 바로 그 판례로
      * 보내므로, 결과를 쓰지도 않을 왕복을 한 번 더 하는 셈이 된다.
      */
-    parsed.ok ? Promise.resolve<PrecedentSearch>({ items: [] }) : findPrecedents(trimmed, signal),
+    parsed.ok
+      ? Promise.resolve<PrecedentSearch>({ items: [] })
+      : findPrecedents(contentQueries, signal),
   ]);
 
   return {
     query: trimmed,
     caseLookup,
-    laws: searchLawVersions(corpusDb(), trimmed).map(toLawHit),
+    laws: findLaws(contentQueries),
     precedents: precedents.items,
     precedentError: precedents.error,
     apiUnavailable: precedents.unavailable === true,
