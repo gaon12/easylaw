@@ -44,11 +44,21 @@ function policy(nonce: string, isDev: boolean): string {
   return [
     "default-src 'self'",
     `script-src ${scriptSrc(nonce, isDev)}`,
-    "style-src 'self'",
+    /*
+     * **개발 중에는 스타일을 열어 둔다.** `next dev`는 새로 고침 없이 화면을 갈아 끼우려고
+     * `<style>` 태그를 인라인으로 넣는데, 운영과 같은 정책을 걸면 그 태그가 전부 막혀
+     * 콘솔이 CSP 위반으로 뒤덮이고 화면이 스타일 없이 그려진다. 실제로 그렇게 됐다.
+     * 빌드된 화면은 CSS 파일만 쓰므로 운영에서는 잠근다.
+     */
+    isDev ? "style-src 'self' 'unsafe-inline'" : "style-src 'self'",
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    /*
+     * 개발 서버는 웹소켓으로 바뀐 파일을 알린다(HMR). `'self'`가 `ws:`까지 덮는지는
+     * 브라우저마다 달라서, 개발에서만 명시한다.
+     */
+    isDev ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -15,6 +15,7 @@ function WikiSection({
   id,
   heading,
   level = 2,
+  number,
   meta,
   children,
 }: {
@@ -22,6 +23,11 @@ function WikiSection({
   heading: string;
   /** 제목 단계. 문서 구조를 건너뛰지 않으려고 부르는 쪽이 정한다. */
   level?: 2 | 3;
+  /**
+   * 목차 번호(`2`, `2.1`). 위키가 제목 앞에 붙이는 그 번호다 — 목차의 몇 번째 항목인지
+   * 본문에서도 보여야 "두 번째 구간"이라는 말이 통한다. 없으면 붙이지 않는다.
+   */
+  number?: string;
   /** 제목 옆에 붙는 부가 정보(시행일 등). */
   meta?: ReactNode;
   children: ReactNode;
@@ -30,8 +36,11 @@ function WikiSection({
 
   return (
     <section className={styles.section} id={id}>
-      <div className={styles.head}>
+      <div className={`${styles.head} ${level === 2 ? styles.headTop : ""}`}>
         <Heading className={styles.heading}>
+          {number === undefined ? null : (
+            <span className={styles.number}>{wiki.sectionNumber(number)}</span>
+          )}
           {heading}
           <a aria-label={wiki.anchorTo(heading)} className={styles.anchor} href={`#${id}`}>
             {wiki.anchorMark}

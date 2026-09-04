@@ -39,7 +39,7 @@
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: var(--el-space-4);
-  max-width: var(--el-container);
+  max-width: var(--el-container-wide);
   margin: 0 auto;
   padding: 0 var(--el-space-6);
   min-height: 72px;
@@ -181,7 +181,7 @@
 }
 
 .footerInner {
-  max-width: var(--el-container);
+  max-width: var(--el-container-wide);
   margin: 0 auto;
   padding: var(--el-space-8) var(--el-space-6);
   display: grid;

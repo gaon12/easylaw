@@ -989,6 +989,8 @@ export const workspace = {
  * 사용자는 그것이 다른 기능인 줄 안다.
  */
 export const wiki = {
+  /** 구간 번호 표기. `2.`처럼 번호 뒤에 점을 찍는다. */
+  sectionNumber: (number: string) => `${number}.`,
   /** 구간 링크. 위키의 문단 링크와 같은 뜻이고, 글자는 하나면 된다. */
   sectionLinkMark: "§",
   sectionLinkLabel: (section: string) => `${section} 구간 링크`,
@@ -1099,6 +1101,29 @@ export const law = {
 export const viewer = {
   /** 인용 링크의 툴팁. 어디로 가는지 미리 알려 준다. */
   citationHint: (lawName: string, article: string) => `${lawName} ${article} 보기`,
+
+  /**
+   * 인용을 눌렀을 때 뜨는 창.
+   *
+   * **"없는 조문"과 "확인하지 못한 조문"을 섞지 않는다**(§5.5 [6a]). 창에서는 둘 다
+   * 보여 줄 것이 없지만, 이유를 뭉뚱그리면 읽는 사람이 그 인용을 틀린 것으로 받아들인다.
+   */
+  citationLoading: "조문을 불러오고 있어요.",
+  citationFailed: "조문을 불러오지 못했어요. 상세 보기로 열어 보세요.",
+  citationUnavailable: "이 조문을 지금 보여 드릴 수 없어요. 상세 보기로 열어 보세요.",
+  citationDetail: "상세 보기",
+  citationClose: "닫기",
+
+  /**
+   * 인용 법령 목록(위키의 각주 목록 자리).
+   *
+   * **"몇 개 법"이라고 센다.** 조문 수를 세면 같은 법의 조문 열 개가 열 건으로 보이는데,
+   * 읽는 사람이 알고 싶은 것은 "무슨 법을 근거로 삼았나"다.
+   */
+  citedLawsTitle: (count: number) => `이 판결이 인용한 법령 ${count}개`,
+  citedLawsHint: "조문을 누르면 판결 당시 시행되던 내용을 볼 수 있어요.",
+  articleLabel: (articleNo: string) => `제${articleNo}조`,
+  articleBranchLabel: (articleNo: string, branchNo: string) => `제${articleNo}조의${branchNo}`,
 
   levels: {
     L0: "원문",

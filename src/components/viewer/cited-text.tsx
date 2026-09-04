@@ -1,9 +1,8 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { CitationDialog } from "@/components/viewer/citation-dialog";
 import type { Citation } from "@/lib/law-citation/detect";
 import { formatCitation } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
-import styles from "./cited-text.module.css";
 
 /**
  * 판결문 문장에서 법령 인용을 링크로 바꾼다. `PAGES.md` §5.2 ④
@@ -57,15 +56,18 @@ function CitedText({
         query.set("때", at);
       }
 
+      /*
+       * 창으로 먼저 보여 준다(`citation-dialog.tsx`). 마크업은 여전히 링크라
+       * 스크립트가 없으면 예전처럼 법령 화면으로 넘어간다.
+       */
       parts.push(
-        <Link
-          className={styles.citation}
+        <CitationDialog
           href={`/law/${encodeURIComponent(citation.law.name)}?${query}`}
           key={`${citation.start}-${citation.end}`}
+          label={citation.text}
+          query={query.toString()}
           title={viewer.citationHint(citation.law.name, formatCitation(citation))}
-        >
-          {citation.text}
-        </Link>,
+        />,
       );
     }
     cursor = citation.end;

@@ -1,0 +1,80 @@
+/*
+ * 문서 정보 틀. `DESIGN.md` §11.5
+ *
+ * 위키의 상단 틀이다. 제목 띠 + 라벨/값 두 열.
+ */
+
+.box {
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-m);
+  overflow: hidden;
+  /* 넓은 화면에서 문서 전체 폭을 채우지 않는다 — 틀은 머리이지 본문이 아니다. */
+  max-width: 640px;
+}
+
+/*
+ * 제목 띠. 문서를 특정하는 값이 여기 아래에 있다는 표식이라 색을 준다.
+ * 카드가 아니라 틀이므로 §11의 "카드 좌측 색 보더 금지"와는 다른 자리다.
+ */
+.title {
+  margin: 0;
+  padding: var(--el-space-3) var(--el-space-4);
+  background: var(--el-action);
+  color: var(--el-fg-inverse);
+  font-size: var(--el-text-body-m);
+  font-weight: 700;
+}
+
+.rows {
+  margin: 0;
+  display: grid;
+}
+
+/*
+ * 한 줄 = 라벨 + 값. 라벨 칸을 고정 폭으로 두어 값이 같은 선에서 시작한다 —
+ * 표처럼 읽혀야 훑을 수 있다.
+ */
+.row {
+  display: grid;
+  grid-template-columns: minmax(88px, 128px) minmax(0, 1fr);
+  gap: var(--el-space-3);
+  padding: var(--el-space-3) var(--el-space-4);
+  border-top: 1px solid var(--el-border-subtle);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.label {
+  margin: 0;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.value {
+  margin: 0;
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+  word-break: keep-all;
+}
+
+.footer {
+  padding: var(--el-space-3) var(--el-space-4);
+  border-top: 1px solid var(--el-border-subtle);
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+@media (max-width: 640px) {
+  .box {
+    max-width: none;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+    gap: var(--el-space-1);
+  }
+}

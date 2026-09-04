@@ -1,12 +1,11 @@
 import { Alert } from "@/components/ui/alert";
-import { Card } from "@/components/ui/card";
-import { StructuredList } from "@/components/ui/structured-list";
 import type { TocEntry } from "@/components/ui/types";
+import { WikiDocument } from "@/components/wiki/document";
+import { WikiInfobox } from "@/components/wiki/infobox";
 import { WikiSection } from "@/components/wiki/section";
-import { TableOfContents } from "@/components/wiki/toc";
 import { formatDate } from "@/lib/format";
 import { asOfNote, readAsOf } from "@/lib/law-citation/as-of";
-import { law as strings } from "@/lib/strings";
+import { law as strings, wiki } from "@/lib/strings";
 import { type ArticleText, lawAsOf } from "@/server/law";
 import { siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
@@ -68,6 +67,48 @@ function ArticleBody({ article }: { article: ArticleText }) {
 }
 
 /**
+ * 조문 하나. 그 조문에서 새 장이 시작되면 장 제목을 앞에 세운다.
+ *
+ * 인용에서 온 조문은 배경과 왼쪽 표식을 함께 준다 — 색만으로 알리면 색을 구별하지 못하는
+ * 사람에게는 아무 정보도 아니다(§11).
+ */
+function ArticleEntry({
+  article,
+  section,
+  sectionNumber,
+  highlighted,
+}: {
+  article: ArticleText;
+  section: { title: string; beforeArticleNo: string } | undefined;
+  sectionNumber: string | undefined;
+  highlighted: boolean;
+}) {
+  const anchor = articleAnchor(article.articleNo, article.branchNo);
+
+  return (
+    <div>
+      {section === undefined ? null : (
+        <h2 className={styles.sectionTitle} id={`장${section.beforeArticleNo}`}>
+          <span className={styles.sectionNumber}>{wiki.sectionNumber(sectionNumber ?? "")}</span>
+          {section.title}
+        </h2>
+      )}
+
+      <div className={highlighted ? styles.hit : undefined}>
+        <WikiSection
+          heading={strings.articleLabel(article.articleNo, article.branchNo)}
+          id={anchor}
+          level={3}
+          meta={article.title === null ? undefined : strings.articleTitle(article.title)}
+        >
+          <ArticleBody article={article} />
+        </WikiSection>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 법령 한 판. `PRODUCT.md` §6.5 · `DESIGN.md` §11.5
  *
  * **위키식으로 그린다** — 목차, 조문마다 앵커, 장 제목으로 나뉜 절, 화면 폭을 쓰는 2단.
@@ -115,12 +156,18 @@ export default async function LawPage(props: {
   /** 장 제목이 어느 조문 앞에 오는지. 조문을 그리면서 그 자리에 끼워 넣는다. */
   const sectionAt = new Map(law.sections.map((section) => [section.beforeArticleNo, section]));
 
+  /** 장이 문서의 몇 번째 구간인가. 위키처럼 제목 앞에 번호를 붙인다. */
+  const sectionNumber = new Map(
+    law.sections.map((section, index) => [section.beforeArticleNo, String(index + 1)]),
+  );
+
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{law.lawName}</h1>
-        <Card>
-          <StructuredList
+    <WikiDocument
+      header={
+        <header className={styles.header}>
+          <h1 className={styles.title}>{law.lawName}</h1>
+          <WikiInfobox
+            footer={asOfNote(query.때, dated)}
             rows={[
               {
                 label: strings.effectiveAt,
@@ -129,47 +176,24 @@ export default async function LawPage(props: {
               { label: strings.articleCount, value: strings.articles(law.articles.length) },
               { label: strings.source, value: strings.sourceName },
             ]}
+            title={law.lawName}
           />
-        </Card>
-        <p className={styles.note}>{asOfNote(query.때, dated)}</p>
-      </header>
-
-      <div className={styles.layout}>
-        <aside className={styles.aside}>
-          <TableOfContents entries={buildToc(law.articles, law.sections)} />
-        </aside>
-
-        <div className={styles.articles}>
-          {law.articles.map((article) => {
-            const anchor = articleAnchor(article.articleNo, article.branchNo);
-            const highlighted = article.articleNo === target && article.branchNo === targetBranch;
-            const section = sectionAt.get(article.articleNo);
-
-            return (
-              <div key={anchor}>
-                {/* 장 제목은 그 장이 시작되는 조문 바로 앞에 온다. */}
-                {section === undefined ? null : (
-                  <h2 className={styles.sectionTitle} id={`장${section.beforeArticleNo}`}>
-                    {section.title}
-                  </h2>
-                )}
-
-                <div className={highlighted ? styles.hit : undefined}>
-                  <WikiSection
-                    heading={strings.articleLabel(article.articleNo, article.branchNo)}
-                    id={anchor}
-                    level={3}
-                    meta={article.title === null ? undefined : strings.articleTitle(article.title)}
-                  >
-                    <ArticleBody article={article} />
-                  </WikiSection>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        </header>
+      }
+      toc={buildToc(law.articles, law.sections)}
+    >
+      <div className={styles.articles}>
+        {law.articles.map((article) => (
+          <ArticleEntry
+            article={article}
+            highlighted={article.articleNo === target && article.branchNo === targetBranch}
+            key={articleAnchor(article.articleNo, article.branchNo)}
+            section={sectionAt.get(article.articleNo)}
+            sectionNumber={sectionNumber.get(article.articleNo)}
+          />
+        ))}
       </div>
-    </div>
+    </WikiDocument>
   );
 }
 

@@ -25,10 +25,16 @@
   align-items: center;
 }
 
+/*
+ * 번호를 CSS 카운터로 붙인다(1. 2. / 1.1 1.2). 위키 목차의 표지이고, 남에게 "두 번째
+ * 구간"이라고 말할 수 있게 한다. 마크업의 `ol`을 그대로 두고 모양만 정하므로,
+ * 스크린리더에는 여전히 순서 있는 목록으로 읽힌다.
+ */
 .list {
   margin: var(--el-space-3) 0 0;
   padding: 0;
   list-style: none;
+  counter-reset: toc-top;
   display: grid;
   gap: var(--el-space-1);
   /* 목차가 길면 그 안에서만 스크롤한다. 화면을 다 밀어내지 않는다. */
@@ -38,6 +44,14 @@
 
 .top {
   margin-top: var(--el-space-2);
+  counter-increment: toc-top;
+  counter-reset: toc-sub;
+}
+
+.top > .link::before {
+  content: counter(toc-top) ". ";
+  color: var(--el-fg-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .top:first-child {
@@ -46,6 +60,13 @@
 
 .sub {
   padding-left: var(--el-space-4);
+  counter-increment: toc-sub;
+}
+
+.sub > .link::before {
+  content: counter(toc-top) "." counter(toc-sub) " ";
+  color: var(--el-fg-3);
+  font-variant-numeric: tabular-nums;
 }
 
 /* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */

@@ -1,0 +1,60 @@
+/*
+ * 위키식 문서 뼈대. `DESIGN.md` §11.5
+ *
+ * 넓은 화면: [본문][목차]. 좁은 화면: [목차][본문].
+ */
+
+.page {
+  max-width: var(--el-container-wide);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-5);
+  align-content: start;
+}
+
+.layout {
+  display: grid;
+  gap: var(--el-space-6);
+  align-items: start;
+}
+
+.aside {
+  min-width: 0;
+}
+
+.body {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  /*
+   * 두 단. 마크업 순서는 [목차][본문]이지만 화면에서는 본문이 왼쪽이다 —
+   * 읽는 것은 본문이고 목차는 곁다리라, 본문이 화면 가운데에서 밀려나면 안 된다.
+   */
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: var(--el-space-10);
+  }
+
+  .aside {
+    grid-column: 2;
+    grid-row: 1;
+    /* 조문 519개를 훑는 동안 목차가 따라온다. 헤더 높이만큼 띄운다. */
+    position: sticky;
+    top: var(--el-space-6);
+    max-height: calc(100vh - var(--el-space-12));
+    overflow-y: auto;
+  }
+
+  .body {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
+  }
+}
