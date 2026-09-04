@@ -1103,6 +1103,18 @@ export const viewer = {
   citationHint: (lawName: string, article: string) => `${lawName} ${article} 보기`,
 
   /**
+   * 인용을 눌렀을 때 뜨는 창.
+   *
+   * **"없는 조문"과 "확인하지 못한 조문"을 섞지 않는다**(§5.5 [6a]). 창에서는 둘 다
+   * 보여 줄 것이 없지만, 이유를 뭉뚱그리면 읽는 사람이 그 인용을 틀린 것으로 받아들인다.
+   */
+  citationLoading: "조문을 불러오고 있어요.",
+  citationFailed: "조문을 불러오지 못했어요. 상세 보기로 열어 보세요.",
+  citationUnavailable: "이 조문을 지금 보여 드릴 수 없어요. 상세 보기로 열어 보세요.",
+  citationDetail: "상세 보기",
+  citationClose: "닫기",
+
+  /**
    * 인용 법령 목록(위키의 각주 목록 자리).
    *
    * **"몇 개 법"이라고 센다.** 조문 수를 세면 같은 법의 조문 열 개가 열 건으로 보이는데,

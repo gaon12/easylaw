@@ -1,0 +1,143 @@
+/*
+ * 인용 조문 창. `DESIGN.md` §5.1(모션) · §6
+ *
+ * 판결문을 읽던 자리를 잃지 않고 조문을 확인하는 자리다. 그래서 창은 작고 조용하다.
+ */
+
+/* 본문 안의 인용 링크. 색과 밑줄 둘 다로 알린다 — 색만으로 구분하지 않는다(§3.4). */
+.link {
+  color: var(--el-action);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--el-action-hover);
+}
+
+.dialog {
+  padding: 0;
+  border: 0;
+  border-radius: var(--el-radius-l);
+  background: transparent;
+  max-width: min(640px, calc(100vw - var(--el-space-8)));
+  width: 100%;
+}
+
+.dialog::backdrop {
+  background: oklch(0.2 0 0 / 45%);
+}
+
+/*
+ * 바깥 배경. 눌러서 닫는 일을 `<form method="dialog">`에 맡기려고 버튼 하나를 깐다.
+ * 보이지 않지만 스크린리더에는 "닫기"로 읽힌다.
+ */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+}
+
+.backdropButton {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.panel {
+  position: relative;
+  display: grid;
+  gap: var(--el-space-4);
+  padding: var(--el-space-5);
+  border-radius: var(--el-radius-l);
+  background: var(--el-bg-canvas);
+  box-shadow: var(--el-shadow-3, 0 12px 32px oklch(0.2 0 0 / 18%));
+  /* 모달 240ms 슬라이드업(§5.1). 줄이기를 원하는 사람에게는 전이를 끈다. */
+  animation: rise var(--el-duration-modal, 240ms) var(--el-ease, ease-out);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--el-space-3);
+  padding-bottom: var(--el-space-3);
+  border-bottom: 1px solid var(--el-border-subtle);
+}
+
+.title {
+  font-size: var(--el-text-heading-xs);
+}
+
+.close {
+  border: 0;
+  background: transparent;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+  /* 손가락으로 눌러야 한다(§8 — 최소 44px). */
+  min-width: var(--el-touch-target);
+  min-height: var(--el-touch-target);
+}
+
+.close:hover {
+  color: var(--el-fg-1);
+}
+
+.content {
+  display: grid;
+  gap: var(--el-space-3);
+  max-height: 50vh;
+  overflow-y: auto;
+  line-height: var(--el-leading-body);
+}
+
+.articleHead {
+  font-weight: 700;
+}
+
+.articleTitle {
+  margin-left: var(--el-space-2);
+  color: var(--el-fg-2);
+  font-weight: 400;
+}
+
+.clauses {
+  display: grid;
+  gap: var(--el-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clause,
+.body {
+  white-space: pre-wrap;
+}
+
+.notice {
+  color: var(--el-fg-2);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--el-space-3);
+  border-top: 1px solid var(--el-border-subtle);
+}
