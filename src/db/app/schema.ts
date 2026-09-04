@@ -5,13 +5,17 @@
  * 두 파일은 조인하지 않는다. 나누는 이유는 성능이 아니라 안전이다 — 개인 판결문이
  * 공개 코퍼스로 새는 사고를 파일 단계에서 불가능하게 만든다(`PRODUCT.md` §6.1).
  *
- * 아직 만들지 않은 테이블이 있다. `upload_rendition`(설명본)은 LLM 파이프라인과 함께,
- * `share_link`(공유)는 공유 기능과 함께 넣는다. 쓰지 않는 빈 테이블을 미리 만들면
- * 검증되지 않은 스키마가 마이그레이션에 굳는다.
+ * **설명본 계열은 `corpus`와 모양이 같다**(§6.3). 구조 노드·근거 연결·변환본·문장·작업
+ * 표가 이름만 `upload_`로 바뀐 채 그대로 있다. 같게 두는 것이 목적이다 — 파이프라인과
+ * 뷰어가 저장소 인터페이스 하나로 양쪽을 쓰려면 모양이 어긋나면 안 된다.
+ *
+ * `share_link`(공유)는 아직 없다. 공유 기능과 함께 넣는다 — 쓰지 않는 빈 테이블을 미리
+ * 만들면 검증되지 않은 스키마가 마이그레이션에 굳는다.
  */
 
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+// biome-ignore lint/suspicious/noDeprecatedImports: primaryKey의 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
+import { index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { MASK_KINDS } from "@/lib/text/mask";
 
 /**
@@ -211,6 +215,138 @@ const setting = sqliteTable("setting", {
 });
 
 /**
+ * 아래 다섯 표는 `corpus`의 `structure_node`·`node_span`·`rendition`·`rendition_sentence`·
+ * `generation_job`과 **같은 모양**이다(§6.3). 이름만 `upload_`가 붙고 부모가 `upload`다.
+ *
+ * 왜 같은 모양이어야 하나. 올린 판결문에도 같은 파이프라인이 돌기 때문이다 —
+ * 추출한 구조가 원문 span에 매이고, 그 구조에서 레벨별 문장이 나오고, 문장이 자기가
+ * 파생된 노드를 통해 원문으로 되짚어진다. 그 연결이 한쪽만 다르면 뷰어도 파이프라인도
+ * 두 벌이 된다.
+ *
+ * **다른 점은 하나다.** 공개 판례의 설명본은 모두가 나눠 쓰지만(`PAGES.md` §5),
+ * 올린 문서의 설명본은 그 사람만의 것이다. 그래서 캐시를 공유하지 않고, 문서가 지워지면
+ * 설명본도 함께 지워진다(`on delete cascade`).
+ */
+const LEVELS = ["L1", "L2", "L3", "L4"] as const;
+const CONFIDENCES = ["grounded", "needs_check", "ungrounded"] as const;
+const JOB_STATUSES = ["queued", "running", "done", "failed"] as const;
+const JOB_STAGES = ["structure", "render", "verify", "save"] as const;
+
+const uploadStructureNode = sqliteTable(
+  "upload_structure_node",
+  {
+    id: text("id").primaryKey(),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => upload.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: ["fact_event", "issue", "claim", "holding", "conclusion", "citation"],
+    }).notNull(),
+    payload: text("payload", { mode: "json" }).notNull(),
+    occurredOn: integer("occurred_on", { mode: "timestamp_ms" }),
+    orderIdx: integer("order_idx").notNull(),
+  },
+  (table) => [index("upload_structure_node_upload_idx").on(table.uploadId, table.orderIdx)],
+);
+
+/** 구조 노드 ↔ 올린 문서의 원문 span (N:M). 근거 연결의 실체다. */
+const uploadNodeSpan = sqliteTable(
+  "upload_node_span",
+  {
+    structureNodeId: text("structure_node_id")
+      .notNull()
+      .references(() => uploadStructureNode.id, { onDelete: "cascade" }),
+    spanId: text("span_id")
+      .notNull()
+      .references(() => uploadSpan.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.structureNodeId, table.spanId] }),
+    index("upload_node_span_span_idx").on(table.spanId),
+  ],
+);
+
+const uploadRendition = sqliteTable(
+  "upload_rendition",
+  {
+    id: text("id").primaryKey(),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => upload.id, { onDelete: "cascade" }),
+    level: text("level", { enum: LEVELS }).notNull(),
+    model: text("model").notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    reviewState: text("review_state", { enum: ["none", "pending", "approved", "rejected"] })
+      .notNull()
+      .default("none"),
+    generatedAt: timestampNow("generated_at"),
+  },
+  (table) => [
+    unique("upload_rendition_variant_unique").on(table.uploadId, table.level, table.promptVersion),
+    index("upload_rendition_lookup_idx").on(table.uploadId, table.level),
+  ],
+);
+
+const uploadRenditionSentence = sqliteTable(
+  "upload_rendition_sentence",
+  {
+    id: text("id").primaryKey(),
+    renditionId: text("rendition_id")
+      .notNull()
+      .references(() => uploadRendition.id, { onDelete: "cascade" }),
+    orderIdx: integer("order_idx").notNull(),
+    role: text("role", { enum: ["heading", "body"] })
+      .notNull()
+      .default("body"),
+    text: text("text").notNull(),
+    structureNodeId: text("structure_node_id").references(() => uploadStructureNode.id, {
+      onDelete: "set null",
+    }),
+    confidence: text("confidence", { enum: CONFIDENCES }).notNull(),
+    checkReason: text("check_reason"),
+  },
+  (table) => [
+    unique("upload_rendition_sentence_order_unique").on(table.renditionId, table.orderIdx),
+    index("upload_rendition_sentence_rendition_idx").on(table.renditionId),
+  ],
+);
+
+/**
+ * 올린 문서의 생성 작업.
+ *
+ * 공개 판례와 달리 **동시 요청이 겹칠 일이 거의 없다**(문서 주인 한 사람만 연다).
+ * 그래도 같은 표를 두는 이유는 두 가지다 — 좀비 작업 회수와 진행 표시(§5.3)가
+ * 이 표를 읽고, 무엇보다 파이프라인이 양쪽에 같은 코드를 쓰기 때문이다.
+ */
+const uploadGenerationJob = sqliteTable(
+  "upload_generation_job",
+  {
+    id: text("id").primaryKey(),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => upload.id, { onDelete: "cascade" }),
+    level: text("level", { enum: LEVELS }).notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    status: text("status", { enum: JOB_STATUSES }).notNull().default("queued"),
+    stage: text("stage", { enum: JOB_STAGES }),
+    claimedBy: text("claimed_by"),
+    heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    createdAt: timestampNow("created_at"),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    unique("upload_generation_job_variant_unique").on(
+      table.uploadId,
+      table.level,
+      table.promptVersion,
+    ),
+    index("upload_generation_job_status_idx").on(table.status, table.heartbeatAt),
+  ],
+);
+
+/**
  * 감사 로그.
  *
  * 삭제는 되돌릴 수 없으므로(`PAGES.md` §17) 언제 무엇이 지워졌는지는 남아야 한다.
@@ -237,9 +373,32 @@ const appSchema = {
   session,
   setting,
   upload,
+  uploadGenerationJob,
   uploadMask,
+  uploadNodeSpan,
+  uploadRendition,
+  uploadRenditionSentence,
   uploadSpan,
+  uploadStructureNode,
   user,
 };
 
-export { appSchema, auditLog, session, setting, upload, uploadMask, uploadSpan, user };
+export {
+  appSchema,
+  auditLog,
+  CONFIDENCES,
+  JOB_STAGES,
+  JOB_STATUSES,
+  LEVELS,
+  session,
+  setting,
+  upload,
+  uploadGenerationJob,
+  uploadMask,
+  uploadNodeSpan,
+  uploadRendition,
+  uploadRenditionSentence,
+  uploadSpan,
+  uploadStructureNode,
+  user,
+};
