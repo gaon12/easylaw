@@ -48,6 +48,30 @@ function RateChoices({ rate, onChange }: { rate: number; onChange: (value: numbe
 }
 
 /**
+ * 덩어리들을 차례로 읽게 큐에 넣는다. 읽을 것이 없으면 아무것도 하지 않고 `false`.
+ *
+ * 마지막 덩어리에만 끝 알림을 단다 — 덩어리마다 달면 중간에 끝난 것으로 읽힌다.
+ */
+function speakAll(queue: readonly string[], rate: number, onEnd: () => void): boolean {
+  const synthesis = window.speechSynthesis;
+  synthesis.cancel();
+  if (queue.length === 0) {
+    return false;
+  }
+
+  for (const [index, chunk] of queue.entries()) {
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    utterance.lang = "ko-KR";
+    utterance.rate = rate;
+    if (index === queue.length - 1) {
+      utterance.onend = onEnd;
+    }
+    synthesis.speak(utterance);
+  }
+  return true;
+}
+
+/**
  * 읽기 상태를 들고 있는 훅. 컴포넌트에서 떼어 두면 화면은 버튼 배치만 남는다.
  *
  * `speechSynthesis`는 페이지가 아니라 **브라우저에** 매인 큐다. 그래서 화면을 떠날 때
@@ -68,27 +92,13 @@ function useReadAloud(sentences: readonly SpeakableSentence[]) {
   }, []);
 
   const start = useCallback(() => {
-    const synthesis = window.speechSynthesis;
-    synthesis.cancel();
-
-    const queue = speechQueue(sentences);
-    if (queue.length === 0) {
+    const spoke = speakAll(speechQueue(sentences), rateRef.current, () => {
+      setSpeaking(false);
+      setPaused(false);
+    });
+    if (!spoke) {
       return;
     }
-
-    for (const [index, chunk] of queue.entries()) {
-      const utterance = new SpeechSynthesisUtterance(chunk);
-      utterance.lang = "ko-KR";
-      utterance.rate = rateRef.current;
-      if (index === queue.length - 1) {
-        utterance.onend = () => {
-          setSpeaking(false);
-          setPaused(false);
-        };
-      }
-      synthesis.speak(utterance);
-    }
-
     setSpeaking(true);
     setPaused(false);
   }, [sentences]);
