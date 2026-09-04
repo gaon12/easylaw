@@ -7,9 +7,9 @@ import { LevelTabs } from "@/components/viewer/level-tabs";
 import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
 import { RenditionSection } from "@/components/viewer/rendition-section";
-import type { PlaceholderState } from "@/components/viewer/rendition-state";
+import type { PlaceholderState, Sentence } from "@/components/viewer/rendition-state";
 import { SummaryCard } from "@/components/viewer/summary-card";
-import { TableOfContents } from "@/components/wiki/toc";
+import { WikiDocument } from "@/components/wiki/document";
 import { corpusDb } from "@/db/client";
 import {
   findGenerationProgress,
@@ -183,27 +183,98 @@ function ViewerNav({ basePath, level }: { basePath: string; level: ViewLevel }) 
 }
 
 /**
- * 문서 목차. **문서 앞에 둔다**(`DESIGN.md` §11.5 · 위키식).
+ * 설명 칸과 원문 칸. `DESIGN.md` §8 — 넓은 화면에서 나란히, 좁으면 위아래로.
  *
- * 원문 칸 안에 있을 때는 2단 대조에서 오른쪽 칸에 갇혀, 왼쪽(설명)을 읽는 사람에게는
- * 없는 것과 같았다. 구간 앵커는 원문 쪽에 걸리지만 목차는 문서 전체의 길잡이다.
- *
- * 표제가 둘 이상일 때만 낸다 — 하나뿐이면 목차가 아니라 소음이다.
+ * 왼쪽이 설명인 이유는 대부분의 사람이 그쪽을 먼저·더 오래 읽기 때문이다(§8).
  */
-function DocumentToc({ headings }: { headings: readonly { id: string; label: string }[] }) {
-  if (headings.length <= 1) {
-    return null;
-  }
-
+function ViewerPanels({
+  caseNoCanonical,
+  decidedAt,
+  basePath,
+  level,
+  sentences,
+  outdatedAt,
+  spans,
+  citations,
+  textReason,
+  judgmentId,
+}: {
+  caseNoCanonical: string;
+  decidedAt: Date | null;
+  basePath: string;
+  level: ViewLevel;
+  sentences: readonly Sentence[];
+  outdatedAt: string | null;
+  spans: readonly { id: string; paraIdx: number; text: string }[];
+  citations: ReadonlyMap<string, readonly Citation[]>;
+  /** 원문을 못 가져왔으면 그 이유. */
+  textReason: string | null;
+  judgmentId: string | null;
+}) {
   return (
-    <TableOfContents
-      entries={headings.map((heading) => ({
-        id: heading.id,
-        label: heading.label,
-        depth: 1 as const,
-      }))}
-      label={viewer.originalToc}
-    />
+    <div className={styles.panels}>
+      {level === "L0" ? null : (
+        <RenditionSection
+          action={requestGeneration}
+          basePath={basePath}
+          fields={{ caseNo: caseNoCanonical }}
+          level={level}
+          outdatedAt={outdatedAt}
+          progressPath={`/api/generation/case/${encodeURIComponent(caseNoCanonical)}/${level}`}
+          sentences={sentences}
+          state={placeholderState(judgmentId, level)}
+        />
+      )}
+
+      <section className={styles.panel}>
+        <h2 className={styles.panelTitle}>{viewer.originalPanel}</h2>
+        <OriginalSection
+          citations={citations}
+          decidedAt={decidedAt}
+          reason={textReason}
+          spans={spans}
+        />
+      </section>
+    </div>
+  );
+}
+
+/** 문서 머리. 사건 정보와 단계 스위처가 두 단 위에 걸친다. */
+function ViewerHeader({
+  summary,
+  outcome,
+  sourceUrl,
+  timeZone,
+  basePath,
+  level,
+}: {
+  summary: {
+    caseName: string | null;
+    caseNoDisplay: string;
+    caseType: string | null;
+    court: string | null;
+    decidedAt: Date | null;
+  };
+  outcome: Parameters<typeof SummaryCard>[0]["outcome"];
+  sourceUrl: string | null;
+  timeZone: string;
+  basePath: string;
+  level: ViewLevel;
+}) {
+  return (
+    <>
+      <SummaryCard
+        caseName={summary.caseName}
+        caseNoDisplay={summary.caseNoDisplay}
+        caseType={summary.caseType}
+        court={summary.court}
+        decidedAt={summary.decidedAt}
+        outcome={outcome}
+        sourceUrl={sourceUrl}
+        timeZone={timeZone}
+      />
+      <ViewerNav basePath={basePath} level={level} />
+    </>
   );
 }
 
@@ -239,53 +310,47 @@ export default async function CasePage(props: {
     level,
   );
 
+  /*
+   * 위키식 문서 뼈대를 쓴다(`components/wiki/document.tsx`). 판결문도 법령과 같은 구조로
+   * 읽힌다 — 머리(사건 정보), 오른쪽에 따라오는 목차, 그리고 본문.
+   */
   return (
-    <div className={styles.page}>
-      <SummaryCard
-        caseName={summary.caseName}
-        caseNoDisplay={summary.caseNoDisplay}
-        caseType={summary.caseType}
-        court={summary.court}
+    <WikiDocument
+      header={
+        <ViewerHeader
+          basePath={basePath}
+          level={level}
+          outcome={row?.outcome ?? "unknown"}
+          sourceUrl={row?.sourceUrl ?? null}
+          summary={summary}
+          timeZone={timeZone}
+        />
+      }
+      toc={headings.map((heading) => ({
+        id: heading.id,
+        label: heading.label,
+        depth: 1 as const,
+      }))}
+      tocLabel={viewer.originalToc}
+    >
+      <ViewerPanels
+        basePath={basePath}
+        caseNoCanonical={summary.caseNoCanonical}
+        citations={citations}
         decidedAt={summary.decidedAt}
-        outcome={row?.outcome ?? "unknown"}
-        sourceUrl={row?.sourceUrl ?? null}
-        timeZone={timeZone}
+        judgmentId={row?.id ?? null}
+        level={level}
+        outdatedAt={outdatedAt === null ? null : formatDate(outdatedAt, timeZone)}
+        sentences={sentences}
+        spans={spans}
+        textReason={textResult.ok ? null : textResult.reason}
       />
-
-      <ViewerNav basePath={basePath} level={level} />
-
-      <DocumentToc headings={headings} />
-
-      <div className={styles.panels}>
-        {level === "L0" ? null : (
-          <RenditionSection
-            action={requestGeneration}
-            basePath={basePath}
-            fields={{ caseNo: summary.caseNoCanonical }}
-            level={level}
-            outdatedAt={outdatedAt === null ? null : formatDate(outdatedAt, timeZone)}
-            progressPath={`/api/generation/case/${encodeURIComponent(summary.caseNoCanonical)}/${level}`}
-            sentences={sentences}
-            state={placeholderState(row?.id ?? null, level)}
-          />
-        )}
-
-        <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>{viewer.originalPanel}</h2>
-          <OriginalSection
-            citations={citations}
-            decidedAt={summary.decidedAt}
-            reason={textResult.ok ? null : textResult.reason}
-            spans={spans}
-          />
-        </section>
-      </div>
 
       {/*
         인용 법령을 문서 끝에 모은다(위키의 각주 목록). 본문 안의 링크만으로는 무엇을
         근거로 삼았는지 알려면 판결문을 끝까지 읽어야 한다.
       */}
       <CitedLaws citations={citations} decidedAt={summary.decidedAt} />
-    </div>
+    </WikiDocument>
   );
 }
