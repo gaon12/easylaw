@@ -32,6 +32,18 @@
   --el-primary-70: oklch(0.345 0.115 257);
   --el-primary-80: oklch(0.292 0.09 255);
 
+  /* ── base: brand ───────────────────────────────────────── */
+  /*
+   * 긴 문서 화면을 한눈에 EasyLaw로 알아보게 하는 청록 축이다.
+   * 밝은 나무위키식 청록은 흰 글자 대비가 부족해, 같은 인상을 유지하면서 4.5:1을 넘긴다.
+   */
+  --el-brand-strong: #008275; /* 흰 글자 대비 4.72:1 */
+  --el-brand-deep: #006c63; /* 흰 글자 대비 6.32:1 */
+  --el-brand-fg: #005f57;
+  --el-brand-line: #75b8b0;
+  --el-brand-surface: #e5f4f1;
+  --el-brand-page: #eef4f3;
+
   /* ── base: secondary ───────────────────────────────────── */
   --el-secondary-10: oklch(0.96 0.008 254);
   --el-secondary-70: oklch(0.292 0.09 255);
@@ -264,6 +276,13 @@
   --el-evidence-line: var(--el-primary-40);
   --el-evidence-active-bg: var(--el-primary-70);
   --el-difficulty-bg: oklch(0.3 0.05 58);
+
+  --el-brand-strong: #006c63;
+  --el-brand-deep: #005b53;
+  --el-brand-fg: oklch(0.86 0.09 175);
+  --el-brand-line: oklch(0.62 0.1 175);
+  --el-brand-surface: oklch(0.29 0.055 175);
+  --el-brand-page: var(--el-gray-95);
 
   --el-shadow-1: none;
   --el-shadow-2: none;

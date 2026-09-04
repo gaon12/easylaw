@@ -86,6 +86,7 @@ function SiteShell({ children }: { children: ReactNode }) {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link className={styles.brand} href="/">
+            <span aria-hidden="true" className={styles.brandMark} />
             {site.name}
           </Link>
 

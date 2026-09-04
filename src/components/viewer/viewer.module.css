@@ -27,7 +27,7 @@
 
 .source {
   font-size: var(--el-text-body-xs);
-  color: var(--el-fg-2);
+  color: var(--el-fg-link);
 }
 
 /* 위키 문서의 작은 도구처럼 보이는 단계 스위처. */
@@ -58,12 +58,14 @@
 }
 
 .level:hover {
-  color: var(--el-fg-1);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
 }
 
 .levelActive {
-  border-bottom-color: var(--el-action);
-  color: var(--el-action);
+  border-bottom-color: var(--el-brand-strong);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
 }
 
 /* 레벨 설명 한 줄. 무엇을 고른 것인지 탭 이름만으로는 알 수 없다. */
@@ -155,7 +157,7 @@
 
 /* 번호. 목차의 번호와 같은 값이라 목차에서 본 항목을 본문에서 그대로 찾는다. */
 .headingNumber {
-  color: var(--el-action);
+  color: var(--el-fg-link);
   font-variant-numeric: tabular-nums;
 }
 
@@ -187,7 +189,7 @@
  */
 .sectionLink {
   margin-left: auto;
-  color: var(--el-fg-3);
+  color: var(--el-fg-link);
   text-decoration: none;
   font-weight: 400;
   font-size: var(--el-text-body-s);
