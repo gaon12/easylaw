@@ -56,6 +56,44 @@ export const home = {
   searchPlaceholder: "2019도12345",
   searchHint: "사건번호를 모르시면 사건 내용을 적어도 돼요.",
   searchSubmit: "찾기",
+
+  /**
+   * 첫 화면의 바로가기. **여섯 칸을 넘기지 않는다** — 그 이상은 고르는 일이 되고,
+   * 고르게 하는 순간 첫 화면이 하던 일(바로 시작하게 하기)을 못 한다.
+   *
+   * 아이콘은 뜻을 거들 뿐이고 의미는 글자가 전한다(`DESIGN.md` §11).
+   */
+  quickLinks: [
+    { icon: "upload", label: "판결문 올리기", href: "/upload", hint: "받으신 판결문을 쉬운 말로" },
+    { icon: "search", label: "사건번호로 찾기", href: "/search", hint: "공개된 판례 찾아보기" },
+    { icon: "folder", label: "내 문서함", href: "/cases", hint: "올려 둔 판결문 보기" },
+    { icon: "book", label: "이용 안내", href: "/help", hint: "무엇을 하고 무엇을 안 하나" },
+    { icon: "settings", label: "글자 크기·화면", href: "/settings", hint: "크게, 또렷하게" },
+    { icon: "shield", label: "개인정보 처리", href: "/privacy", hint: "올린 문서를 어떻게 다루나" },
+  ],
+
+  /** 예시로 눌러 볼 것. **코퍼스에 실제로 있는 판례만** 나온다(`db/corpus/stats.ts`). */
+  examplesLabel: "이런 판례를 볼 수 있어요",
+
+  /**
+   * 숫자 띠. 전부 우리 DB를 센 값이다 — 지어낸 수치를 첫 화면에 걸지 않는다.
+   * 값이 0이면 그 칸을 그리지 않는다. "0건"은 자랑이 아니라 안내 실패다.
+   */
+  statsLabel: "지금 갖고 있는 자료",
+  statLaws: "법령 판",
+  statLawsHint: "판결 당시 시행되던 조문까지 찾아요",
+  statCases: "공개 판례",
+  statCasesHint: "찾으면 그 자리에서 받아 와요",
+  statLevels: "설명 단계",
+  statLevelsHint: "원문부터 쉬운 말까지 다섯 단계",
+  statLevelsValue: "5단계",
+
+  demoTitle: "같은 판결, 다섯 가지 말",
+  demoBody: "단계를 눌러 보세요. 아래 문장이 그 단계의 말로 바뀌어요.",
+
+  faqTitle: "자주 묻는 것",
+  faqMore: "이용 안내 전체 보기",
+
   uploadTitle: "판결문을 갖고 계신가요?",
   uploadBody:
     "1심·2심 판결문은 대부분 공개되지 않아요. 받으신 판결문을 올리면 바로 쉽게 바꿔 드릴게요.",
@@ -70,13 +108,13 @@ export const home = {
   /** `level`은 히어로 데모의 단계와 같은 값이다. 카드와 데모가 같은 것을 가리켜야 한다. */
   audiences: [
     { level: "L1", title: "법조계", body: "쟁점과 법리를 근거와 함께 정리해 드려요." },
-    { level: "L2", title: "일반인", body: "결론부터, 나에게 무슨 일이 생기는지 알려 드려요." },
+    { level: "L2", title: "일반인", body: "결론과 법적 효과를 먼저, 다음 절차까지 알려 드립니다." },
     {
       level: "L3",
       title: "어린이",
-      body: "무슨 일이 있었고 왜 그렇게 됐는지 이야기로 풀어 드려요.",
+      body: "등장인물과 사건의 흐름을 따라, 왜 그렇게 됐는지 이야기해 드려요.",
     },
-    { level: "L4", title: "쉬운말", body: "짧은 문장과 그림으로, 다음에 할 일까지 알려 드려요." },
+    { level: "L4", title: "쉬운말", body: "한 문장에 한 가지씩, 지금 알고 할 일을 짚어 드려요." },
   ],
 
   /*
@@ -132,6 +170,7 @@ export const upload = {
   },
   submit: "올리고 정리하기",
   submitting: "정리하고 있어요…",
+  confirmLong: "문서가 긴 것을 알고 있어요. 시간이 더 걸려도 이 문서를 올릴게요.",
   signInTitle: "판결문을 올리려면 로그인이 필요해요",
   signInBody:
     "판결문에는 이름·주민등록번호·주소가 그대로 들어 있어요. 그 문서를 누가 올렸고 누구만 볼 수 있는지가 확실해야 해서, 계정을 만들어 주셔야 해요.",
@@ -145,6 +184,7 @@ export const upload = {
     empty: "판결문 내용을 넣어 주세요.",
     too_short: "판결문이라기에는 너무 짧아요. 전체를 붙여 넣어 주셨는지 확인해 주세요.",
     too_long: "문서가 너무 길어요. 나눠서 올려 주시겠어요?",
+    confirm_required: "문서가 길어서 처리에 시간이 걸리고 비용이 늘어날 수 있어요.",
     no_sentences: "문장을 찾지 못했어요. 글자가 제대로 붙여졌는지 확인해 주세요.",
     file_unreadable: "파일을 읽지 못했어요. 내용을 직접 붙여 넣어 주시겠어요?",
     /** 스캔본. **사용자가 잘못한 것이 없다** — 우리가 아직 못 하는 일이라고 말한다. */
@@ -230,19 +270,21 @@ export const demo = {
       "소송비용은 패소자인 피고가 부담한다.",
     ],
     L2: [
-      "법원은 구청의 결정을 취소했어요.",
-      "재판에 든 비용은 구청이 내요.",
-      "구청이 항소하면 재판을 다시 해요.",
+      "법원은 구청의 처분을 취소합니다.",
+      "구청의 판단이 법 기준에 맞지 않았기 때문입니다.",
+      "소송 비용은 구청이 부담합니다.",
+      "구청이 항소하면 상급 법원이 다시 판단합니다.",
     ],
     L3: [
-      "구청은 이 사람이 장애가 있는 정도에 해당하지 않는다고 했어요.",
-      "법원은 구청이 잘못 판단했다고 봤어요.",
-      "그래서 구청의 결정을 없던 일로 했어요.",
+      "구청은 A씨가 장애가 있는 정도가 아니라고 했어요.",
+      "A씨는 그 결정이 맞지 않다고 법원에 말했어요.",
+      "법원은 구청이 여러 가지 사정을 살펴야 한다고 했어요.",
+      "그래서 구청의 결정을 취소했어요.",
     ],
     L4: [
-      "구청의 결정은 잘못됐어요.",
-      "당신은 다시 신청할 수 있어요.",
-      "구청이 항소하면 재판을 또 해요.",
+      "구청 결정을 없앴어요.",
+      "당신은 판결문을 확인해 보세요.",
+      "구청이 다시 다투면 재판을 또 해요.",
     ],
   },
 } as const;
@@ -415,6 +457,9 @@ export const settings = {
   intro: "이 브라우저에만 저장돼요. 로그인하지 않으셔도 쓰실 수 있어요.",
   liveHint: "고르시면 바로 화면에 적용돼요.",
 
+  defaultLevelLabel: "문서를 처음 열 때 보여 줄 단계",
+  defaultLevelHint: "문서에서 다른 단계를 고르면 그 단계가 다음 문서의 기본값이 돼요.",
+
   textSizeLabel: "글자 크기",
   /** 크기 견본에 쓰는 글자. 다국어에서는 그 언어의 대표 글자로 바뀐다. */
   sampleGlyph: "가",
@@ -446,7 +491,7 @@ export const settings = {
   resetDone: "처음 설정으로 되돌렸어요.",
 
   laterTitle: "곧 더해질 설정",
-  laterPoints: ["기본으로 열 단계 고르기", "음성으로 읽어 주기와 읽는 속도", "난독증 지원 글꼴"],
+  laterPoints: ["자동으로 음성 읽기", "난독증 지원 글꼴"],
   laterNote: "아직 준비 중이에요. 준비되면 여기에 더해 드릴게요.",
 } as const;
 
@@ -775,6 +820,8 @@ export const setup = {
   llmModelHint: "모델 이름만 넣어 주세요. 예: gemini-2.5-flash · gpt-4o-mini",
   limitLabel: "하루 설명 생성 상한",
   limitHint: "설명 만들기 버튼은 곧 지출이에요. 하루에 몇 번까지 허용할지 정해요.",
+  ipLimitHint: "같은 인터넷 주소에서 하루에 만들 수 있는 횟수예요.",
+  sessionLimitHint: "한 번 로그인한 상태에서 하루에 만들 수 있는 횟수예요.",
 
   /**
    * 관리자가 이미 있는데 그 사람으로 들어와 있지 않을 때. 흔한 상태다 —
@@ -804,6 +851,8 @@ export const setup = {
     llm_api_key: "AI API 키",
     llm_model: "AI 모델",
     generation_daily_limit: "하루 생성 상한",
+    generation_ip_limit: "IP별 생성 상한",
+    generation_session_limit: "세션별 생성 상한",
   },
   closedTitle: "설치는 이미 끝났어요",
   closedBody: "설치 마법사는 처음 한 번만 열려요. 설정을 바꾸시려면 관리자 화면으로 가세요.",
@@ -818,6 +867,11 @@ export const setup = {
 export const admin = {
   title: "관리자 설정",
   intro: "서비스 설정을 바꾸실 수 있어요. 이 화면은 관리자만 볼 수 있어요.",
+  usageTitle: "오늘 설명 생성 사용량",
+  usageSummary: (used: number, limit: number) =>
+    `오늘 ${used}번 사용했어요. 하루 상한은 ${limit}번이에요.`,
+  usageRemaining: (remaining: number) =>
+    remaining > 0 ? `오늘 ${remaining}번 더 만들 수 있어요.` : "오늘 만들 수 있는 몫을 다 썼어요.",
   save: "저장",
   saving: "저장하고 있어요…",
   saved: "저장했어요.",
@@ -831,6 +885,16 @@ export const admin = {
   secretHint: "저장된 값이 가려진 채로 들어 있어요. 비우고 저장하시면 지워져요.",
   deniedTitle: "관리자만 볼 수 있어요",
   deniedBody: "이 화면은 서버를 설치한 계정으로만 들어오실 수 있어요.",
+  usersTitle: "관리자 계정",
+  usersIntro: "가입한 계정을 관리자에게 지정할 수 있어요. 비밀번호는 볼 수 없어요.",
+  memberRole: "사용자",
+  adminRole: "관리자",
+  makeAdmin: "관리자로 지정",
+  alreadyAdmin: "관리자",
+  roleSaved: "관리자로 지정했어요.",
+  roleNotFound: "계정을 찾을 수 없어요.",
+  roleForbidden: "관리자만 계정 권한을 바꿀 수 있어요.",
+  lastAdmin: "마지막 관리자는 바꿀 수 없어요.",
 } as const;
 
 /**
@@ -1006,7 +1070,7 @@ export const viewer = {
   levelNotes: {
     L0: "법원이 쓴 그대로예요.",
     L1: "쟁점과 법리를 근거와 함께 정리해요.",
-    L2: "결론부터, 나에게 무슨 일이 생기는지 알려 드려요.",
+    L2: "결론과 법적 효과를 먼저, 다음 절차까지 알려 드립니다.",
     L3: "무슨 일이 있었고 왜 그렇게 됐는지 풀어서 이야기해요.",
     L4: "짧은 문장으로, 다음에 할 일까지 알려 드려요.",
   },
@@ -1018,6 +1082,24 @@ export const viewer = {
   renditionPanel: "쉬운 설명",
   evidence: "근거 보기",
   evidenceOf: (order: number) => `${order}번째 문장의 근거 보기`,
+  speech: {
+    controls: "음성 읽기 조절",
+    play: "음성으로 읽기",
+    pause: "잠시 멈추기",
+    resume: "계속 읽기",
+    stop: "읽기 끝내기",
+    speed: "읽는 속도",
+    /** `speech.ts`의 속도 배열과 같은 순서다. */
+    rateLabels: ["느리게 0.75배", "보통 1배", "빠르게 1.25배"],
+    checking: "음성 읽기를 확인하고 있어요.",
+    unsupported:
+      "이 브라우저에서는 음성 읽기를 사용할 수 없어요. 다른 최신 브라우저에서 다시 열어 주세요.",
+    ready: "음성 읽기가 준비됐어요.",
+    starting: "음성 읽기를 시작하고 있어요.",
+    reading: (current: number, total: number) => `${total}개 중 ${current}번째 문장을 읽고 있어요.`,
+    paused: "음성 읽기를 잠시 멈췄어요.",
+    error: "음성 읽기를 이어 가지 못했어요. 잠시 뒤에 다시 눌러 주세요.",
+  },
   confidence: {
     grounded: "근거 있음",
     needs_check: "확인 필요",

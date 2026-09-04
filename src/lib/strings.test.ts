@@ -29,6 +29,12 @@ describe("랜딩 데모 예시", () => {
     // 이 대비가 데모의 전부다. 원문이 이미 쉬우면 보여 줄 것이 없다.
     expect(demo.bodies.L0.join(" ")).toContain("피고");
   });
+
+  it("일반 단계는 합니다체, 어린이 단계는 이야기체, 쉬운말은 직접 안내한다", () => {
+    expect(demo.bodies.L2.every((line) => /(?:합니다|입니다)\.$/u.test(line))).toBe(true);
+    expect(demo.bodies.L3.join(" ")).toContain("A씨");
+    expect(demo.bodies.L4.join(" ")).toContain("당신");
+  });
 });
 
 describe("이용 안내의 쉬운 말 버전", () => {
