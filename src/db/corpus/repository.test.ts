@@ -3,6 +3,7 @@ import type { CorpusDb } from "../client";
 import { createTestCorpusDb } from "../testing";
 import {
   claimGenerationJob,
+  countGenerationsOn,
   findJudgmentByCaseNo,
   findLawArticle,
   findLawVersionAt,
@@ -15,6 +16,7 @@ import {
   listSpans,
   listStructureNodes,
   recordLookupMiss,
+  reserveGenerationSlot,
   STALE_AFTER_MS,
   saveJudgmentText,
   saveLawArticles,
@@ -528,5 +530,45 @@ describe("조문별 시행일", () => {
     saveLawArticles(db, versionId, [{ articleNo: "1", clauses: [], orderIdx: 0 }]);
 
     expect(listLawArticles(db, versionId, new Date("1990-01-01"))).toHaveLength(1);
+  });
+});
+
+describe("reserveGenerationSlot", () => {
+  it("상한까지는 떼어 주고 그 다음은 거절한다", () => {
+    expect(reserveGenerationSlot(db, { day: "2026-09-04", limit: 2 })).toBe(true);
+    expect(reserveGenerationSlot(db, { day: "2026-09-04", limit: 2 })).toBe(true);
+    expect(reserveGenerationSlot(db, { day: "2026-09-04", limit: 2 })).toBe(false);
+    expect(countGenerationsOn(db, "2026-09-04")).toBe(2);
+  });
+
+  it("거절해도 세지 않는다 — 거절이 다음 날 몫까지 갉아먹으면 안 된다", () => {
+    reserveGenerationSlot(db, { day: "2026-09-04", limit: 1 });
+    reserveGenerationSlot(db, { day: "2026-09-04", limit: 1 });
+    reserveGenerationSlot(db, { day: "2026-09-04", limit: 1 });
+
+    expect(countGenerationsOn(db, "2026-09-04")).toBe(1);
+  });
+
+  it("날이 바뀌면 다시 찬다", () => {
+    reserveGenerationSlot(db, { day: "2026-09-04", limit: 1 });
+
+    expect(reserveGenerationSlot(db, { day: "2026-09-05", limit: 1 })).toBe(true);
+    expect(countGenerationsOn(db, "2026-09-04")).toBe(1);
+  });
+
+  it("상한을 내리면 이미 넘긴 날은 더 못 뗀다", () => {
+    reserveGenerationSlot(db, { day: "2026-09-04", limit: 10 });
+    reserveGenerationSlot(db, { day: "2026-09-04", limit: 10 });
+
+    expect(reserveGenerationSlot(db, { day: "2026-09-04", limit: 1 })).toBe(false);
+  });
+
+  it("상한이 0 이하면 아무것도 떼지 않는다", () => {
+    expect(reserveGenerationSlot(db, { day: "2026-09-04", limit: 0 })).toBe(false);
+    expect(countGenerationsOn(db, "2026-09-04")).toBe(0);
+  });
+
+  it("센 적 없는 날은 0이다", () => {
+    expect(countGenerationsOn(db, "2026-01-01")).toBe(0);
   });
 });

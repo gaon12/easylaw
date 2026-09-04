@@ -9,6 +9,7 @@ import { and, asc, desc, eq, inArray, like, lt, lte, or, sql } from "drizzle-orm
 import type { CorpusDb } from "../client";
 import {
   generationJob,
+  generationUsage,
   judgment,
   judgmentSpan,
   lawArticle,
@@ -322,6 +323,39 @@ function finishGenerationJob(
     })
     .where(eq(generationJob.id, jobId))
     .run();
+}
+
+/**
+ * 오늘 몫에서 한 번을 뗀다. 남은 것이 없으면 `false`. `FEATURES.md` [F-42]
+ *
+ * **세는 것과 판단하는 것을 한 문장으로 한다.** 읽고 나서 더하면 그 사이에 들어온 요청이
+ * 마지막 한 번을 같이 가져간다 — 상한이 있으나 마나 해진다. 조건을 UPDATE에 실어
+ * SQLite가 판정하게 하고, 갱신된 행이 있는지로 성패를 읽는다(작업 선점과 같은 방식이다).
+ *
+ * `day`는 사이트 시간대의 날짜 문자열이다. 이 계층은 시간대를 모르므로 받아서 쓴다.
+ */
+function reserveGenerationSlot(db: CorpusDb, input: { day: string; limit: number }): boolean {
+  if (input.limit <= 0) {
+    return false;
+  }
+
+  const rows = db
+    .insert(generationUsage)
+    .values({ day: input.day, count: 1 })
+    .onConflictDoUpdate({
+      target: generationUsage.day,
+      set: { count: sql`${generationUsage.count} + 1` },
+      setWhere: lt(generationUsage.count, input.limit),
+    })
+    .returning({ count: generationUsage.count })
+    .all();
+
+  return rows.length > 0;
+}
+
+/** 그날 몇 번 돌렸나. 없던 날은 0이다. */
+function countGenerationsOn(db: CorpusDb, day: string): number {
+  return db.select().from(generationUsage).where(eq(generationUsage.day, day)).get()?.count ?? 0;
 }
 
 interface StructureNodeInput {
@@ -779,6 +813,7 @@ function recordLookupMiss(db: CorpusDb, caseNoCanonical: string, now: Date = new
 
 export {
   claimGenerationJob,
+  countGenerationsOn,
   findJudgmentByCaseNo,
   findLatestLawVersion,
   findLatestRendition,
@@ -795,6 +830,7 @@ export {
   listSpans,
   listStructureNodes,
   recordLookupMiss,
+  reserveGenerationSlot,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,

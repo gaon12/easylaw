@@ -45,12 +45,15 @@ const DAY_MS = 86_400_000;
 const dayKeyFormatters = new Map<string, Intl.DateTimeFormat>();
 
 /**
- * 그 시간대의 자정으로 내린 값. 남은 날짜를 "몇 밤 남았나"로 세기 위한 것이다.
- * 시각까지 넣어 빼면 오후 11시와 오전 1시의 "1일 남음"이 달라진다.
+ * 그 시간대의 날짜를 `2026-09-04` 꼴로. **하루를 가리키는 이름**이다.
+ *
+ * ko-KR 포맷은 "2026. 8. 29." 꼴이라 그대로 Date로 읽을 수 없다. ISO와 같은 모양을
+ * 주는 로케일로 부분값을 얻는다.
+ *
+ * 하루 단위로 세는 것(생성 상한)과 남은 날을 세는 것이 같은 "하루"를 써야 하므로
+ * 이 함수 하나에서 갈라져 나간다.
  */
-function startOfDay(value: Date, timeZone: string): number {
-  // ko-KR 포맷은 "2026. 8. 29." 꼴이라 그대로 Date로 읽을 수 없다. ISO와 같은 모양을
-  // 주는 로케일로 부분값을 얻어 조합한다.
+function dayKey(value: Date, timeZone: string = DEFAULT_TIME_ZONE): string {
   let formatter = dayKeyFormatters.get(timeZone);
   if (formatter === undefined) {
     formatter = new Intl.DateTimeFormat("en-CA", {
@@ -61,7 +64,15 @@ function startOfDay(value: Date, timeZone: string): number {
     });
     dayKeyFormatters.set(timeZone, formatter);
   }
-  return Date.parse(`${formatter.format(value)}T00:00:00Z`);
+  return formatter.format(value);
+}
+
+/**
+ * 그 시간대의 자정으로 내린 값. 남은 날짜를 "몇 밤 남았나"로 세기 위한 것이다.
+ * 시각까지 넣어 빼면 오후 11시와 오전 1시의 "1일 남음"이 달라진다.
+ */
+function startOfDay(value: Date, timeZone: string): number {
+  return Date.parse(`${dayKey(value, timeZone)}T00:00:00Z`);
 }
 
 /** 오늘부터 그날까지 남은 날. 오늘이면 0, 이미 지났으면 음수. */
@@ -73,4 +84,4 @@ function daysUntil(
   return Math.round((startOfDay(target, timeZone) - startOfDay(now, timeZone)) / DAY_MS);
 }
 
-export { DAY_MS, daysUntil, DEFAULT_TIME_ZONE, formatDate };
+export { DAY_MS, dayKey, daysUntil, DEFAULT_TIME_ZONE, formatDate };

@@ -3,20 +3,24 @@ import { randomUUID } from "node:crypto";
 import { corpusDb } from "@/db/client";
 import {
   claimGenerationJob,
+  countGenerationsOn,
   finishGenerationJob,
   heartbeatGenerationJob,
   type Level,
   listSpans,
   listStructureNodes,
+  reserveGenerationSlot,
   saveRendition,
   saveStructure,
 } from "@/db/corpus/repository";
+import { dayKey } from "@/lib/format";
 import { llm } from "@/lib/llm/client";
 import { type Claim, checkEntailment, toConfidence } from "@/lib/pipeline/entail";
 import { extractStructure } from "@/lib/pipeline/extract";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
 import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
+import { generationDailyLimit, siteTimeZone } from "@/server/settings";
 
 /**
  * 생성 파이프라인을 하나로 엮는다. `PRODUCT.md` §5.5 [7] · §5.3
@@ -42,6 +46,27 @@ const PIPELINE_VERSION = `${EXTRACT_VERSION}+${RENDER_PROMPT_VERSION}`;
  */
 const MAX_ATTEMPTS = 2;
 
+/**
+ * 사이트 시간대의 오늘. 상한은 "하루"에 걸리는데, 그 하루는 서버가 어디서 도는지가 아니라
+ * 설치할 때 고른 시간대를 따라야 한다(`lib/format.ts`).
+ */
+function today(now: Date = new Date()): string {
+  return dayKey(now, siteTimeZone());
+}
+
+/** 상한에 걸려 닫은 작업에 남기는 말. 화면은 이 문자열이 아니라 남은 몫을 보고 판단한다. */
+const LIMIT_REASON = "오늘 만들 수 있는 만큼을 다 만들었습니다.";
+
+/**
+ * 오늘 얼마나 남았나. 상한은 `app` DB의 설정이고 사용량은 `corpus` DB에 있어서
+ * **두 저장소를 잇는 이 계층**이 합친다(§10.2 — 두 DB를 조인하지 않는다).
+ */
+function generationBudget(): { limit: number; used: number; remaining: number } {
+  const limit = generationDailyLimit();
+  const used = countGenerationsOn(corpusDb(), today());
+  return { limit, used, remaining: Math.max(0, limit - used) };
+}
+
 type GenerateResult =
   | { readonly kind: "done"; readonly renditionId: string; readonly needsCheck: number }
   /** 다른 요청이 이미 만들고 있다(§5.3). 새로 만들지 않고 기다린다. */
@@ -49,6 +74,8 @@ type GenerateResult =
   /** 이미 만들어져 있다. 그대로 읽으면 된다. */
   | { readonly kind: "cached" }
   | { readonly kind: "unavailable" }
+  /** 오늘 몫을 다 썼다([F-42]). 내일이면 다시 만들 수 있다. */
+  | { readonly kind: "limited" }
   | { readonly kind: "failed"; readonly reason: string };
 
 /**
@@ -240,6 +267,17 @@ async function generateRendition(
     return { kind: "cached" };
   }
 
+  /*
+   * 오늘 몫을 뗀다. **선점한 뒤에** 뗀다 — 이미 만들어져 있거나 남이 만들고 있는 요청은
+   * 위에서 돌아가므로 몫을 쓰지 않아야 한다. 여기까지 온 요청은 실제로 모델을 부른다.
+   *
+   * 못 떼면 작업을 실패로 닫는다. 선점만 하고 남겨 두면 그 자리가 90초 동안 막힌다.
+   */
+  if (!reserveGenerationSlot(db, { day: today(), limit: generationDailyLimit() })) {
+    finishGenerationJob(db, claim.jobId, { ok: false, error: LIMIT_REASON });
+    return { kind: "limited" };
+  }
+
   try {
     const structure = await ensureStructure(judgmentId, signal);
     if (!structure.ok) {
@@ -279,5 +317,5 @@ async function generateRendition(
   }
 }
 
-export { generateRendition, PIPELINE_VERSION };
+export { generateRendition, generationBudget, PIPELINE_VERSION };
 export type { GenerateResult };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysUntil, formatDate } from "./format";
+import { dayKey, daysUntil, formatDate } from "./format";
 
 describe("formatDate", () => {
   it("한국 시간 기준으로 날짜를 적는다", () => {
@@ -42,5 +42,18 @@ describe("시간대를 바꾸면", () => {
     const target = new Date("2026-08-30T20:00:00Z");
     expect(daysUntil(target, now, "Asia/Seoul")).toBe(1);
     expect(daysUntil(target, now, "UTC")).toBe(1);
+  });
+});
+
+describe("dayKey", () => {
+  it("하루를 가리키는 이름을 준다", () => {
+    expect(dayKey(new Date("2026-09-04T05:00:00Z"))).toBe("2026-09-04");
+  });
+
+  it("자정을 넘긴 순간은 그 시간대의 다음 날이다", () => {
+    // UTC로는 9월 4일 오후 4시. 서울은 이미 9월 5일이라 하루 몫이 새로 찬다.
+    const moment = new Date("2026-09-04T16:00:00Z");
+    expect(dayKey(moment, "Asia/Seoul")).toBe("2026-09-05");
+    expect(dayKey(moment, "UTC")).toBe("2026-09-04");
   });
 });
