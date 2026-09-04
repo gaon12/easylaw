@@ -8,7 +8,7 @@
  */
 
 .page {
-  background: var(--el-bg-subtle);
+  background: var(--el-brand-page);
   padding: var(--el-space-5) var(--el-space-4) var(--el-space-12);
 }
 
@@ -19,6 +19,7 @@
   padding: var(--el-space-6) var(--el-space-6) var(--el-space-8);
   background: var(--el-bg-canvas);
   border: 1px solid var(--el-border-default);
+  border-top: 3px solid var(--el-brand-strong);
   border-radius: var(--el-radius-s);
 }
 

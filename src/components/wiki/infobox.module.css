@@ -6,18 +6,19 @@
 
 .box {
   border: 1px solid var(--el-border-default);
+  border-top: 3px solid var(--el-brand-strong);
   border-radius: var(--el-radius-xs);
   overflow: hidden;
   /* 넓은 화면에서 문서 전체 폭을 채우지 않는다 — 틀은 머리이지 본문이 아니다. */
   max-width: 640px;
 }
 
-/* 제목 띠. 본문보다 먼저 튀지 않도록 표 머리와 같은 중립색을 쓴다. */
+/* 제목 띠. 청록 상단선과 옅은 면으로 브랜드를 잇되 본문보다 먼저 튀지 않게 한다. */
 .title {
   margin: 0;
   padding: var(--el-space-2) var(--el-space-3);
-  background: var(--el-bg-subtle);
-  color: var(--el-fg-1);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
   font-size: var(--el-text-body-m);
   font-weight: 700;
   text-align: center;

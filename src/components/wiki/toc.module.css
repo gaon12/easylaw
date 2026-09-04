@@ -12,6 +12,7 @@
 
 .box {
   border: 1px solid var(--el-border-default);
+  border-top: 3px solid var(--el-brand-strong);
   border-radius: var(--el-radius-xs);
   background: var(--el-bg-canvas);
   padding: 0;
@@ -21,7 +22,8 @@
 .summary {
   padding: var(--el-space-2) var(--el-space-3);
   border-bottom: 1px solid var(--el-border-subtle);
-  background: var(--el-bg-subtle);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
   font-weight: 700;
   font-size: var(--el-text-body-s);
   cursor: pointer;
@@ -46,7 +48,7 @@
 
 .top > .link::before {
   content: counter(toc-top) ". ";
-  color: var(--el-fg-3);
+  color: var(--el-fg-link);
   font-variant-numeric: tabular-nums;
 }
 
@@ -57,7 +59,7 @@
 
 .sub > .link::before {
   content: counter(toc-top) "." counter(toc-sub) " ";
-  color: var(--el-fg-3);
+  color: var(--el-fg-link);
   font-variant-numeric: tabular-nums;
 }
 
@@ -68,7 +70,7 @@
 .link {
   display: block;
   padding: 1px 0;
-  color: var(--el-action);
+  color: var(--el-fg-link);
   line-height: 1.5;
   text-decoration: none;
 }
@@ -78,6 +80,6 @@
 }
 
 .top > .link {
-  color: var(--el-action);
+  color: var(--el-fg-link);
   font-weight: 400;
 }
