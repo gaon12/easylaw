@@ -5,7 +5,7 @@
  */
 
 .page {
-  max-width: var(--el-container);
+  max-width: var(--el-container-wide);
   margin: 0 auto;
   padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
   display: grid;

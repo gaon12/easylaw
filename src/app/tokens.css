@@ -186,7 +186,11 @@
    */
   --el-container: 1248px;
   --el-container-viewer: 1440px;
-  --el-container-wide: 1600px;
+  /*
+   * 27인치에서도 양옆이 비어 보이지 않는 폭. 1600으로도 좁다는 지적을 받아 한 단 더 넓혔다.
+   * **글줄은 이 폭을 쓰지 않는다** — 본문은 `level-body`와 각 화면의 `ch` 상한이 잡는다.
+   */
+  --el-container-wide: 1760px;
   --el-touch-target: 44px;
 
   /* 글자 크기 배율 — /settings의 5단계가 이 값을 바꾼다 */

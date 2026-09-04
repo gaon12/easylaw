@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ButtonLink } from "@/components/ui/button";
 import { viewer } from "@/lib/strings";
 import styles from "./citation-dialog.module.css";
@@ -18,6 +19,10 @@ import styles from "./citation-dialog.module.css";
  *
  * 창은 브라우저의 `<dialog>`다 — 포커스 가두기와 Esc 닫기를 브라우저가 이미 한다.
  * 직접 만들면 그 둘을 빠뜨리기 쉽고, 빠뜨리면 키보드로 창에서 빠져나올 수 없다.
+ *
+ * **창은 문서 끝(`body`)에 그린다.** 인용은 판결문 문장(`<p>`) 안에 있는데, `<p>` 안에는
+ * `<dialog>`·`<footer>` 같은 블록을 넣을 수 없다. 그대로 두면 브라우저가 마크업을 고쳐
+ * 세우고 하이드레이션이 깨진다 — 실제로 그 오류를 봤다. 포털이 그 문제를 없앤다.
  */
 
 /** 항의 key로 쓸 앞글자 길이. 같은 조문 안에서 항끼리 구분되면 충분하다. */
@@ -92,6 +97,12 @@ function CitationDialog({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [state, setState] = useState<DialogState>({ status: "idle" });
+  /* 포털은 브라우저에만 있다. 서버 렌더에서는 링크만 그리고, 붙은 뒤에 창을 단다. */
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const open = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -122,50 +133,49 @@ function CitationDialog({
     dialogRef.current?.close();
   }, []);
 
+  const dialog = (
+    <dialog className={styles.dialog} ref={dialogRef}>
+      {/*
+        바깥을 눌러 닫는 일은 `<dialog>`에 맡긴다 — `form method="dialog"`를 배경으로 두면
+        클릭 핸들러 없이도 닫힌다. Esc 닫기와 포커스 가두기는 브라우저가 이미 한다.
+      */}
+      <form className={styles.backdrop} method="dialog">
+        <button aria-label={viewer.citationClose} className={styles.backdropButton} type="submit" />
+      </form>
+      <div className={styles.panel}>
+        <header className={styles.head}>
+          <h2 className={styles.title}>{title}</h2>
+          <button className={styles.close} onClick={close} type="button">
+            {viewer.citationClose}
+          </button>
+        </header>
+
+        <div className={styles.content}>
+          {state.status === "loaded" ? <ArticleView article={state.article} /> : null}
+          {state.status === "loading" ? (
+            <p className={styles.notice}>{viewer.citationLoading}</p>
+          ) : null}
+          {state.status === "failed" ? (
+            <p className={styles.notice}>{viewer.citationFailed}</p>
+          ) : null}
+        </div>
+
+        <footer className={styles.foot}>
+          {/* 전체를 읽고 싶으면 그때 옮겨 간다. 창은 맛보기고 문서는 저쪽에 있다. */}
+          <ButtonLink href={href} size="s" variant="secondary">
+            {viewer.citationDetail}
+          </ButtonLink>
+        </footer>
+      </div>
+    </dialog>
+  );
+
   return (
     <>
       <a className={styles.link} href={href} onClick={open} title={title}>
         {label}
       </a>
-
-      {/*
-        바깥을 눌러 닫는 일은 `<dialog>`에 맡긴다 — `form method="dialog"`를 배경으로 두면
-        클릭 핸들러 없이도 닫힌다. Esc 닫기와 포커스 가두기는 브라우저가 이미 한다.
-      */}
-      <dialog className={styles.dialog} ref={dialogRef}>
-        <form className={styles.backdrop} method="dialog">
-          <button
-            aria-label={viewer.citationClose}
-            className={styles.backdropButton}
-            type="submit"
-          />
-        </form>
-        <div className={styles.panel}>
-          <header className={styles.head}>
-            <h2 className={styles.title}>{title}</h2>
-            <button className={styles.close} onClick={close} type="button">
-              {viewer.citationClose}
-            </button>
-          </header>
-
-          <div className={styles.content}>
-            {state.status === "loaded" ? <ArticleView article={state.article} /> : null}
-            {state.status === "loading" ? (
-              <p className={styles.notice}>{viewer.citationLoading}</p>
-            ) : null}
-            {state.status === "failed" ? (
-              <p className={styles.notice}>{viewer.citationFailed}</p>
-            ) : null}
-          </div>
-
-          <footer className={styles.foot}>
-            {/* 전체를 읽고 싶으면 그때 옮겨 간다. 창은 맛보기고 문서는 저쪽에 있다. */}
-            <ButtonLink href={href} size="s" variant="secondary">
-              {viewer.citationDetail}
-            </ButtonLink>
-          </footer>
-        </div>
-      </dialog>
+      {mounted ? createPortal(dialog, document.body) : null}
     </>
   );
 }
