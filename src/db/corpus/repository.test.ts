@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CorpusDb } from "../client";
 import { createTestCorpusDb } from "../testing";
@@ -6,6 +7,7 @@ import {
   countGenerationsOn,
   findGenerationProgress,
   findJudgmentByCaseNo,
+  findLatestRendition,
   findLawArticle,
   findLawVersionAt,
   findLawVersionByMst,
@@ -27,7 +29,7 @@ import {
   upsertJudgment,
   upsertLawVersions,
 } from "./repository";
-import { lookupMiss } from "./schema";
+import { lookupMiss, rendition } from "./schema";
 
 let db: CorpusDb;
 let close: () => void;
@@ -153,6 +155,36 @@ describe("saveRendition", () => {
     expect(sentences[0]?.role).toBe("heading");
     expect(sentences[1]?.confidence).toBe("needs_check");
     expect(sentences[1]?.checkReason).toBe("법적 효과 표현이 추상적이에요.");
+  });
+
+  it("프롬프트 버전과 관계없이 같은 단계에서 가장 최근 설명을 찾는다", () => {
+    const judgmentId = seedJudgment();
+    const olderId = saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "old-model",
+      promptVersion: "old-prompt",
+      sentences: [{ orderIdx: 0, text: "예전 설명", confidence: "grounded" }],
+    });
+    const newerId = saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "new-model",
+      promptVersion: "new-prompt",
+      sentences: [{ orderIdx: 0, text: "새 설명", confidence: "grounded" }],
+    });
+
+    db.update(rendition)
+      .set({ generatedAt: new Date("2026-09-01T00:00:00Z") })
+      .where(eq(rendition.id, olderId))
+      .run();
+    db.update(rendition)
+      .set({ generatedAt: new Date("2026-09-02T00:00:00Z") })
+      .where(eq(rendition.id, newerId))
+      .run();
+
+    expect(findLatestRendition(db, judgmentId, "L2")?.id).toBe(newerId);
+    expect(findLatestRendition(db, judgmentId, "L4")).toBeUndefined();
   });
 
   it("같은 레벨·프롬프트 버전은 하나만 존재한다", () => {

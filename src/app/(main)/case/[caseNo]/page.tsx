@@ -12,10 +12,12 @@ import { corpusDb } from "@/db/client";
 import {
   findGenerationProgress,
   findJudgmentByCaseNo,
+  findLatestRendition,
   findRendition,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
+import { formatDate } from "@/lib/format";
 import type { Citation } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
@@ -125,20 +127,24 @@ function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
   const spans = row === undefined ? [] : listSpans(db, row.id);
 
   /*
-   * 이 레벨의 설명이 이미 있으면 읽는다. 없으면 빈 배열이고 화면이 "설명 만들기"를 낸다.
-   * `PIPELINE_VERSION`으로 찾는 이유는, 프롬프트를 고친 뒤 옛 설명을 보여 주지 않기
-   * 위해서다(§6.4) — 옛 설명은 지우지 않고 남겨 두되 기본으로 꺼내지 않는다.
+   * 현재 파이프라인 버전을 먼저 찾는다. 아직 새 버전을 만들지 않았다면 가장 최근 과거
+   * 설명을 버리지 않고 보여 주되 `outdatedAt`으로 구분한다([F-44]).
    */
-  const rendition =
+  const currentRendition =
     row === undefined || level === "L0"
       ? undefined
       : findRendition(db, row.id, level, PIPELINE_VERSION);
+  const rendition =
+    currentRendition ??
+    (row === undefined || level === "L0" ? undefined : findLatestRendition(db, row.id, level));
 
   return {
     row,
     spans,
     citations: new Map(spans.map((span) => [span.id, findCitations(span.text)])),
     sentences: rendition === undefined ? [] : listSentences(db, rendition.id),
+    outdatedAt:
+      currentRendition === undefined && rendition !== undefined ? rendition.generatedAt : null,
     /*
      * 원문의 `【주 문】` 같은 표제가 목차의 뼈대다(`DESIGN.md` §11.5).
      * 판결문은 짧아도 수십 문장이고, 읽는 사람이 찾는 것은 대개 한 구간이다.
@@ -191,8 +197,9 @@ export default async function CasePage(props: {
 
   const { summary } = result;
   const basePath = `/case/${encodeURIComponent(summary.caseNoCanonical)}`;
+  const timeZone = siteTimeZone();
   const textResult = await ensureJudgmentText(summary.caseNoCanonical);
-  const { row, spans, citations, sentences, headings } = loadJudgment(
+  const { row, spans, citations, sentences, headings, outdatedAt } = loadJudgment(
     summary.caseNoCanonical,
     level,
   );
@@ -207,7 +214,7 @@ export default async function CasePage(props: {
         decidedAt={summary.decidedAt}
         outcome={row?.outcome ?? "unknown"}
         sourceUrl={row?.sourceUrl ?? null}
-        timeZone={siteTimeZone()}
+        timeZone={timeZone}
       />
 
       <div className={styles.levels}>
@@ -223,6 +230,7 @@ export default async function CasePage(props: {
             basePath={basePath}
             fields={{ caseNo: summary.caseNoCanonical }}
             level={level}
+            outdatedAt={outdatedAt === null ? null : formatDate(outdatedAt, timeZone)}
             progressPath={`/api/generation/case/${encodeURIComponent(summary.caseNoCanonical)}/${level}`}
             sentences={sentences}
             state={placeholderState(row?.id ?? null, level)}

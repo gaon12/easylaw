@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { GenerationProgress } from "@/components/viewer/generation-progress";
@@ -36,6 +38,8 @@ interface SectionProps {
   readonly level: Level;
   readonly sentences: readonly Sentence[];
   readonly state: PlaceholderState;
+  /** 현재 프롬프트 판보다 오래된 설명이면 만든 날짜, 현재 판이면 null. */
+  readonly outdatedAt: string | null;
   /** 만들기 폼이 부를 서버 액션. 공개 판례와 올린 문서가 서로 다른 것을 쓴다. */
   readonly action: (formData: FormData) => Promise<void>;
   /** 액션에 함께 보낼 값. `{ caseNo }` 또는 `{ docId }`. */
@@ -48,11 +52,13 @@ function GenerateForm({
   fields,
   level,
   label,
+  showWait = true,
 }: {
   action: SectionProps["action"];
   fields: SectionProps["fields"];
   level: Level;
   label: string;
+  showWait?: boolean;
 }) {
   // 자바스크립트 없이 동작한다. 누르면 서버가 자리를 잡고, 만드는 일은 응답 뒤에 이어진다.
   return (
@@ -64,8 +70,65 @@ function GenerateForm({
       <Button size="l" type="submit">
         {label}
       </Button>
-      <p className={styles.emptyBody}>{viewer.generateWait}</p>
+      {showWait ? <p className={styles.emptyBody}>{viewer.generateWait}</p> : null}
     </form>
+  );
+}
+
+/** 옛 설명은 숨기지 않는다. 만든 시점과 새 설명을 만들 수 있는 상태를 함께 밝힌다. */
+function OutdatedNotice({
+  outdatedAt,
+  state,
+  action,
+  fields,
+  level,
+  progressPath,
+  basePath,
+}: Omit<SectionProps, "sentences"> & { outdatedAt: string }) {
+  let body: string = viewer.outdatedBody;
+  let actions: ReactNode;
+
+  if (state.kind === "off") {
+    body = viewer.generatorOffBody;
+  } else if (state.kind === "limited") {
+    body = viewer.limitBody;
+  } else if (state.kind === "failed") {
+    body = state.reason ?? viewer.generateFailed;
+    actions = (
+      <GenerateForm
+        action={action}
+        fields={fields}
+        label={viewer.outdated}
+        level={level}
+        showWait={false}
+      />
+    );
+  } else if (state.kind === "running") {
+    body = viewer.generatingByOther;
+    actions = (
+      <>
+        <GenerationProgress initialStage={state.stage} path={progressPath} />
+        <ButtonLink href={`${basePath}?level=${level}`} size="s" variant="secondary">
+          {viewer.progressRefresh}
+        </ButtonLink>
+      </>
+    );
+  } else {
+    actions = (
+      <GenerateForm
+        action={action}
+        fields={fields}
+        label={viewer.outdated}
+        level={level}
+        showWait={false}
+      />
+    );
+  }
+
+  return (
+    <Alert actions={actions} title={viewer.outdatedHint(outdatedAt)} tone="warning">
+      {body}
+    </Alert>
   );
 }
 
@@ -82,7 +145,7 @@ function RenditionPlaceholder({
   state,
   action,
   fields,
-}: Omit<SectionProps, "sentences">) {
+}: Omit<SectionProps, "sentences" | "outdatedAt">) {
   if (state.kind === "running") {
     return (
       <div className={styles.empty}>
@@ -125,18 +188,21 @@ function RenditionPlaceholder({
 }
 
 /** 만들어진 것이 있으면 그것을, 없으면 상태에 맞는 빈 자리를 그린다. */
-function RenditionSection({ sentences, ...rest }: SectionProps) {
+function RenditionSection({ sentences, outdatedAt, ...rest }: SectionProps) {
   return (
     <section className={styles.panel}>
       <h2 className={styles.panelTitle}>{viewer.renditionPanel}</h2>
       {sentences.length > 0 ? (
-        <RenditionPanel
-          level={rest.level}
-          needsCheckCount={
-            sentences.filter((sentence) => sentence.confidence === "needs_check").length
-          }
-          sentences={sentences}
-        />
+        <>
+          {outdatedAt === null ? null : <OutdatedNotice {...rest} outdatedAt={outdatedAt} />}
+          <RenditionPanel
+            level={rest.level}
+            needsCheckCount={
+              sentences.filter((sentence) => sentence.confidence === "needs_check").length
+            }
+            sentences={sentences}
+          />
+        </>
       ) : (
         <RenditionPlaceholder {...rest} />
       )}

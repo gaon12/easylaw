@@ -1116,6 +1116,7 @@ export const viewer = {
   regenerate: "다시 시도",
   outdated: "더 나은 설명으로 다시 만들기",
   outdatedHint: (generatedAt: string) => `${generatedAt}에 만든 설명이에요.`,
+  outdatedBody: "작성 기준이 바뀌어도 이 설명은 지우지 않았어요. 원문과 함께 확인해 주세요.",
   blockedForKids: "이 사건은 어린이용 설명을 제공하지 않아요.",
   summaryTitle: "판결 한눈에 보기",
   sourceLabel: "출처:",

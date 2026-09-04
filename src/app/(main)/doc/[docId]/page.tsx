@@ -10,6 +10,7 @@ import { RenditionSection } from "@/components/viewer/rendition-section";
 import type { PlaceholderState } from "@/components/viewer/rendition-state";
 import { TableOfContents } from "@/components/wiki/toc";
 import {
+  findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
   listUploadSentences,
@@ -91,14 +92,19 @@ function placeholderState(docId: string, level: Exclude<ViewLevel, "L0">): Place
   return { kind: "ready" };
 }
 
-/** 이 문서, 이 레벨의 설명본. 없으면 빈 배열이고 화면이 만들기 자리를 낸다. */
-function loadSentences(docId: string, level: ViewLevel) {
+/** 현재 설명이 없으면 같은 레벨의 가장 최근 과거 설명을 읽고 그 생성 시각을 함께 알린다. */
+function loadRendition(docId: string, level: ViewLevel) {
   if (level === "L0") {
-    return [];
+    return { sentences: [], outdatedAt: null };
   }
   const db = appDb();
-  const rendition = findUploadRendition(db, docId, level, PIPELINE_VERSION);
-  return rendition === undefined ? [] : listUploadSentences(db, rendition.id);
+  const currentRendition = findUploadRendition(db, docId, level, PIPELINE_VERSION);
+  const rendition = currentRendition ?? findLatestUploadRendition(db, docId, level);
+  return {
+    sentences: rendition === undefined ? [] : listUploadSentences(db, rendition.id),
+    outdatedAt:
+      currentRendition === undefined && rendition !== undefined ? rendition.generatedAt : null,
+  };
 }
 
 /**
@@ -144,6 +150,7 @@ export default async function DocPage(props: {
   const isAgain = searchParams.again !== undefined;
   const level = toLevel(searchParams.level);
   const basePath = `/doc/${encodeURIComponent(docId)}`;
+  const rendition = loadRendition(docId, level);
 
   return (
     <div className={styles.page}>
@@ -173,8 +180,11 @@ export default async function DocPage(props: {
           basePath={basePath}
           fields={{ docId }}
           level={level}
+          outdatedAt={
+            rendition.outdatedAt === null ? null : formatDate(rendition.outdatedAt, timeZone)
+          }
           progressPath={`/api/generation/doc/${encodeURIComponent(docId)}/${level}`}
-          sentences={loadSentences(docId, level)}
+          sentences={rendition.sentences}
           state={placeholderState(docId, level)}
         />
       )}
