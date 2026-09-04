@@ -62,14 +62,14 @@
 }
 
 .tab:hover {
-  border-color: var(--el-fg-3);
-  color: var(--el-fg-1);
+  border-color: var(--el-brand-line);
+  color: var(--el-brand-fg);
 }
 
 /* 선택된 칩. 색만으로 알리지 않도록 글자 굵기도 함께 바꾼다. */
 .tab:has(input:checked) {
-  background: var(--el-action);
-  border-color: var(--el-action);
+  background: var(--el-brand-strong);
+  border-color: var(--el-brand-strong);
   color: var(--el-fg-inverse);
 }
 

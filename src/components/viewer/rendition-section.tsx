@@ -3,6 +3,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { GenerationProgress } from "@/components/viewer/generation-progress";
+import { LevelTraits } from "@/components/viewer/level-traits";
 import type { ViewLevel } from "@/components/viewer/levels";
 import { RenditionPanel } from "@/components/viewer/rendition-panel";
 import type { PlaceholderState, Sentence } from "@/components/viewer/rendition-state";
@@ -193,6 +194,7 @@ function RenditionSection({ sentences, outdatedAt, ...rest }: SectionProps) {
     <section className={styles.panel}>
       {/* 칸 이름표는 스크린리더에만. 위키 문서에는 칸 제목이 없다. */}
       <h2 className="sr-only">{viewer.renditionPanel}</h2>
+      <LevelTraits level={rest.level} />
       {sentences.length > 0 ? (
         <>
           {outdatedAt === null ? null : <OutdatedNotice {...rest} outdatedAt={outdatedAt} />}

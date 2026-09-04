@@ -1,0 +1,24 @@
+/* 같은 색 표지 안에서 문구로 단계를 구분한다. 어린이·쉬운말을 경고색으로 취급하지 않는다. */
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: var(--el-space-1) var(--el-space-3);
+  border: 1px solid var(--el-brand-line);
+  border-left: 3px solid var(--el-brand-strong);
+  border-radius: var(--el-radius-xs);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+  line-height: var(--el-leading-normal);
+}

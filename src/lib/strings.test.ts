@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lintRendition, type RenditionSentence } from "@/lib/rendition/lint";
-import { demo, help } from "./strings";
+import { demo, help, viewer } from "./strings";
 
 /**
  * 랜딩 데모의 예시 문장이 **우리가 만든 작성 규칙을 스스로 지키는지** 검사한다.
@@ -34,6 +34,13 @@ describe("랜딩 데모 예시", () => {
     expect(demo.bodies.L2.every((line) => /(?:합니다|입니다)\.$/u.test(line))).toBe(true);
     expect(demo.bodies.L3.join(" ")).toContain("A씨");
     expect(demo.bodies.L4.join(" ")).toContain("당신");
+  });
+
+  it("일반·어린이·쉬운말의 읽는 방식을 서로 다른 말로 안내한다", () => {
+    expect(viewer.levelTraits.L2).toEqual(["결론 먼저", "법적 효과", "다음 절차"]);
+    expect(viewer.levelTraits.L3).toEqual(["짧은 문장", "등장인물 이야기", "차근차근 설명"]);
+    expect(viewer.levelTraits.L4).toEqual(["한 문장 한 가지", "어려운 말 바로 풀이", "읽기 도움"]);
+    expect(demo.bodies.L4).toContain("항소는 다시 재판해 달라는 뜻이에요.");
   });
 });
 
