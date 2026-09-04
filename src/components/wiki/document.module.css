@@ -16,7 +16,7 @@
 .sheet {
   max-width: var(--el-container-wide);
   margin: 0 auto;
-  padding: var(--el-space-6) var(--el-space-7) var(--el-space-8);
+  padding: var(--el-space-6) var(--el-space-6) var(--el-space-8);
   background: var(--el-bg-canvas);
   border: 1px solid var(--el-border-default);
   border-radius: var(--el-radius-s);
@@ -30,30 +30,66 @@
 }
 
 /*
- * 목차와 정보 틀이 나란히 선다. 나무위키가 문서 맨 앞에 두는 그 배치다 —
- * 왼쪽에 목차, 오른쪽에 틀, 그 아래부터 본문.
+ * 목차·본문과 정보 틀을 한 격자에 둔다. 정보 틀이 길어도 왼쪽 본문은 목차 바로 뒤에서
+ * 시작한다. 둘을 별도 머리 행으로 두면 짧은 목차 아래에 큰 빈칸이 생긴다.
  */
-.lead {
+.layout {
   display: grid;
   gap: var(--el-space-4);
-  margin-bottom: var(--el-space-5);
   align-items: start;
 }
 
-@media (min-width: 900px) {
-  .lead {
-    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
-  }
+.lead {
+  grid-area: lead;
+  width: min(100%, 320px);
+}
 
-  /* 정보 틀은 오른쪽 끝에 붙는다. 본문이 시작되기 전에 값이 다 보여야 한다. */
-  .info {
-    justify-self: end;
-    width: min(100%, 420px);
-  }
+.info {
+  grid-area: info;
+  min-width: 0;
 }
 
 .body {
+  grid-area: body;
   min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .layoutWithInfo {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    column-gap: var(--el-space-8);
+  }
+
+  .layoutWithInfo.layoutWithToc {
+    grid-template-areas:
+      "lead info"
+      "body info";
+  }
+
+  .layoutWithInfo:not(.layoutWithToc) {
+    grid-template-areas: "body info";
+  }
+
+  .layout:not(.layoutWithInfo) {
+    grid-template-areas:
+      "lead"
+      "body";
+  }
+}
+
+@media (max-width: 899px) {
+  .layout {
+    grid-template-areas:
+      "info"
+      "lead"
+      "body";
+  }
+
+  .layout:not(.layoutWithInfo) {
+    grid-template-areas:
+      "lead"
+      "body";
+  }
 }
 
 @media (max-width: 640px) {

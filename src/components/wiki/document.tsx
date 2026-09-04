@@ -35,6 +35,7 @@ function WikiDocument({
   children: ReactNode;
 }) {
   const hasLead = toc.length > 1 || info !== undefined;
+  const hasToc = toc.length > 1;
 
   return (
     <div className={styles.page}>
@@ -45,13 +46,24 @@ function WikiDocument({
         </header>
 
         {hasLead ? (
-          <div className={styles.lead}>
-            {toc.length > 1 ? <TableOfContents entries={toc} label={tocLabel} /> : null}
-            {info === undefined ? null : <div className={styles.info}>{info}</div>}
+          <div
+            className={[
+              styles.layout,
+              hasToc ? styles.layoutWithToc : "",
+              info === undefined ? "" : styles.layoutWithInfo,
+            ].join(" ")}
+          >
+            {hasToc ? (
+              <div className={styles.lead}>
+                <TableOfContents entries={toc} label={tocLabel} />
+              </div>
+            ) : null}
+            {info === undefined ? null : <aside className={styles.info}>{info}</aside>}
+            <div className={styles.body}>{children}</div>
           </div>
-        ) : null}
-
-        <div className={styles.body}>{children}</div>
+        ) : (
+          <div className={styles.body}>{children}</div>
+        )}
       </article>
     </div>
   );
