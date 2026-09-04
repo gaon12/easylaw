@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { Alert } from "@/components/ui/alert";
 import { Infobox } from "@/components/ui/infobox";
-import { braille } from "@/lib/strings";
+import { braille, viewer } from "@/lib/strings";
 import { toBrailleDocument } from "@/server/braille";
 import { BrailleActions } from "./braille-actions";
 import styles from "./braille-document.module.css";
@@ -11,11 +12,14 @@ function BrailleDocument({
   filename,
   lines,
   meta,
+  outdatedAt,
 }: {
   backHref: string;
   filename: string;
   lines: readonly string[];
   meta: string;
+  /** 현재 작성 기준보다 오래된 설명이면 만든 날짜, 현재 설명이나 원문이면 null. */
+  outdatedAt: string | null;
 }) {
   const document = toBrailleDocument(lines);
 
@@ -36,6 +40,11 @@ function BrailleDocument({
         </div>
       ) : (
         <>
+          {outdatedAt === null ? null : (
+            <Alert title={viewer.outdatedHint(outdatedAt)} tone="warning">
+              {viewer.outdatedBody}
+            </Alert>
+          )}
           <Infobox title={braille.title}>{braille.disclaimer}</Infobox>
           <BrailleActions filename={filename} text={document} />
           <pre className={styles.braille}>{document}</pre>

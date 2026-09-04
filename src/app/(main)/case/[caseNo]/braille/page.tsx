@@ -10,8 +10,10 @@ import {
   listSpans,
 } from "@/db/corpus/repository";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
+import { formatDate } from "@/lib/format";
 import { braille as strings, viewer } from "@/lib/strings";
 import { PIPELINE_VERSION } from "@/server/generate";
+import { siteTimeZone } from "@/server/settings";
 
 /**
  * 점자로 보기. `PAGES.md` §5 · `FEATURES.md` [F-11] 계열
@@ -46,26 +48,34 @@ export default async function BraillePage(props: {
   const level = toLevel(searchParams.level);
   const viewerPath = `/case/${encodeURIComponent(canonical)}?level=${level}`;
 
-  const lines =
+  const content =
     level === "L0"
-      ? listSpans(db, judgment.id).map((span) => span.text)
+      ? { lines: listSpans(db, judgment.id).map((span) => span.text), outdatedAt: null }
       : (() => {
           const current = findRendition(db, judgment.id, level, PIPELINE_VERSION);
           const rendition = current ?? findLatestRendition(db, judgment.id, level);
-          return rendition === undefined
-            ? []
-            : listSentences(db, rendition.id).map((sentence) => sentence.text);
+          return {
+            lines:
+              rendition === undefined
+                ? []
+                : listSentences(db, rendition.id).map((sentence) => sentence.text),
+            outdatedAt:
+              current === undefined && rendition !== undefined
+                ? formatDate(rendition.generatedAt, siteTimeZone())
+                : null,
+          };
         })();
 
   return (
     <BrailleDocument
       backHref={viewerPath}
       filename={`${judgment.caseNoCanonical}-${level}.txt`}
-      lines={lines}
+      lines={content.lines}
       meta={strings.meta(
         judgment.caseNoDisplay,
         level === "L0" ? strings.originalLabel : viewer.levels[level],
       )}
+      outdatedAt={content.outdatedAt}
     />
   );
 }

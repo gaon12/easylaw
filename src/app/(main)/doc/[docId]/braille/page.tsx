@@ -8,9 +8,11 @@ import {
 } from "@/db/app/generation";
 import { findUploadForOwner, listUploadSpans } from "@/db/app/repository";
 import { appDb } from "@/db/client";
+import { formatDate } from "@/lib/format";
 import { braille as strings, viewer } from "@/lib/strings";
 import { PIPELINE_VERSION } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
+import { siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
 
 /**
@@ -38,26 +40,34 @@ export default async function DocBraillePage(props: {
 
   const level = toLevel(searchParams.level);
   const viewerPath = `/doc/${encodeURIComponent(docId)}?level=${level}`;
-  const lines =
+  const content =
     level === "L0"
-      ? listUploadSpans(db, docId).map((span) => span.text)
+      ? { lines: listUploadSpans(db, docId).map((span) => span.text), outdatedAt: null }
       : (() => {
           const current = findUploadRendition(db, docId, level, PIPELINE_VERSION);
           const rendition = current ?? findLatestUploadRendition(db, docId, level);
-          return rendition === undefined
-            ? []
-            : listUploadSentences(db, rendition.id).map((sentence) => sentence.text);
+          return {
+            lines:
+              rendition === undefined
+                ? []
+                : listUploadSentences(db, rendition.id).map((sentence) => sentence.text),
+            outdatedAt:
+              current === undefined && rendition !== undefined
+                ? formatDate(rendition.generatedAt, siteTimeZone())
+                : null,
+          };
         })();
 
   return (
     <BrailleDocument
       backHref={viewerPath}
       filename={`${docId}-${level}.txt`}
-      lines={lines}
+      lines={content.lines}
       meta={strings.meta(
         upload.title,
         level === "L0" ? strings.originalLabel : viewer.levels[level],
       )}
+      outdatedAt={content.outdatedAt}
     />
   );
 }
