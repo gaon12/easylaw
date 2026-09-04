@@ -1,6 +1,7 @@
 import "server-only";
 import { corpusDb } from "@/db/client";
 import { searchLawVersions } from "@/db/corpus/repository";
+import { type JudgmentHit, searchJudgments } from "@/db/corpus/search";
 import { parseCaseNumber } from "@/lib/case-number/normalize";
 import { expandCaseChoseongQuery } from "@/lib/case-number/search";
 import { lawApi } from "@/lib/law-api/client";
@@ -47,6 +48,13 @@ interface SearchResults {
   /** 사건번호로 읽혔을 때의 결과. 아니면 undefined. */
   readonly caseLookup: LookupResult | undefined;
   readonly laws: readonly LawHit[];
+  /**
+   * **우리가 이미 갖고 있는 판결문** 안에서 찾은 것. 법제처 키가 없어도 나온다.
+   *
+   * 지금까지 내용 검색은 전부 법제처가 했다. 그래서 키가 없는 설치에서는 이미 받아 둔
+   * 판결문조차 제목으로도 찾을 수 없었다.
+   */
+  readonly corpusHits: readonly JudgmentHit[];
   readonly precedents: readonly PrecedentSummary[];
   /** 판례 내용 검색이 실패한 이유. 성공했거나 시도하지 않았으면 undefined. */
   readonly precedentError: string | undefined;
@@ -159,6 +167,11 @@ async function searchEverything(query: string, signal?: AbortSignal): Promise<Se
   return {
     query: trimmed,
     caseLookup,
+    /*
+     * 우리 코퍼스 검색은 왕복이 없다. 법제처를 기다리는 동안 보여 줄 것이 생긴다는 뜻이고,
+     * 키가 없는 설치에서는 이것이 유일한 내용 검색이다.
+     */
+    corpusHits: parsed.ok ? [] : searchJudgments(corpusDb(), trimmed),
     laws: findLaws(contentQueries),
     precedents: precedents.items,
     precedentError: precedents.error,
