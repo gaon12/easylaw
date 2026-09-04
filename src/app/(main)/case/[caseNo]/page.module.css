@@ -52,9 +52,18 @@
    * 한쪽만 움직이면 짝이 어긋나기 때문이다.
    */
   .panels {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--el-space-10);
     align-items: start;
+  }
+
+  /*
+   * **칸이 하나면 한 단으로 쓴다.** 원문(L0)만 볼 때는 설명 칸이 아예 그려지지 않는데,
+   * 격자를 두 단으로 두면 원문이 왼쪽 절반에만 들어가고 오른쪽 절반이 통째로 빈다.
+   * 화면을 반만 쓰는 그 모양이 "폭이 좁아 터졌다"는 지적의 실체였다.
+   */
+  .panels:has(> :only-child) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

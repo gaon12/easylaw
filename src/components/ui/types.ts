@@ -42,6 +42,12 @@ interface StructuredRow {
   readonly value: ReactNode;
 }
 
+/** 위키 정보 틀의 한 줄. `DESIGN.md` §11.5 */
+interface InfoRow {
+  readonly label: string;
+  readonly value: ReactNode;
+}
+
 /** 목차 한 줄. `DESIGN.md` §11.5 */
 interface TocEntry {
   /** 앵커 id. 이 값이 `#` 뒤에 붙는다. */
@@ -51,4 +57,4 @@ interface TocEntry {
   readonly depth: 1 | 2;
 }
 
-export type { AlertTone, BadgeTone, CardTone, IconName, StructuredRow, TocEntry };
+export type { AlertTone, BadgeTone, CardTone, IconName, InfoRow, StructuredRow, TocEntry };

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { InfoRow } from "@/components/ui/types";
 import styles from "./infobox.module.css";
 
 /**
@@ -12,11 +13,6 @@ import styles from "./infobox.module.css";
  *
  * 값이 없는 줄은 부르는 쪽에서 빼고 넘긴다 — 빈칸은 정보가 아니다.
  */
-
-interface InfoRow {
-  readonly label: string;
-  readonly value: ReactNode;
-}
 
 function WikiInfobox({
   title,
