@@ -10,6 +10,11 @@
   align-self: start;
 }
 
+/* 반응형 기본 상태를 HTML의 `<details>` 상태와 함께 유지한다. */
+.mobile {
+  display: none;
+}
+
 .box {
   border: 1px solid var(--el-border-default);
   border-top: 3px solid var(--el-brand-strong);
@@ -82,4 +87,15 @@
 .top > .link {
   color: var(--el-fg-link);
   font-weight: 400;
+}
+
+@media (max-width: 899px) {
+  /* 데스크톱용 open details는 트리에서 완전히 숨겨 중복 낭독을 막는다. */
+  .desktop {
+    display: none;
+  }
+
+  .mobile {
+    display: block;
+  }
 }

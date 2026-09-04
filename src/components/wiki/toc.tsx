@@ -20,25 +20,42 @@ function TableOfContents({ entries, label }: { entries: readonly TocEntry[]; lab
     return null;
   }
 
+  const tocLabel = label ?? wiki.tocLabel;
+
   return (
-    <nav aria-label={label ?? wiki.tocLabel} className={styles.toc}>
+    <>
       {/*
-        좁은 화면에서만 접힌다(CSS). `<details>`를 쓰는 이유는 여는 동작에 스크립트가
-        필요 없기 때문이다 — 키보드 조작과 스크린리더 지원도 브라우저가 이미 한다.
+        `open`은 반응형 CSS로 바꿀 수 없다. 데스크톱과 모바일의 기본 상태를 각각
+        실제 `<details>` 상태로 표현하고, CSS로 한 쪽만 노출한다. 숨긴 nav는
+        `display: none`이므로 스크린리더에도 같은 목차가 두 번 읽히지 않는다.
       */}
-      <details className={styles.box} open={true}>
-        <summary className={styles.summary}>{label ?? wiki.tocLabel}</summary>
-        <ol className={styles.list}>
-          {entries.map((entry) => (
-            <li className={entry.depth === 1 ? styles.top : styles.sub} key={entry.id}>
-              <a className={styles.link} href={`#${entry.id}`}>
-                {entry.label}
-              </a>
-            </li>
-          ))}
-        </ol>
-      </details>
-    </nav>
+      <nav aria-label={tocLabel} className={`${styles.toc} ${styles.desktop}`}>
+        <details className={styles.box} open={true}>
+          <summary className={styles.summary}>{tocLabel}</summary>
+          <TocLinks entries={entries} />
+        </details>
+      </nav>
+      <nav aria-label={tocLabel} className={`${styles.toc} ${styles.mobile}`}>
+        <details className={styles.box}>
+          <summary className={styles.summary}>{tocLabel}</summary>
+          <TocLinks entries={entries} />
+        </details>
+      </nav>
+    </>
+  );
+}
+
+function TocLinks({ entries }: { entries: readonly TocEntry[] }) {
+  return (
+    <ol className={styles.list}>
+      {entries.map((entry) => (
+        <li className={entry.depth === 1 ? styles.top : styles.sub} key={entry.id}>
+          <a className={styles.link} href={`#${entry.id}`}>
+            {entry.label}
+          </a>
+        </li>
+      ))}
+    </ol>
   );
 }
 
