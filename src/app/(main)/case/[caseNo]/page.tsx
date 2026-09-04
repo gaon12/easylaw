@@ -19,11 +19,31 @@ import type { Citation } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
 import { findCitations } from "@/server/citations";
-import { PIPELINE_VERSION } from "@/server/generate";
+import { generationBudget, PIPELINE_VERSION } from "@/server/generate";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import { llmConfig, siteTimeZone } from "@/server/settings";
 import { requestGeneration } from "./actions";
 import styles from "./page.module.css";
+
+/**
+ * 만들기 버튼 자리가 무엇을 말해야 하나.
+ *
+ * 세 가지가 다르다 — 생성기가 꺼져 있는 것, 오늘 몫이 없는 것, 아직 아무도 안 만든 것.
+ * 셋을 한 문장으로 뭉뚱그리면 **눌러도 되는지**를 알 수 없다.
+ */
+function placeholderState(): "off" | "limited" | "ready" {
+  if (llmConfig() === undefined) {
+    return "off";
+  }
+  // 상한은 만들려는 사람에게만 의미가 있다. 생성기가 꺼져 있으면 세어 볼 것도 없다.
+  return generationBudget().remaining > 0 ? "ready" : "limited";
+}
+
+const PLACEHOLDER_COPY = {
+  off: { title: viewer.generatorOffTitle, body: viewer.generatorOffBody },
+  limited: { title: viewer.limitTitle, body: viewer.limitBody },
+  ready: { title: viewer.generateHint, body: viewer.generateBody },
+} as const;
 
 /**
  * 설명이 아직 없을 때. 생성기가 꺼져 있으면 그 사실을 숨기지 않는다.
@@ -33,17 +53,16 @@ import styles from "./page.module.css";
  * "아무것도 없는 화면"은 아니라는 것도 함께 보여야 한다.
  */
 function RenditionPlaceholder({ caseNo, level }: { caseNo: string; level: string }) {
-  const ready = llmConfig() !== undefined;
+  const state = placeholderState();
+  const copy = PLACEHOLDER_COPY[state];
 
   return (
     <div className={styles.empty}>
       <PaperFigure mood="empty" />
-      <h3 className={styles.emptyTitle}>
-        {ready ? viewer.generateHint : viewer.generatorOffTitle}
-      </h3>
-      <p className={styles.emptyBody}>{ready ? viewer.generateBody : viewer.generatorOffBody}</p>
+      <h3 className={styles.emptyTitle}>{copy.title}</h3>
+      <p className={styles.emptyBody}>{copy.body}</p>
 
-      {ready ? (
+      {state === "ready" ? (
         /*
           자바스크립트 없이 동작한다. 누르면 서버가 만들고 화면을 다시 그린다 —
           수십 초가 걸리므로 진행 표시(SSE, §5.3)를 붙이는 것이 다음 일이다.
