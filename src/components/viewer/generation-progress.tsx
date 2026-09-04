@@ -28,21 +28,18 @@ interface Progress {
  * 직접 받아 그리지 않는다 — 그러면 같은 화면을 두 벌(서버용·클라이언트용) 갖게 된다.
  */
 function GenerationProgress({
-  caseNo,
-  level,
+  path,
   initialStage,
 }: {
-  caseNo: string;
-  level: string;
+  /** 진행을 흘려보내는 주소. 공개 판례와 올린 문서가 서로 다른 라우트를 쓴다. */
+  path: string;
   initialStage: Stage | null;
 }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage | null>(initialStage);
 
   useEffect(() => {
-    const source = new EventSource(
-      `/api/generation/${encodeURIComponent(caseNo)}/${encodeURIComponent(level)}`,
-    );
+    const source = new EventSource(path);
 
     source.onmessage = (event) => {
       const progress = JSON.parse(event.data) as Progress;
@@ -62,7 +59,7 @@ function GenerationProgress({
     return () => {
       source.close();
     };
-  }, [caseNo, level, router]);
+  }, [path, router]);
 
   return (
     <p aria-live="polite">{stage === null ? viewer.progressStart : viewer.progressStages[stage]}</p>

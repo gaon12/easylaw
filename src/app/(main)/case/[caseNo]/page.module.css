@@ -45,27 +45,6 @@
   color: var(--el-fg-2);
 }
 
-/* 설명이 아직 없는 칸. 옆의 원문과 높이를 맞추지 않는다 — 없는 것을 크게 그릴 이유가 없다. */
-.empty {
-  display: grid;
-  gap: var(--el-space-3);
-  justify-items: center;
-  text-align: center;
-  padding: var(--el-space-8) var(--el-space-5);
-  border: 1px dashed var(--el-border-default);
-  border-radius: var(--el-radius-l);
-}
-
-.emptyTitle {
-  font-size: var(--el-text-heading-xs);
-}
-
-.emptyBody {
-  color: var(--el-fg-2);
-  font-size: var(--el-text-body-s);
-  max-width: 40ch;
-}
-
 @media (min-width: 1024px) {
   /*
    * 2단 대조. `DESIGN.md` §8 — 좌: 변환본, 우: 원문.

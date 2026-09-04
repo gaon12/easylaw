@@ -1,0 +1,46 @@
+/*
+ * 설명 칸의 모양. 공개 판례와 올린 판결문이 같은 것을 쓴다.
+ *
+ * 값은 `case/[caseNo]/page.module.css`에 있던 것을 그대로 옮긴 것이다 —
+ * 두 화면이 같은 컴포넌트를 쓰는데 모양이 화면 파일에 남아 있으면 한쪽만 어긋난다.
+ */
+
+.panel {
+  display: grid;
+  gap: var(--el-space-4);
+  align-content: start;
+}
+
+/*
+ * 패널 제목을 위에 붙여 둔다. 2단 대조에서 길게 스크롤하면 지금 보는 칸이 설명인지
+ * 원문인지 헷갈린다. 배경을 깔아 본문이 제목 뒤로 비쳐 지나가지 않게 한다.
+ */
+.panelTitle {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--el-space-2) 0;
+  background: var(--el-bg-canvas);
+  font-size: var(--el-text-heading-s);
+}
+
+/* 설명이 아직 없는 칸. 옆의 원문과 높이를 맞추지 않는다 — 없는 것을 크게 그릴 이유가 없다. */
+.empty {
+  display: grid;
+  gap: var(--el-space-3);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-8) var(--el-space-5);
+  border: 1px dashed var(--el-border-default);
+  border-radius: var(--el-radius-l);
+}
+
+.emptyTitle {
+  font-size: var(--el-text-heading-xs);
+}
+
+.emptyBody {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  max-width: 40ch;
+}
