@@ -24,8 +24,8 @@
 }
 
 .header {
-  border-bottom: 1px solid var(--el-border-subtle);
-  background: var(--el-bg-canvas);
+  border-bottom: 1px solid var(--el-brand-deep);
+  background: var(--el-brand-strong);
 }
 
 /*
@@ -42,7 +42,7 @@
   max-width: var(--el-container-wide);
   margin: 0 auto;
   padding: 0 var(--el-space-6);
-  min-height: 72px;
+  min-height: 58px;
 }
 
 .brand {
@@ -50,11 +50,28 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--el-touch-target);
-  color: var(--el-fg-1);
+  gap: var(--el-space-2);
+  color: var(--el-fg-inverse);
   font-size: var(--el-text-heading-s);
   font-weight: 700;
   letter-spacing: -0.01em;
   text-decoration: none;
+}
+
+.brandMark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, white 62%, transparent);
+  border-radius: var(--el-radius-s);
+  background: color-mix(in srgb, white 14%, transparent);
+  font-size: var(--el-text-body-m);
+  line-height: 1;
+}
+
+.brandMark::before {
+  content: "§";
 }
 
 .nav {
@@ -87,20 +104,21 @@
   min-height: var(--el-touch-target);
   padding: 0 var(--el-space-4);
   border-radius: var(--el-radius-s);
-  color: var(--el-fg-1);
+  color: var(--el-fg-inverse);
   font-size: var(--el-text-body-m);
   font-weight: 500;
   text-decoration: none;
 }
 
 .navLink:hover {
-  background: var(--el-bg-subtle);
-  color: var(--el-fg-1);
+  background: var(--el-brand-deep);
+  color: var(--el-fg-inverse);
 }
 
 .navCta {
   font-weight: 700;
-  color: var(--el-fg-link);
+  color: var(--el-fg-inverse);
+  background: color-mix(in srgb, white 14%, transparent);
 }
 
 /*
@@ -117,12 +135,12 @@
   min-height: var(--el-touch-target);
   padding: var(--el-space-1) var(--el-space-3) var(--el-space-1) var(--el-space-1);
   border-radius: var(--el-radius-pill);
-  color: var(--el-fg-1);
+  color: var(--el-fg-inverse);
   text-decoration: none;
 }
 
 .accountLink:hover {
-  background: var(--el-bg-subtle);
+  background: var(--el-brand-deep);
 }
 
 /* 무늬가 배경과 붙어 보이지 않게 얇은 테두리를 준다. */
@@ -153,7 +171,7 @@
   border: 0;
   border-radius: var(--el-radius-s);
   background: none;
-  color: var(--el-fg-2);
+  color: var(--el-fg-inverse);
   font-size: var(--el-text-body-s);
   cursor: pointer;
 }
@@ -161,8 +179,8 @@
 /* 헤더를 조금 높인다. 글자가 커진 만큼 위아래 숨 쉴 자리가 필요하다. */
 
 .navButton:hover {
-  background: var(--el-bg-subtle);
-  color: var(--el-fg-1);
+  background: var(--el-brand-deep);
+  color: var(--el-fg-inverse);
 }
 
 .main {
