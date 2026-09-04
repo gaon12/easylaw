@@ -14,7 +14,7 @@
 
 /* 문서 한 장. 흰 종이 + 1px 테두리. 나무위키·위키백과가 쓰는 그 모양이다. */
 .sheet {
-  max-width: var(--el-container-wide);
+  max-width: var(--el-container-viewer);
   margin: 0 auto;
   padding: var(--el-space-6) var(--el-space-6) var(--el-space-8);
   background: var(--el-bg-canvas);
@@ -37,6 +37,7 @@
   display: grid;
   gap: var(--el-space-4);
   align-items: start;
+  min-width: 0;
 }
 
 .lead {
@@ -47,6 +48,7 @@
 .info {
   grid-area: info;
   min-width: 0;
+  width: 100%;
 }
 
 .body {
@@ -60,14 +62,20 @@
     column-gap: var(--el-space-8);
   }
 
-  .layoutWithInfo.layoutWithToc {
+  .layoutWithInfo.bodyBesideInfo.layoutWithToc {
     grid-template-areas:
       "lead info"
       "body info";
   }
 
-  .layoutWithInfo:not(.layoutWithToc) {
+  .layoutWithInfo.bodyBesideInfo:not(.layoutWithToc) {
     grid-template-areas: "body info";
+  }
+
+  .layoutWithInfo:not(.bodyBesideInfo) {
+    grid-template-areas:
+      "lead info"
+      "body body";
   }
 
   .layout:not(.layoutWithInfo) {

@@ -6,23 +6,21 @@
 
 .box {
   border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-m);
+  border-radius: var(--el-radius-xs);
   overflow: hidden;
   /* 넓은 화면에서 문서 전체 폭을 채우지 않는다 — 틀은 머리이지 본문이 아니다. */
   max-width: 640px;
 }
 
-/*
- * 제목 띠. 문서를 특정하는 값이 여기 아래에 있다는 표식이라 색을 준다.
- * 카드가 아니라 틀이므로 §11의 "카드 좌측 색 보더 금지"와는 다른 자리다.
- */
+/* 제목 띠. 본문보다 먼저 튀지 않도록 표 머리와 같은 중립색을 쓴다. */
 .title {
   margin: 0;
-  padding: var(--el-space-3) var(--el-space-4);
-  background: var(--el-action);
-  color: var(--el-fg-inverse);
+  padding: var(--el-space-2) var(--el-space-3);
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
   font-size: var(--el-text-body-m);
   font-weight: 700;
+  text-align: center;
 }
 
 .rows {
@@ -36,9 +34,9 @@
  */
 .row {
   display: grid;
-  grid-template-columns: minmax(88px, 128px) minmax(0, 1fr);
-  gap: var(--el-space-3);
-  padding: var(--el-space-3) var(--el-space-4);
+  grid-template-columns: minmax(84px, 112px) minmax(0, 1fr);
+  gap: var(--el-space-2);
+  padding: var(--el-space-2) var(--el-space-3);
   border-top: 1px solid var(--el-border-subtle);
 }
 
@@ -61,14 +59,14 @@
 }
 
 .footer {
-  padding: var(--el-space-3) var(--el-space-4);
+  padding: var(--el-space-2) var(--el-space-3);
   border-top: 1px solid var(--el-border-subtle);
   background: var(--el-bg-subtle);
   color: var(--el-fg-2);
   font-size: var(--el-text-body-xs);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 360px) {
   .box {
     max-width: none;
   }
