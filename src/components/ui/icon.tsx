@@ -21,6 +21,18 @@ const PATHS: Readonly<Record<IconName, string>> = {
   cross: "M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5",
   // 아이(i). 안내.
   info: "M12 11v7M12 6h.01",
+  // 올리기. 위로 향한 화살표와 받침.
+  upload: "M12 16V4M7 9l5-5 5 5M4 19h16",
+  // 문서함.
+  folder: "M4 7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z",
+  // 찾기. 돋보기.
+  search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.35-4.35",
+  // 책. 안내 문서.
+  book: "M5 4h9a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H5ZM5 4v13M19 7v13",
+  // 설정. 글자 크기·화면 표시.
+  settings: "M4 7h16M4 12h16M4 17h10",
+  // 방패. 개인정보.
+  shield: "M12 4l7 3v5c0 4-3 6.5-7 8-4-1.5-7-4-7-8V7Z",
 };
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

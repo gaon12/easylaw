@@ -8,8 +8,24 @@ import type { ReactNode } from "react";
  * 파일마다 끄는 것보다 타입을 한곳에 모으는 편이 낫다 — 어떤 톤이 있는지 한 파일만 보면 된다.
  */
 
-/** 상태 아이콘. `DESIGN.md` §5 — 라인 아이콘, 24 그리드. */
-type IconName = "check" | "alert" | "cross" | "info";
+/**
+ * 아이콘. `DESIGN.md` §5 — 라인 아이콘, 24 그리드, 스트로크 2px.
+ *
+ * 앞의 넷은 상태(근거 있음·확인 필요·근거 없음·안내)이고, 뒤의 여섯은 **길잡이**다 —
+ * 첫 화면의 바로가기가 쓴다. 이모지를 쓰지 않기로 한 이상(§11) 그림이 필요한 자리에는
+ * 아이콘을 만들어 둔다.
+ */
+type IconName =
+  | "check"
+  | "alert"
+  | "cross"
+  | "info"
+  | "upload"
+  | "folder"
+  | "search"
+  | "book"
+  | "settings"
+  | "shield";
 
 /** 배지 톤. `DESIGN.md` §3.4의 신뢰도 3색 + 중립. */
 type BadgeTone = "grounded" | "needs-check" | "ungrounded" | "neutral";

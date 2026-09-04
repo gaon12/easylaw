@@ -65,12 +65,13 @@ export const home = {
    */
   quickLinks: [
     { icon: "upload", label: "판결문 올리기", href: "/upload", hint: "받으신 판결문을 쉬운 말로" },
-    { icon: "search", label: "사건번호로 찾기", href: "/search", hint: "공개된 판례 찾아보기" },
+    { icon: "search", label: "사건번호로 찾기", href: "/#search", hint: "공개된 판례 찾아보기" },
     { icon: "folder", label: "내 문서함", href: "/cases", hint: "올려 둔 판결문 보기" },
     { icon: "book", label: "이용 안내", href: "/help", hint: "무엇을 하고 무엇을 안 하나" },
     { icon: "settings", label: "글자 크기·화면", href: "/settings", hint: "크게, 또렷하게" },
     { icon: "shield", label: "개인정보 처리", href: "/privacy", hint: "올린 문서를 어떻게 다루나" },
   ],
+  quickLinksLabel: "바로가기",
 
   /** 예시로 눌러 볼 것. **코퍼스에 실제로 있는 판례만** 나온다(`db/corpus/stats.ts`). */
   examplesLabel: "이런 판례를 볼 수 있어요",

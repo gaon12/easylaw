@@ -4,46 +4,41 @@
  */
 
 /*
- * 히어로는 두 칸이다. 왼쪽이 말하고 오른쪽이 보여 준다.
- * 데모 쪽을 조금 넓게 잡았다 — 판결문 문장이 들어가는 칸이라 좁으면 줄이 잘게 끊긴다.
+ * 히어로는 **가운데 한 칸**이다. 예전에는 왼쪽 글·오른쪽 데모의 두 칸이었는데,
+ * 그러면 첫 화면에서 가장 중요한 것(검색창)이 절반 폭으로 줄어든다. RISS·data.go.kr처럼
+ * 검색을 화면 한가운데 크게 두고, 데모는 아래 자기 구간에서 넓게 보여 준다.
  */
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
-  gap: var(--el-space-12);
-  align-items: start;
-}
-
-.heroText {
-  display: grid;
   gap: var(--el-space-5);
-  align-content: start;
-}
-
-/* 데모 카드는 히어로 안에서 살짝 내려 앉는다. 제목과 같은 선에서 시작하면 둘이 경쟁한다. */
-.heroDemo {
-  padding-top: var(--el-space-4);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-6) 0 var(--el-space-4);
 }
 
 .heroTitle {
+  /* 스케일의 맨 위(`DESIGN.md` §4 — 랜딩 히어로). 더 큰 값을 새로 만들지 않는다. */
   font-size: var(--el-text-display-s);
   letter-spacing: -0.02em;
-  /* 제목은 두세 줄로 끊어 읽히는 편이 낫다. 한 줄로 길게 흐르면 첫 화면이 밋밋해진다. */
-  max-width: 15ch;
+  max-width: 22ch;
 }
 
 .heroBody {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-l);
   line-height: var(--el-leading-body);
-  max-width: 36ch;
+  max-width: 46ch;
 }
 
-/*
- * 검색 카드는 subtle 띠 위의 흰 면이다. 보더를 두지 않는다 —
- * 배경 색이 이미 경계를 만들고 있어서 선을 더하면 겹친다(§5.1).
- */
-/* subtle 띠 위에 뜬 면이라 `Card`의 elevated를 쓴다. 여기에는 안쪽 간격만 둔다. */
+/* 검색 폼은 히어로 안에서 가장 넓다. 첫 화면에서 이것이 제일 큰 표적이어야 한다. */
+.searchForm {
+  display: grid;
+  gap: var(--el-space-2);
+  width: 100%;
+  max-width: 720px;
+}
+
+/* hero 띠 위에 뜬 흰 면이라 `Card`의 elevated를 쓴다. 여기에는 안쪽 간격만 둔다. */
 .searchCard {
   gap: var(--el-space-3);
 }
@@ -53,24 +48,24 @@
   gap: var(--el-space-3);
 }
 
-.searchLabelText {
-  font-size: var(--el-text-body-s);
-  font-weight: 700;
-}
-
 .searchRow {
   display: flex;
   gap: var(--el-space-2);
 }
 
+/*
+ * 큰 검색창. 56px는 KRDS의 큰 입력 높이이고, 글자도 본문보다 한 단 키운다 —
+ * 이 칸이 화면에서 제일 먼저 눈에 들어와야 한다.
+ */
 .searchInput {
   flex: 1;
   min-width: 0;
-  height: 48px;
-  padding: 0 14px;
+  height: 56px;
+  padding: 0 16px;
   border: 1px solid var(--el-border-default);
   border-radius: var(--el-radius-s);
   background: var(--el-bg-canvas);
+  font-size: var(--el-text-body-l);
   font-variant-numeric: tabular-nums;
 }
 
@@ -87,8 +82,125 @@
   font-size: var(--el-text-body-s);
 }
 
+/* 예시 판례. 코퍼스에 실제로 있는 것만 걸린다. */
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  align-items: center;
+  justify-content: center;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.examplesLabel {
+  font-weight: 700;
+}
+
+.exampleChip {
+  padding: var(--el-space-1) var(--el-space-3);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-pill);
+  background: var(--el-bg-canvas);
+  color: var(--el-fg-1);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.exampleChip:hover {
+  border-color: var(--el-action);
+  color: var(--el-action);
+}
+
+/*
+ * 바로가기 여섯. RISS의 아이콘 줄과 같은 자리에 있다.
+ * 6칸이 한 줄에 들어가고, 좁아지면 3칸 → 2칸으로 접힌다.
+ */
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--el-space-3);
+}
+
+.quickItem {
+  display: grid;
+  gap: var(--el-space-1);
+  justify-items: center;
+  text-align: center;
+  padding: var(--el-space-5) var(--el-space-3);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-m);
+  background: var(--el-bg-canvas);
+  color: var(--el-fg-1);
+  text-decoration: none;
+  transition: border-color 150ms ease-out;
+}
+
+.quickItem:hover {
+  border-color: var(--el-action);
+}
+
+.quickIcon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: var(--el-space-1);
+  border-radius: var(--el-radius-pill);
+  background: var(--el-action-weak);
+  color: var(--el-action-hover);
+}
+
+.quickLabel {
+  font-weight: 700;
+}
+
+.quickHint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+/* 우리가 가진 자료. 숫자는 전부 DB를 센 값이다(`db/corpus/stats.ts`). */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--el-space-4);
+  text-align: center;
+}
+
+.stat {
+  display: grid;
+  gap: var(--el-space-1);
+  padding: var(--el-space-4);
+}
+
+.statValue {
+  font-size: var(--el-text-display-s);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--el-action-hover);
+}
+
+.statLabel {
+  font-weight: 700;
+}
+
+.statHint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/* 섹션 제목을 가운데 두는 구간. RISS처럼 제목이 구간의 문패 역할을 한다. */
+.centered {
+  display: grid;
+  gap: var(--el-space-2);
+  justify-items: center;
+  text-align: center;
+  margin-bottom: var(--el-space-6);
+}
+
 .sectionTitle {
-  font-size: var(--el-text-heading-m);
+  font-size: var(--el-text-heading-l);
 }
 
 .sectionBody {
@@ -169,11 +281,51 @@
   font-size: var(--el-text-body-s);
 }
 
+/*
+ * 자주 묻는 것. `details`라 자바스크립트 없이 열린다.
+ * 답은 이용 안내의 글을 그대로 쓴다 — 두 벌을 두면 한쪽만 고쳐진다.
+ */
+.faq {
+  display: grid;
+  gap: var(--el-space-2);
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.faqItem {
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-m);
+  background: var(--el-bg-canvas);
+}
+
+.faqQuestion {
+  padding: var(--el-space-4) var(--el-space-5);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.faqAnswer {
+  padding: 0 var(--el-space-5) var(--el-space-4);
+  color: var(--el-fg-2);
+  line-height: var(--el-leading-body);
+}
+
+.faqMore {
+  margin-top: var(--el-space-4);
+  text-align: center;
+}
+
+.textLink {
+  color: var(--el-action);
+  font-weight: 700;
+}
+
 /* 왜 만들었는지. 페이지의 마지막이자 가장 조용한 구간이다. */
 .origin {
   display: grid;
   gap: var(--el-space-3);
   max-width: 62ch;
+  margin: 0 auto;
 }
 
 .originLead {
@@ -196,17 +348,14 @@
 }
 
 @media (max-width: 1023px) {
-  .hero {
-    grid-template-columns: 1fr;
-    gap: var(--el-space-8);
-  }
-
-  .heroDemo {
-    padding-top: 0;
-  }
-
   .heroTitle {
+    /* 모바일 축소는 §4의 규칙대로 36→28. */
+    font-size: 1.75rem;
     max-width: 24ch;
+  }
+
+  .quickGrid {
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .uploadRow {
@@ -219,16 +368,12 @@
   }
 }
 
-@media (max-width: 640px) {
-  .heroTitle {
-    font-size: 1.75rem;
+@media (max-width: 599px) {
+  .quickGrid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  .searchCard {
-    padding: var(--el-space-4);
-  }
-
-  .audienceGrid {
-    grid-template-columns: 1fr;
+  .searchRow {
+    flex-direction: column;
   }
 }
