@@ -141,12 +141,41 @@ function findLatestRendition(db: CorpusDb, judgmentId: string, level: Level) {
 }
 
 function listSentences(db: CorpusDb, renditionId: string) {
-  return db
+  const sentences = db
     .select()
     .from(renditionSentence)
     .where(eq(renditionSentence.renditionId, renditionId))
     .orderBy(renditionSentence.orderIdx)
     .all();
+
+  /*
+   * 근거 연결은 rendition_sentence → structure_node → node_span에 있다. 화면에서 문장마다
+   * 다시 조회하면 N+1이 되므로 이 함수에서 한 번에 읽어 `sourceSpanIds`로 넘긴다.
+   * 구조 노드가 삭제된 옛 변환본은 빈 배열로 남겨 안전하게 "근거 보기"를 숨긴다.
+   */
+  const nodeIds = sentences
+    .map((sentence) => sentence.structureNodeId)
+    .filter((id): id is string => id !== null);
+  if (nodeIds.length === 0) {
+    return sentences.map((sentence) => ({ ...sentence, sourceSpanIds: [] as string[] }));
+  }
+
+  const spansByNode = new Map<string, string[]>();
+  for (const row of db
+    .select({ structureNodeId: nodeSpan.structureNodeId, spanId: nodeSpan.spanId })
+    .from(nodeSpan)
+    .where(inArray(nodeSpan.structureNodeId, nodeIds))
+    .all()) {
+    const spans = spansByNode.get(row.structureNodeId) ?? [];
+    spans.push(row.spanId);
+    spansByNode.set(row.structureNodeId, spans);
+  }
+
+  return sentences.map((sentence) => ({
+    ...sentence,
+    sourceSpanIds:
+      sentence.structureNodeId === null ? [] : (spansByNode.get(sentence.structureNodeId) ?? []),
+  }));
 }
 
 function saveRendition(

@@ -81,6 +81,17 @@
   margin: 0;
 }
 
+/* 근거 보기 링크가 이동한 원문 문장. 동시에 하나만 활성화되는 native :target 상태다. */
+.sentence:target {
+  padding: var(--el-space-2) var(--el-space-3);
+  border-left: 2px solid var(--el-primary-50);
+  border-radius: var(--el-radius-xs);
+  background: var(--el-evidence-active-bg);
+  outline: 1px solid var(--el-primary-30);
+  scroll-margin-top: var(--el-space-8);
+  transition: background-color 150ms ease-out;
+}
+
 .notice {
   color: var(--el-fg-2);
 }
@@ -116,4 +127,10 @@
 
 .sentenceHeading:first-child {
   margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sentence:target {
+    transition-duration: 0ms;
+  }
 }

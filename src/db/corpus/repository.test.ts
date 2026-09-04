@@ -94,6 +94,42 @@ describe("saveJudgmentText", () => {
 });
 
 describe("saveRendition", () => {
+  it("문장에 연결된 구조 노드의 원문 span을 함께 돌려준다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 6, text: "원문 근거." },
+    ]);
+    const spanId = listSpans(db, judgmentId)[0]?.id;
+    expect(spanId).toBeDefined();
+    saveStructure(db, judgmentId, [
+      {
+        kind: "claim",
+        payload: { text: "근거" },
+        orderIdx: 0,
+        spanIds: [spanId as string],
+      },
+    ]);
+    const nodeId = listStructureNodes(db, judgmentId)[0]?.id;
+    expect(nodeId).toBeDefined();
+
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "test-model",
+      promptVersion: "v1",
+      sentences: [
+        {
+          orderIdx: 0,
+          text: "쉽게 말하면요.",
+          structureNodeId: nodeId,
+          confidence: "grounded",
+        },
+      ],
+    });
+
+    expect(listSentences(db, renditionId)[0]?.sourceSpanIds).toEqual([spanId]);
+  });
+
   it("문장을 순서대로 저장하고 신뢰도를 보존한다", () => {
     const judgmentId = seedJudgment();
     const renditionId = saveRendition(db, {
