@@ -30,6 +30,14 @@ const CONFIDENCES = ["grounded", "needs_check", "ungrounded"] as const;
 
 const JOB_STATUSES = ["queued", "running", "done", "failed"] as const;
 
+/**
+ * 어디까지 왔나. 화면이 기다리는 사람에게 보여 줄 말이 여기서 나온다(`PRODUCT.md` §5.3).
+ *
+ * 상태(`JOB_STATUSES`)와 다른 축이다 — 상태는 "돌고 있나"이고 단계는 "무엇을 하고 있나"다.
+ * `PRODUCT.md` §5.5의 [4]·[5]·[6]·[7]을 그대로 옮겼다.
+ */
+const JOB_STAGES = ["structure", "render", "verify", "save"] as const;
+
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
 
@@ -231,6 +239,8 @@ const generationJob = sqliteTable(
     level: text("level", { enum: LEVELS }).notNull(),
     promptVersion: text("prompt_version").notNull(),
     status: text("status", { enum: JOB_STATUSES }).notNull().default("queued"),
+    /** 지금 무엇을 하고 있나. 아직 시작 전이거나 끝난 작업은 null이다. */
+    stage: text("stage", { enum: JOB_STAGES }),
     claimedBy: text("claimed_by"),
     heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
     attempts: integer("attempts").notNull().default(0),
@@ -427,6 +437,7 @@ export {
   CONFIDENCES,
   generationJob,
   generationUsage,
+  JOB_STAGES,
   JOB_STATUSES,
   judgment,
   lawArticle,
