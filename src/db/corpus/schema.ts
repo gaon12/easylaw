@@ -245,6 +245,21 @@ const generationJob = sqliteTable(
 );
 
 /**
+ * 하루에 몇 번 만들었나. `FEATURES.md` [F-42] · `PRODUCT.md` §7
+ *
+ * **작업 표를 세지 않고 따로 센다.** `generation_job`은 (판결문·레벨·프롬프트 판)마다
+ * 한 행이고 재시도는 그 행을 되쓰기 때문에, 그 표로는 "오늘 몇 번 돌렸나"를 알 수 없다.
+ * 지출은 행 수가 아니라 **돌린 횟수**에 붙는다.
+ *
+ * 날짜는 사이트 시간대 기준 `2026-09-04` 꼴 문자열이다(`lib/format.ts`의 `dayKey`).
+ * 타임스탬프로 두고 범위로 세면 "오늘"이 서버 시간대에 따라 달라진다.
+ */
+const generationUsage = sqliteTable("generation_usage", {
+  day: text("day").primaryKey(),
+  count: integer("count").notNull().default(0),
+});
+
+/**
  * 조회했지만 없던 사건번호.
  *
  * 하급심 대부분은 공개되지 않아 이 경로가 예외가 아니라 주 경로다(`PRODUCT.md` §5.4).
@@ -392,6 +407,7 @@ const apiCache = sqliteTable(
 const corpusSchema = {
   apiCache,
   generationJob,
+  generationUsage,
   judgment,
   judgmentSpan,
   lawArticle,
@@ -410,6 +426,7 @@ export {
   corpusSchema,
   CONFIDENCES,
   generationJob,
+  generationUsage,
   JOB_STATUSES,
   judgment,
   lawArticle,
