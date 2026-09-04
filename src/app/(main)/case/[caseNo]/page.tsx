@@ -20,7 +20,7 @@ import type { Citation } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
 import { findCitations } from "@/server/citations";
-import { generationBudget, PIPELINE_VERSION } from "@/server/generate";
+import { generationBudget, PIPELINE_VERSION, REQUEST_LIMIT_REASON } from "@/server/generate";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import { llmConfig, siteTimeZone } from "@/server/settings";
 import { requestGeneration } from "./actions";
@@ -65,6 +65,9 @@ function placeholderState(
     return { kind: "limited" };
   }
   if (progress?.status === "failed") {
+    if (progress.error === REQUEST_LIMIT_REASON) {
+      return { kind: "limited" };
+    }
     return { kind: "failed", reason: progress.error };
   }
   return { kind: "ready" };

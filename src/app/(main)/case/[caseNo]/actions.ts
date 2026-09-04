@@ -6,7 +6,9 @@ import { corpusDb } from "@/db/client";
 import { findJudgmentByCaseNo, type Level } from "@/db/corpus/repository";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { beginGeneration, runGeneration } from "@/server/generate";
+import { currentSession } from "@/server/owner";
 import { caseStore } from "@/server/pipeline-store";
+import { requestIp } from "@/server/request";
 
 /**
  * 설명 만들기. `PRODUCT.md` §5.1 · §5.3
@@ -46,8 +48,12 @@ async function requestGeneration(formData: FormData): Promise<void> {
   }
 
   const level = rawLevel as Level;
+  const [ip, session] = await Promise.all([requestIp(), currentSession()]);
   const store = caseStore(judgment.id);
-  const begun = beginGeneration(store, level);
+  const begun = beginGeneration(store, level, {
+    ip,
+    session: session?.sessionId,
+  });
   if (begun.kind === "claimed") {
     /*
      * 응답을 보낸 뒤에 돌린다. 실패해도 여기서 붙잡지 않는다 — `runGeneration`이 어떤

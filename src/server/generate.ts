@@ -1,8 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { corpusDb } from "@/db/client";
+import { appDb, corpusDb } from "@/db/client";
 import { countGenerationsOn, reserveGenerationSlot } from "@/db/corpus/repository";
 import { dayKey } from "@/lib/format";
+import { type GenerationIdentity, GenerationLimiter } from "@/lib/generation-limit";
 import { llm } from "@/lib/llm/client";
 import { type Claim, checkEntailment, toConfidence } from "@/lib/pipeline/entail";
 import { extractStructure } from "@/lib/pipeline/extract";
@@ -10,7 +11,14 @@ import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt
 import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
 import type { PipelineStore, StoreLevel } from "@/server/pipeline-store";
-import { generationDailyLimit, siteTimeZone } from "@/server/settings";
+import {
+  DEFAULT_GENERATION_IP_LIMIT,
+  DEFAULT_GENERATION_SESSION_LIMIT,
+  generationDailyLimit,
+  generationIpLimit,
+  generationSessionLimit,
+  siteTimeZone,
+} from "@/server/settings";
 
 /**
  * 생성 파이프라인을 하나로 엮는다. `PRODUCT.md` §5.5 [7] · §5.3
@@ -52,6 +60,27 @@ function today(now: Date = new Date()): string {
 
 /** 상한에 걸려 닫은 작업에 남기는 말. 화면은 이 문자열이 아니라 남은 몫을 보고 판단한다. */
 const LIMIT_REASON = "오늘 만들 수 있는 만큼을 다 만들었습니다.";
+const REQUEST_LIMIT_REASON = "잠시 후 다시 시도해 주세요.";
+
+/** 신규 모델 호출에만 적용하는 프로세스별 방어막. 공유 저장소로 교체할 수 있게 호출부와 분리한다. */
+let requestLimiter = new GenerationLimiter({
+  ipLimit: DEFAULT_GENERATION_IP_LIMIT,
+  sessionLimit: DEFAULT_GENERATION_SESSION_LIMIT,
+});
+let requestLimiterSignature = `${DEFAULT_GENERATION_IP_LIMIT}:${DEFAULT_GENERATION_SESSION_LIMIT}`;
+
+/** 관리자 설정이 바뀌면 다음 요청부터 새 상한을 사용한다. 카운터는 설정 변경 시 초기화한다. */
+function configuredRequestLimiter(): GenerationLimiter {
+  const ipLimit = generationIpLimit(appDb());
+  const sessionLimit = generationSessionLimit(appDb());
+  const signature = `${ipLimit}:${sessionLimit}`;
+  if (signature !== requestLimiterSignature) {
+    requestLimiter = new GenerationLimiter({ ipLimit, sessionLimit });
+    requestLimiterSignature = signature;
+  }
+  return requestLimiter;
+}
+
 /**
  * 오늘 얼마나 남았나. 상한은 `app` DB의 설정이고 사용량은 `corpus` DB에 있어서
  * **두 저장소를 잇는 이 계층**이 합친다(§10.2 — 두 DB를 조인하지 않는다).
@@ -250,7 +279,11 @@ async function attemptOnce(input: {
  * 근거 없는 문장을 배지만 붙여 내보내지 않는다(P2). 반면 `needs_check`는 내보낸다.
  * "확인이 필요하다"와 "근거가 없다"는 다른 말이다.
  */
-function beginGeneration(store: PipelineStore, level: Level): BeginResult {
+function beginGeneration(
+  store: PipelineStore,
+  level: Level,
+  identity?: GenerationIdentity,
+): BeginResult {
   if (llm() === undefined) {
     return { kind: "unavailable" };
   }
@@ -267,6 +300,13 @@ function beginGeneration(store: PipelineStore, level: Level): BeginResult {
     return { kind: "cached" };
   }
 
+  // 캐시·동시 실행은 위에서 끝났으므로 실제 모델 호출 후보만 요청자 몫을 쓴다.
+  const limiter = identity === undefined ? undefined : configuredRequestLimiter();
+  if (identity !== undefined && limiter !== undefined && !limiter.claim(identity).allowed) {
+    store.finishJob(claim.jobId, { ok: false, error: REQUEST_LIMIT_REASON });
+    return { kind: "limited" };
+  }
+
   /*
    * 오늘 몫을 뗀다. **선점한 뒤에** 뗀다 — 이미 만들어져 있거나 남이 만들고 있는 요청은
    * 위에서 돌아가므로 몫을 쓰지 않아야 한다. 여기까지 온 요청은 실제로 모델을 부른다.
@@ -274,6 +314,9 @@ function beginGeneration(store: PipelineStore, level: Level): BeginResult {
    * 못 떼면 작업을 실패로 닫는다. 선점만 하고 남겨 두면 그 자리가 90초 동안 막힌다.
    */
   if (!reserveGenerationSlot(corpusDb(), { day: today(), limit: generationDailyLimit() })) {
+    if (identity !== undefined) {
+      limiter?.release(identity);
+    }
     store.finishJob(claim.jobId, { ok: false, error: LIMIT_REASON });
     return { kind: "limited" };
   }
@@ -358,5 +401,12 @@ async function generateRendition(
   return await runGeneration(store, level, begun.jobId, signal);
 }
 
-export { beginGeneration, generateRendition, generationBudget, PIPELINE_VERSION, runGeneration };
+export {
+  beginGeneration,
+  generateRendition,
+  generationBudget,
+  PIPELINE_VERSION,
+  REQUEST_LIMIT_REASON,
+  runGeneration,
+};
 export type { BeginResult, GenerateResult };

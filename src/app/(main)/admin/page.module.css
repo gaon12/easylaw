@@ -28,6 +28,10 @@
   gap: var(--el-space-5);
 }
 
+.usage {
+  gap: var(--el-space-3);
+}
+
 .sectionTitle {
   font-size: var(--el-text-heading-s);
 }
@@ -35,6 +39,12 @@
 .usageSummary {
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
+}
+
+.meter {
+  width: 100%;
+  height: 12px;
+  accent-color: var(--el-action);
 }
 
 .field {

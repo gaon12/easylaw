@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { appDb } from "@/db/client";
+import { checkDocumentLength } from "@/lib/generation-limit";
 import type { RejectReason } from "@/lib/text/prepare";
+import { MAX_CHARS } from "@/lib/text/prepare";
 import { type FileProblem, readUploadedFile } from "@/lib/text/upload-file";
 import { currentOwnerId } from "@/server/owner";
 import { ingestUpload, isRetentionChoice } from "@/server/upload";
@@ -14,7 +16,7 @@ import { ingestUpload, isRetentionChoice } from "@/server/upload";
  * 그래서 들어오는 값을 전부 다시 검사한다 — 화면에서 select로 골랐다는 사실은 보증이 아니다.
  */
 
-type ErrorCode = RejectReason | FileProblem | "sign_in_required";
+type ErrorCode = RejectReason | FileProblem | "sign_in_required" | "confirm_required";
 
 interface UploadState {
   readonly error?: ErrorCode;
@@ -26,6 +28,8 @@ function field(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value : "";
 }
+
+const DOCUMENT_CONFIRM_AFTER = 80_000;
 
 async function createUpload(_previous: UploadState, formData: FormData): Promise<UploadState> {
   const pasted = field(formData, "text");
@@ -42,6 +46,24 @@ async function createUpload(_previous: UploadState, formData: FormData): Promise
     }
     raw = read.text;
     filename = file.name;
+  }
+
+  /*
+   * 긴 문서는 저장 전에 비용을 알려야 한다. 이 검사는 화면의 글자 수 표시가 아니라
+   * 서버가 다시 계산한 값이다. `confirmed`는 첫 제출에서만 생기는 확인란 값이므로,
+   * 자바스크립트 없이도 첫 응답에서 확인 UI를 그리고 다음 제출에서 진행할 수 있다.
+   */
+  const length = checkDocumentLength({
+    charCount: raw.length,
+    confirmAfter: DOCUMENT_CONFIRM_AFTER,
+    maxChars: MAX_CHARS,
+    confirmed: field(formData, "confirmLongDocument") === "on",
+  });
+  if (length.kind === "too_long") {
+    return { error: "too_long", text: pasted };
+  }
+  if (length.kind === "confirm") {
+    return { error: "confirm_required", text: pasted };
   }
 
   const retentionRaw = field(formData, "retention");

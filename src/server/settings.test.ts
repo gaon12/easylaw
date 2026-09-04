@@ -3,8 +3,12 @@ import type { AppDb } from "@/db/client";
 import { createTestAppDb } from "@/db/testing";
 import {
   DEFAULT_DAILY_GENERATION_LIMIT,
+  DEFAULT_GENERATION_IP_LIMIT,
+  DEFAULT_GENERATION_SESSION_LIMIT,
   DEFAULT_LLM_MODEL,
   generationDailyLimit,
+  generationIpLimit,
+  generationSessionLimit,
   isSetupComplete,
   lawApiKey,
   listSettings,
@@ -85,6 +89,19 @@ describe("법제처 · LLM 설정", () => {
 
     writeSetting(db, "generation_daily_limit", "-3");
     expect(generationDailyLimit(db)).toBe(DEFAULT_DAILY_GENERATION_LIMIT);
+  });
+
+  it("IP·세션별 생성 상한을 관리자 설정에서 읽는다", () => {
+    expect(generationIpLimit(db)).toBe(DEFAULT_GENERATION_IP_LIMIT);
+    expect(generationSessionLimit(db)).toBe(DEFAULT_GENERATION_SESSION_LIMIT);
+
+    writeSettings(db, { generation_ip_limit: "3", generation_session_limit: "2" });
+    expect(generationIpLimit(db)).toBe(3);
+    expect(generationSessionLimit(db)).toBe(2);
+
+    writeSettings(db, { generation_ip_limit: "0", generation_session_limit: "not-a-number" });
+    expect(generationIpLimit(db)).toBe(DEFAULT_GENERATION_IP_LIMIT);
+    expect(generationSessionLimit(db)).toBe(DEFAULT_GENERATION_SESSION_LIMIT);
   });
 });
 

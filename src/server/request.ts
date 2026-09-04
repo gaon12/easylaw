@@ -38,4 +38,13 @@ async function isSecureRequest(): Promise<boolean> {
   return isSecureProtocol(incoming.get("x-forwarded-proto"), incoming.get("origin"));
 }
 
-export { isSecureProtocol, isSecureRequest };
+/** 요청자 제한에 사용할 IP. 프록시가 앞단에 있으면 가장 바깥쪽 주소를 사용한다. */
+async function requestIp(): Promise<string> {
+  const incoming = await headers();
+  const forwarded = incoming.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const direct = incoming.get("x-real-ip")?.trim();
+  const value = forwarded || direct;
+  return value === undefined || value.length === 0 ? "unknown" : value;
+}
+
+export { isSecureProtocol, isSecureRequest, requestIp };

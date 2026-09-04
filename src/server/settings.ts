@@ -36,6 +36,8 @@ const SETTINGS = {
   llm_api_key: { secret: true },
   llm_model: { secret: false },
   generation_daily_limit: { secret: false },
+  generation_ip_limit: { secret: false },
+  generation_session_limit: { secret: false },
   /** 설치 마법사를 마친 시각(ISO 문자열). 이 값이 있으면 마법사는 더 열리지 않는다. */
   setup_completed_at: { secret: false },
 } as const;
@@ -212,6 +214,8 @@ function shouldUseSecureCookies(db: AppDb = appDb()): boolean {
   return stored === "true";
 }
 const DEFAULT_DAILY_GENERATION_LIMIT = 200;
+const DEFAULT_GENERATION_IP_LIMIT = 20;
+const DEFAULT_GENERATION_SESSION_LIMIT = 10;
 
 /** 하루 총 생성 상한. 공개 서비스에서 `설명 만들기` 버튼은 곧 지출이다([F-42]). */
 function generationDailyLimit(db: AppDb = appDb()): number {
@@ -220,11 +224,29 @@ function generationDailyLimit(db: AppDb = appDb()): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_DAILY_GENERATION_LIMIT;
 }
 
+/** 같은 IP가 하루 동안 실제 모델 호출을 시작할 수 있는 횟수. */
+function generationIpLimit(db: AppDb = appDb()): number {
+  const raw = readSetting(db, "generation_ip_limit");
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_GENERATION_IP_LIMIT;
+}
+
+/** 같은 로그인 세션이 하루 동안 실제 모델 호출을 시작할 수 있는 횟수. */
+function generationSessionLimit(db: AppDb = appDb()): number {
+  const raw = readSetting(db, "generation_session_limit");
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_GENERATION_SESSION_LIMIT;
+}
+
 export {
   DEFAULT_DAILY_GENERATION_LIMIT,
+  DEFAULT_GENERATION_IP_LIMIT,
+  DEFAULT_GENERATION_SESSION_LIMIT,
   DEFAULT_LLM_MODEL,
   DEFAULT_TIME_ZONE,
   generationDailyLimit,
+  generationIpLimit,
+  generationSessionLimit,
   isSetupComplete,
   lawApiKey,
   listSettings,

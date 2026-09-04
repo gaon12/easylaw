@@ -112,6 +112,8 @@ async function saveConnections(formData: FormData): Promise<void> {
     llm_api_key: field(formData, "llm_api_key"),
     llm_model: field(formData, "llm_model"),
     generation_daily_limit: field(formData, "generation_daily_limit"),
+    generation_ip_limit: field(formData, "generation_ip_limit"),
+    generation_session_limit: field(formData, "generation_session_limit"),
   };
   writeSettings(db, values, session.userId);
 
@@ -150,6 +152,8 @@ async function saveSettings(formData: FormData): Promise<void> {
     llm_api_key: field(formData, "llm_api_key"),
     llm_model: field(formData, "llm_model"),
     generation_daily_limit: field(formData, "generation_daily_limit"),
+    generation_ip_limit: field(formData, "generation_ip_limit"),
+    generation_session_limit: field(formData, "generation_session_limit"),
   };
 
   /*

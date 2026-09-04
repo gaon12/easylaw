@@ -29,6 +29,13 @@ function UploadForm() {
           </div>
         )}
 
+        {state.error === "confirm_required" ? (
+          <label className={styles.confirm}>
+            <input name="confirmLongDocument" type="checkbox" value="on" />
+            <span>{upload.confirmLong}</span>
+          </label>
+        ) : null}
+
         <label className={styles.field}>
           <span className={styles.label}>{upload.textLabel}</span>
           <textarea

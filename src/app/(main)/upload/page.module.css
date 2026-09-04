@@ -58,6 +58,24 @@
   font-size: var(--el-text-body-xs);
 }
 
+.confirm {
+  display: flex;
+  gap: var(--el-space-2);
+  align-items: flex-start;
+  padding: var(--el-space-3);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-subtle);
+  line-height: var(--el-leading-body);
+}
+
+.confirm input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
 .input,
 .select {
   height: 48px;

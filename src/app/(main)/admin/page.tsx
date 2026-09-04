@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { StructuredList } from "@/components/ui/structured-list";
 import { listUsersForAdmin } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { admin, adminTest, setup } from "@/lib/strings";
+import { generationBudget } from "@/server/generate";
 import { currentSession } from "@/server/owner";
 import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
 import { saveSettings } from "@/server/setup-actions";
@@ -20,6 +22,8 @@ const EDITABLE = [
   "llm_api_key",
   "llm_model",
   "generation_daily_limit",
+  "generation_ip_limit",
+  "generation_session_limit",
 ] as const;
 
 type EditableKey = (typeof EDITABLE)[number];
@@ -58,6 +62,8 @@ function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly 
 const FIELD_HINTS: Partial<Record<EditableKey, string>> = {
   llm_base_url: setup.llmBaseUrlHint,
   llm_model: setup.llmModelHint,
+  generation_ip_limit: setup.ipLimitHint,
+  generation_session_limit: setup.sessionLimitHint,
 };
 
 /** 가릴 것이 없는 칸. 비밀 항목은 `SecretField`가 따로 그린다. */
@@ -104,6 +110,7 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
   const db = appDb();
   const settings = listSettingsForEditing(db);
   const zones = Intl.supportedValuesOf("timeZone");
+  const budget = generationBudget();
 
   return (
     <div className={styles.page}>
@@ -117,6 +124,27 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
           <Alert title={admin.saved} tone="success" />
         </div>
       )}
+
+      <Card className={styles.usage} as="section">
+        <h2 className={styles.sectionTitle}>{admin.usageTitle}</h2>
+        <p className={styles.usageSummary}>
+          {admin.usageSummary(budget.used, budget.limit)} {admin.usageRemaining(budget.remaining)}
+        </p>
+        <meter
+          className={styles.meter}
+          min={0}
+          max={budget.limit}
+          value={budget.used}
+          aria-label={admin.usageTitle}
+        />
+        <StructuredList
+          rows={[
+            { label: "사용한 횟수", value: `${budget.used}번` },
+            { label: "남은 횟수", value: `${budget.remaining}번` },
+            { label: "하루 상한", value: `${budget.limit}번` },
+          ]}
+        />
+      </Card>
 
       <form action={saveSettings}>
         <Card className={styles.form}>
