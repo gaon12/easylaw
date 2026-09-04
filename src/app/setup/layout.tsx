@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { isSetupComplete } from "@/server/settings";
 import { SetupShell } from "./setup-shell";
@@ -19,7 +20,10 @@ import { SetupShell } from "./setup-shell";
  * 담당하므로, 그 안에 있으면 무한히 돌아간다. 셸도 그래서 다르다 — 서비스 헤더의 메뉴는
  * 전부 `(main)` 안을 가리키고, 설치 중에 누르면 이 화면으로 되튕긴다.
  */
-export default function SetupLayout({ children }: { children: ReactNode }) {
+export default async function SetupLayout({ children }: { children: ReactNode }) {
+  // 설치 전 빈 DB를 Next 빌드가 미리 조회하지 않도록 실제 요청까지 기다린다.
+  await connection();
+
   if (isSetupComplete()) {
     notFound();
   }
