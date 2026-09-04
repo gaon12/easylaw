@@ -16,7 +16,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "tsx scripts/seed.ts",
     "law:sync": "tsx scripts/sync-laws.ts",
-    "llm:mock": "tsx scripts/mock-llm.ts"
+    "llm:mock": "tsx scripts/mock-llm.ts",
+    "gen:try": "tsx --conditions=react-server scripts/generate-once.ts"
   },
   "dependencies": {
     "@dicebear/core": "9.4.3",
