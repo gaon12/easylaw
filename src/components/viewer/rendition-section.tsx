@@ -191,7 +191,8 @@ function RenditionPlaceholder({
 function RenditionSection({ sentences, outdatedAt, ...rest }: SectionProps) {
   return (
     <section className={styles.panel}>
-      <h2 className={styles.panelTitle}>{viewer.renditionPanel}</h2>
+      {/* 칸 이름표는 스크린리더에만. 위키 문서에는 칸 제목이 없다. */}
+      <h2 className="sr-only">{viewer.renditionPanel}</h2>
       {sentences.length > 0 ? (
         <>
           {outdatedAt === null ? null : <OutdatedNotice {...rest} outdatedAt={outdatedAt} />}

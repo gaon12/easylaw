@@ -227,7 +227,12 @@ function ViewerPanels({
       )}
 
       <section className={styles.panel}>
-        <h2 className={styles.panelTitle}>{viewer.originalPanel}</h2>
+        {/*
+          칸 이름표는 화면에서 걷어내고 스크린리더에만 남긴다. 위키 문서에는 "본문"이라는
+          제목이 없다 — 문서가 곧 본문이다. 2단 대조에서 왼쪽·오른쪽이 무엇인지는 눈으로
+          바로 보이고, 보이지 않는 사람에게는 이 이름이 필요하다.
+        */}
+        <h2 className="sr-only">{viewer.originalPanel}</h2>
         <OriginalSection
           citations={citations}
           decidedAt={decidedAt}

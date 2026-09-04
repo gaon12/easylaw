@@ -1,6 +1,6 @@
 import type { Citation } from "@/lib/law-citation/detect";
 import { wiki } from "@/lib/strings";
-import { detectHeadings, isHeading } from "@/lib/text/headings";
+import { detectHeadings } from "@/lib/text/headings";
 import { CitedText } from "./cited-text";
 import { LevelBody } from "./level-body";
 import styles from "./viewer.module.css";
@@ -52,32 +52,41 @@ function OriginalPanel({
     <LevelBody level="L0">
       {[...paragraphs.entries()].map(([paraIdx, sentences]) => (
         <div className={styles.paragraph} key={paraIdx}>
-          {sentences.map((span) => (
-            <p
-              className={isHeading(span.text) ? styles.sentenceHeading : styles.sentence}
-              id={anchors.get(span.id)?.id ?? span.id}
-              key={span.id}
-            >
-              <CitedText
-                citations={citations?.get(span.id) ?? []}
-                decidedAt={decidedAt ?? null}
-                text={span.text}
-              />
-              {/*
-                구간 링크. 위키가 문단마다 두는 그 링크다 — 남에게 "이 구간"을 보낼 수
-                있어야 목차가 제 일을 다 한다. 표제에만 둔다(문장마다 두면 소음이다).
-              */}
-              {anchors.has(span.id) ? (
+          {sentences.map((span) => {
+            const heading = anchors.get(span.id);
+            if (heading === undefined) {
+              return (
+                <p className={styles.sentence} id={span.id} key={span.id}>
+                  <CitedText
+                    citations={citations?.get(span.id) ?? []}
+                    decidedAt={decidedAt ?? null}
+                    text={span.text}
+                  />
+                </p>
+              );
+            }
+
+            /*
+             * 구간 제목. 위키처럼 **번호 + 제목**이고, 그 줄 오른쪽 끝에 구간 링크가 붙는다.
+             * 번호는 목차의 번호와 같은 것이라(`s-3` → 3) 목차에서 본 항목을 본문에서
+             * 그대로 찾을 수 있다.
+             */
+            return (
+              <p className={styles.sentenceHeading} id={heading.id} key={span.id}>
+                <span className={styles.headingNumber}>
+                  {wiki.sectionNumber(heading.id.replace("s-", ""))}
+                </span>
+                <span className={styles.headingText}>{span.text}</span>
                 <a
-                  aria-label={wiki.sectionLinkLabel(anchors.get(span.id)?.label ?? "")}
+                  aria-label={wiki.sectionLinkLabel(heading.label)}
                   className={styles.sectionLink}
-                  href={`#${anchors.get(span.id)?.id}`}
+                  href={`#${heading.id}`}
                 >
                   {wiki.sectionLinkMark}
                 </a>
-              ) : null}
-            </p>
-          ))}
+              </p>
+            );
+          })}
         </div>
       ))}
     </LevelBody>
