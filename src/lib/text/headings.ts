@@ -13,6 +13,34 @@
 const HEADING = /^\s*【([^】]{1,30})】/u;
 
 /**
+ * 목차를 만드는 **구조 표제**만 둔다.
+ *
+ * 판결문은 당사자·원심·변론종결도 `【…】`로 적는다. 모양만 보고 전부 제목으로 만들면
+ * 사건 정보가 목차를 차지하고, 같은 줄의 값까지 굵은 제목이 된다. 실제 코퍼스에 있는
+ * 구조 표제와 법원 문서에서 반복되는 표제만 명시적으로 허용한다.
+ */
+const SECTION_HEADINGS = new Set([
+  "주문",
+  "이유",
+  "인정근거",
+  "판시사항",
+  "판결요지",
+  "청구취지",
+  "청구원인",
+  "항소취지",
+  "항소이유",
+  "상고취지",
+  "상고이유",
+  "재항고이유",
+  "반소청구취지",
+  "청구취지및항소취지",
+  "참조조문",
+  "참조판례",
+  "판단",
+  "결론",
+]);
+
+/**
  * 표제 안의 공백을 턴다.
  *
  * 판결문은 `【주 문】`처럼 글자 사이를 벌려 적는다 — 세로쓰기 시절의 관습이다.
@@ -28,6 +56,22 @@ interface HeadingSpan {
   /** 이 표제를 담고 있는 원문 문장의 id. 화면이 그 문장에 앵커를 걸 때 쓴다. */
   readonly spanId: string;
   readonly label: string;
+  /** 닫는 `】` 바로 뒤의 위치. 같은 줄에 붙은 본문을 제목과 나눌 때 쓴다. */
+  readonly contentStart: number;
+}
+
+function parseHeading(text: string): { label: string; contentStart: number } | undefined {
+  const matched = HEADING.exec(text);
+  const rawLabel = matched?.[1];
+  if (matched === null || rawLabel === undefined) {
+    return;
+  }
+
+  const label = tidyHeading(rawLabel);
+  if (!SECTION_HEADINGS.has(label)) {
+    return;
+  }
+  return { label, contentStart: matched[0].length };
 }
 
 /**
@@ -55,13 +99,13 @@ function sectionAnchor(index: number): string {
 function detectHeadings(spans: readonly { id: string; text: string }[]): HeadingSpan[] {
   const headings: HeadingSpan[] = [];
   for (const span of spans) {
-    const matched = HEADING.exec(span.text);
-    const label = matched?.[1];
-    if (label !== undefined) {
+    const heading = parseHeading(span.text);
+    if (heading !== undefined) {
       headings.push({
         id: sectionAnchor(headings.length),
         spanId: span.id,
-        label: tidyHeading(label),
+        label: heading.label,
+        contentStart: heading.contentStart,
       });
     }
   }
@@ -70,7 +114,7 @@ function detectHeadings(spans: readonly { id: string; text: string }[]): Heading
 
 /** 이 문장이 표제인가. 화면이 다르게 그릴지 정하는 데 쓴다. */
 function isHeading(text: string): boolean {
-  return HEADING.test(text);
+  return parseHeading(text) !== undefined;
 }
 
 export { detectHeadings, isHeading, sectionAnchor, tidyHeading };

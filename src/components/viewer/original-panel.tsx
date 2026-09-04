@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Citation } from "@/lib/law-citation/detect";
 import { wiki } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
@@ -9,6 +10,17 @@ interface Span {
   id: string;
   paraIdx: number;
   text: string;
+}
+
+/** 제목 접두사를 떼어 낸 뒤에도 인용 좌표가 본문 글자와 맞도록 옮긴다. */
+function citationsAfter(citations: readonly Citation[], offset: number): Citation[] {
+  return citations
+    .filter((citation) => citation.start >= offset)
+    .map((citation) => ({
+      ...citation,
+      start: citation.start - offset,
+      end: citation.end - offset,
+    }));
 }
 
 /**
@@ -66,25 +78,46 @@ function OriginalPanel({
               );
             }
 
+            const rawRemainder = span.text.slice(heading.contentStart);
+            const bodyStart =
+              heading.contentStart + rawRemainder.length - rawRemainder.trimStart().length;
+            const remainder = span.text.slice(bodyStart);
+            const headingText = span.text.slice(0, heading.contentStart).trim();
+
             /*
-             * 구간 제목. 위키처럼 **번호 + 제목**이고, 그 줄 오른쪽 끝에 구간 링크가 붙는다.
-             * 번호는 목차의 번호와 같은 것이라(`s-3` → 3) 목차에서 본 항목을 본문에서
-             * 그대로 찾을 수 있다.
+             * 구간 제목과 같은 줄에 본문이 붙기도 한다. 닫는 `】`까지만 제목으로 그리고,
+             * 나머지는 평문으로 내려야 첫 문장 전체가 굵은 제목이 되지 않는다.
              */
             return (
-              <p className={styles.sentenceHeading} id={heading.id} key={span.id}>
-                <span className={styles.headingNumber}>
-                  {wiki.sectionNumber(heading.id.replace("s-", ""))}
-                </span>
-                <span className={styles.headingText}>{span.text}</span>
-                <a
-                  aria-label={wiki.sectionLinkLabel(heading.label)}
-                  className={styles.sectionLink}
-                  href={`#${heading.id}`}
-                >
-                  {wiki.sectionLinkMark}
-                </a>
-              </p>
+              <Fragment key={span.id}>
+                <p className={styles.sentenceHeading} id={heading.id}>
+                  <span className={styles.headingNumber}>
+                    {wiki.sectionNumber(heading.id.replace("s-", ""))}
+                  </span>
+                  <span
+                    className={styles.headingText}
+                    id={remainder.length === 0 ? span.id : undefined}
+                  >
+                    {headingText}
+                  </span>
+                  <a
+                    aria-label={wiki.sectionLinkLabel(heading.label)}
+                    className={styles.sectionLink}
+                    href={`#${heading.id}`}
+                  >
+                    {wiki.sectionLinkMark}
+                  </a>
+                </p>
+                {remainder.length === 0 ? null : (
+                  <p className={styles.sentence} id={span.id}>
+                    <CitedText
+                      citations={citationsAfter(citations?.get(span.id) ?? [], bodyStart)}
+                      decidedAt={decidedAt ?? null}
+                      text={remainder}
+                    />
+                  </p>
+                )}
+              </Fragment>
             );
           })}
         </div>
