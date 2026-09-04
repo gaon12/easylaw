@@ -84,7 +84,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-04-v2");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v3");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {
@@ -104,6 +104,26 @@ describe("프롬프트", () => {
     expect(renderInstruction("L4")).toContain("당신");
     expect(renderInstruction("L4")).toContain("비유");
     expect(renderInstruction("L1")).not.toContain("비유를 쓰지 않습니다");
+  });
+
+  it("L2·L3·L4는 서로 다른 독자와 설명 방식을 지시한다", () => {
+    const l2 = renderInstruction("L2");
+    const l3 = renderInstruction("L3");
+    const l4 = renderInstruction("L4");
+
+    expect(l2).toContain("정중한 **-합니다**체");
+    expect(l2).toContain("당사자에게 미치는 효과");
+
+    expect(l3).toContain("초등 고학년~중학생이 아는 일상 낱말");
+    expect(l3).toContain("시간 순서와 인물의 흐름");
+    expect(l3).toContain("그 용어의 문맥상 뜻만");
+    expect(l3).not.toContain("한 문장에 한 가지 정보만");
+
+    expect(l4).toContain("한 문장에 한 가지 정보만");
+    expect(l4).toContain("바로 다음 별도 문장");
+    expect(l4).toContain("그 용어의 문맥상 뜻만");
+    expect(l4).toContain("마지막에는 이해 확인 질문");
+    expect(l4).not.toContain("시간 순서와 인물의 흐름");
   });
 
   it("모든 레벨에 단정 금지를 말한다 — 전문가가 지적한 결함이다", () => {
