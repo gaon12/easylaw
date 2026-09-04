@@ -185,19 +185,19 @@ export default async function HomePage() {
 
   return (
     <>
-      <Section label={home.searchLabel} leading={true} tone="hero">
+      <Section wide={true} label={home.searchLabel} leading={true} tone="hero">
         <HeroSearch examples={examples} />
       </Section>
 
-      <Section label={home.quickLinksLabel} size="tight">
+      <Section wide={true} label={home.quickLinksLabel} size="tight">
         <QuickLinks />
       </Section>
 
-      <Section label={home.statsLabel} size="tight" tone="subtle">
+      <Section wide={true} label={home.statsLabel} size="tight" tone="subtle">
         <Stats judgments={stats.judgments} lawVersions={stats.lawVersions} />
       </Section>
 
-      <Section label={home.demoTitle}>
+      <Section wide={true} label={home.demoTitle}>
         <div className={styles.centered}>
           <h2 className={styles.sectionTitle}>{home.demoTitle}</h2>
           <p className={styles.sectionBody}>{home.demoBody}</p>
@@ -205,7 +205,7 @@ export default async function HomePage() {
         <LevelDemo />
       </Section>
 
-      <Section label={home.audienceTitle} tone="muted">
+      <Section wide={true} label={home.audienceTitle} tone="muted">
         <div className={styles.centered}>
           <h2 className={styles.sectionTitle}>{home.audienceTitle}</h2>
         </div>
@@ -221,7 +221,7 @@ export default async function HomePage() {
         </ul>
       </Section>
 
-      <Section label={home.uploadTitle}>
+      <Section wide={true} label={home.uploadTitle}>
         <div className={styles.uploadRow}>
           <div className={styles.upload}>
             <h2 className={styles.sectionTitle}>{home.uploadTitle}</h2>
@@ -244,7 +244,7 @@ export default async function HomePage() {
         </div>
       </Section>
 
-      <Section label={home.faqTitle} tone="subtle">
+      <Section wide={true} label={home.faqTitle} tone="subtle">
         <div className={styles.centered}>
           <h2 className={styles.sectionTitle}>{home.faqTitle}</h2>
         </div>
@@ -256,7 +256,7 @@ export default async function HomePage() {
         </p>
       </Section>
 
-      <Section label={home.originTitle} size="tight">
+      <Section wide={true} label={home.originTitle} size="tight">
         <div className={styles.origin}>
           <h2 className={styles.sectionTitle}>{home.originTitle}</h2>
           <p className={styles.originLead}>{home.originLead}</p>

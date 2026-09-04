@@ -42,13 +42,22 @@
   padding-top: var(--el-space-12);
 }
 
+/* 격자가 주인공인 띠(첫 화면·목록). 글줄이 아니라 칸이 넓어진다. */
 .wide .inner {
-  max-width: var(--el-container-viewer);
+  max-width: var(--el-container-wide);
 }
 
 .tight .inner {
   padding-top: var(--el-space-10);
   padding-bottom: var(--el-space-10);
+}
+
+/* Wide(≥1376). `DESIGN.md` §8 — 외곽 패딩 64. 넓은 화면에서 띠가 화면에 닿지 않게 한다. */
+@media (min-width: 1376px) {
+  .inner {
+    padding-left: var(--el-space-16);
+    padding-right: var(--el-space-16);
+  }
 }
 
 @media (max-width: 640px) {
