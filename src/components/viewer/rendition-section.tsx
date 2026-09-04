@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { ReadAloud } from "@/components/a11y/read-aloud";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
@@ -196,11 +195,6 @@ function RenditionSection({ sentences, outdatedAt, ...rest }: SectionProps) {
       {sentences.length > 0 ? (
         <>
           {outdatedAt === null ? null : <OutdatedNotice {...rest} outdatedAt={outdatedAt} />}
-          {/*
-            읽어 주기는 **설명이 있을 때만** 낸다. 읽을 것이 없는데 버튼이 있으면
-            눌러 보고 아무 소리도 안 나는 경험이 된다.
-          */}
-          <ReadAloud sentences={sentences} />
           <RenditionPanel
             level={rest.level}
             needsCheckCount={
