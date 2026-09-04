@@ -5,13 +5,13 @@ import {
   claimGenerationJob,
   countGenerationsOn,
   finishGenerationJob,
-  heartbeatGenerationJob,
   type Level,
   listSpans,
   listStructureNodes,
   reserveGenerationSlot,
   saveRendition,
   saveStructure,
+  setGenerationStage,
 } from "@/db/corpus/repository";
 import { dayKey } from "@/lib/format";
 import { llm } from "@/lib/llm/client";
@@ -66,6 +66,14 @@ function generationBudget(): { limit: number; used: number; remaining: number } 
   const used = countGenerationsOn(corpusDb(), today());
   return { limit, used, remaining: Math.max(0, limit - used) };
 }
+
+/** `beginGeneration`의 결과. `claimed`일 때만 뒤이어 `runGeneration`을 부른다. */
+type BeginResult =
+  | { readonly kind: "claimed"; readonly jobId: string }
+  | { readonly kind: "running" }
+  | { readonly kind: "cached" }
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "limited" };
 
 type GenerateResult =
   | { readonly kind: "done"; readonly renditionId: string; readonly needsCheck: number }
@@ -140,7 +148,8 @@ function claimsFor(
 /**
  * 근거 있는 결과가 나올 때까지 다시 만든다. §5.5 [7] — 최대 2회.
  *
- * 시도할 때마다 heartbeat를 찍는다. 한 시도가 수십 초라 그 사이에 좀비로 회수될 수 있다.
+ * 시도할 때마다 단계를 다시 적는다. 그것이 곧 heartbeat다 — 한 시도가 수십 초라
+ * 아무 말도 없으면 그 사이에 좀비로 회수된다.
  */
 async function tryUntilGrounded(input: {
   client: NonNullable<ReturnType<typeof llm>>;
@@ -159,14 +168,13 @@ async function tryUntilGrounded(input: {
   let lastReason = "근거 있는 설명을 만들지 못했습니다.";
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    heartbeatGenerationJob(db, input.jobId);
-
     // biome-ignore lint/performance/noAwaitInLoops: 재시도는 앞 시도의 결과를 봐야 한다.
     const tried = await attemptOnce({
       client: input.client,
       level: input.level,
       nodes,
       spanText,
+      jobId: input.jobId,
       signal: input.signal,
     });
     if (tried.ok) {
@@ -193,12 +201,17 @@ async function attemptOnce(input: {
   level: Level;
   nodes: readonly { id: string; kind: string; payload: unknown; spanIds: readonly string[] }[];
   spanText: ReadonlyMap<string, string>;
+  jobId: string;
   signal?: AbortSignal | undefined;
 }) {
-  const { client, level, nodes, spanText, signal } = input;
+  const { client, level, nodes, spanText, jobId, signal } = input;
+  const db = corpusDb();
+
+  setGenerationStage(db, jobId, "render");
   const rendered = await renderLevel(client, level, nodes, signal);
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
+  setGenerationStage(db, jobId, "verify");
   const checks = await checkEntailment(
     client,
     claimsFor(rendered.lines, nodeSpans, spanText),
@@ -243,14 +256,9 @@ async function attemptOnce(input: {
  * 근거 없는 문장을 배지만 붙여 내보내지 않는다(P2). 반면 `needs_check`는 내보낸다.
  * "확인이 필요하다"와 "근거가 없다"는 다른 말이다.
  */
-async function generateRendition(
-  judgmentId: string,
-  level: Level,
-  signal?: AbortSignal,
-): Promise<GenerateResult> {
+function beginGeneration(judgmentId: string, level: Level): BeginResult {
   const db = corpusDb();
-  const client = llm();
-  if (client === undefined) {
+  if (llm() === undefined) {
     return { kind: "unavailable" };
   }
 
@@ -278,19 +286,44 @@ async function generateRendition(
     return { kind: "limited" };
   }
 
+  return { kind: "claimed", jobId: claim.jobId };
+}
+
+/**
+ * 선점해 둔 작업을 실제로 돌린다. **`beginGeneration`이 낸 `jobId`로만 부른다.**
+ *
+ * 이 함수는 응답을 기다리게 하지 않는 자리(`after()`)에서 불린다. 그래서 선점과 분리한다 —
+ * 선점은 요청 안에서 끝나야 화면이 곧바로 "만들고 있어요"를 그릴 수 있고, 오래 걸리는
+ * 일은 응답을 보낸 뒤에 이어져야 한다.
+ */
+async function runGeneration(
+  judgmentId: string,
+  level: Level,
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<GenerateResult> {
+  const db = corpusDb();
+  const client = llm();
+  if (client === undefined) {
+    finishGenerationJob(db, jobId, { ok: false, error: "AI 연결이 설정되지 않았습니다." });
+    return { kind: "unavailable" };
+  }
+
   try {
+    setGenerationStage(db, jobId, "structure");
     const structure = await ensureStructure(judgmentId, signal);
     if (!structure.ok) {
-      finishGenerationJob(db, claim.jobId, { ok: false, error: structure.reason });
+      finishGenerationJob(db, jobId, { ok: false, error: structure.reason });
       return { kind: "failed", reason: structure.reason };
     }
 
-    const tried = await tryUntilGrounded({ client, level, judgmentId, jobId: claim.jobId, signal });
+    const tried = await tryUntilGrounded({ client, level, judgmentId, jobId, signal });
     if (!tried.ok) {
-      finishGenerationJob(db, claim.jobId, { ok: false, error: tried.reason });
+      finishGenerationJob(db, jobId, { ok: false, error: tried.reason });
       return { kind: "failed", reason: tried.reason };
     }
 
+    setGenerationStage(db, jobId, "save");
     const renditionId = saveRendition(db, {
       judgmentId,
       level,
@@ -298,7 +331,7 @@ async function generateRendition(
       promptVersion: PIPELINE_VERSION,
       sentences: tried.sentences,
     });
-    finishGenerationJob(db, claim.jobId, { ok: true });
+    finishGenerationJob(db, jobId, { ok: true });
 
     return {
       kind: "done",
@@ -312,10 +345,28 @@ async function generateRendition(
      * 작업을 실패로 닫아야 한다. 선점만 하고 끝나면 그 좀비 작업이 캐시를 영구히 막는다
      * (§5.3이 이 구조의 최악으로 꼽은 상황이다). 회수 주기가 있지만 90초를 기다릴 이유가 없다.
      */
-    finishGenerationJob(db, claim.jobId, { ok: false, error: reason });
+    finishGenerationJob(db, jobId, { ok: false, error: reason });
     return { kind: "failed", reason };
   }
 }
 
-export { generateRendition, generationBudget, PIPELINE_VERSION };
-export type { GenerateResult };
+/**
+ * 선점부터 저장까지 한 번에. 스크립트와 테스트가 쓰는 입구다.
+ *
+ * 화면은 이 함수를 쓰지 않는다 — 수십 초를 응답 안에서 기다리게 되기 때문이다.
+ * 화면 쪽은 `beginGeneration`으로 자리를 잡고 `runGeneration`을 응답 뒤로 미룬다.
+ */
+async function generateRendition(
+  judgmentId: string,
+  level: Level,
+  signal?: AbortSignal,
+): Promise<GenerateResult> {
+  const begun = beginGeneration(judgmentId, level);
+  if (begun.kind !== "claimed") {
+    return begun;
+  }
+  return await runGeneration(judgmentId, level, begun.jobId, signal);
+}
+
+export { beginGeneration, generateRendition, generationBudget, PIPELINE_VERSION, runGeneration };
+export type { BeginResult, GenerateResult };
