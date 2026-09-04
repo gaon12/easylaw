@@ -239,45 +239,6 @@ function ViewerPanels({
   );
 }
 
-/** 문서 머리. 사건 정보와 단계 스위처가 두 단 위에 걸친다. */
-function ViewerHeader({
-  summary,
-  outcome,
-  sourceUrl,
-  timeZone,
-  basePath,
-  level,
-}: {
-  summary: {
-    caseName: string | null;
-    caseNoDisplay: string;
-    caseType: string | null;
-    court: string | null;
-    decidedAt: Date | null;
-  };
-  outcome: Parameters<typeof SummaryCard>[0]["outcome"];
-  sourceUrl: string | null;
-  timeZone: string;
-  basePath: string;
-  level: ViewLevel;
-}) {
-  return (
-    <>
-      <SummaryCard
-        caseName={summary.caseName}
-        caseNoDisplay={summary.caseNoDisplay}
-        caseType={summary.caseType}
-        court={summary.court}
-        decidedAt={summary.decidedAt}
-        outcome={outcome}
-        sourceUrl={sourceUrl}
-        timeZone={timeZone}
-      />
-      <ViewerNav basePath={basePath} level={level} />
-    </>
-  );
-}
-
 /**
  * 공개 판례 뷰어. `PAGES.md` §5
  *
@@ -316,16 +277,16 @@ export default async function CasePage(props: {
    */
   return (
     <WikiDocument
-      header={
-        <ViewerHeader
-          basePath={basePath}
-          level={level}
+      info={
+        <SummaryCard
+          {...summary}
           outcome={row?.outcome ?? "unknown"}
           sourceUrl={row?.sourceUrl ?? null}
-          summary={summary}
           timeZone={timeZone}
         />
       }
+      meta={<ViewerNav basePath={basePath} level={level} />}
+      title={<h1 className={styles.docTitle}>{summary.caseName ?? summary.caseNoDisplay}</h1>}
       toc={headings.map((heading) => ({
         id: heading.id,
         label: heading.label,

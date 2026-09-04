@@ -163,23 +163,21 @@ export default async function LawPage(props: {
 
   return (
     <WikiDocument
-      header={
-        <header className={styles.header}>
-          <h1 className={styles.title}>{law.lawName}</h1>
-          <WikiInfobox
-            footer={asOfNote(query.때, dated)}
-            rows={[
-              {
-                label: strings.effectiveAt,
-                value: law.effectiveAt === null ? "-" : formatDate(law.effectiveAt, zone),
-              },
-              { label: strings.articleCount, value: strings.articles(law.articles.length) },
-              { label: strings.source, value: strings.sourceName },
-            ]}
-            title={law.lawName}
-          />
-        </header>
+      info={
+        <WikiInfobox
+          footer={asOfNote(query.때, dated)}
+          rows={[
+            {
+              label: strings.effectiveAt,
+              value: law.effectiveAt === null ? "-" : formatDate(law.effectiveAt, zone),
+            },
+            { label: strings.articleCount, value: strings.articles(law.articles.length) },
+            { label: strings.source, value: strings.sourceName },
+          ]}
+          title={law.lawName}
+        />
       }
+      title={<h1 className={styles.title}>{law.lawName}</h1>}
       toc={buildToc(law.articles, law.sections)}
     >
       <div className={styles.articles}>

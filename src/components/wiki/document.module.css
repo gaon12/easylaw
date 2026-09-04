@@ -1,60 +1,71 @@
 /*
- * 위키식 문서 뼈대. `DESIGN.md` §11.5
+ * 위키식 문서. `DESIGN.md` §11.5
  *
- * 넓은 화면: [본문][목차]. 좁은 화면: [목차][본문].
+ * **문서 본문은 KRDS의 카드 문법을 따르지 않는다.** 위키 문서는 카드의 모음이 아니라
+ * 한 장의 종이다 — 회색 바닥 위에 흰 시트가 한 장 놓이고, 그 안에서 구간이 밑줄로 나뉜다.
+ * 카드마다 여백과 그림자를 두면 문서가 조각으로 흩어지고, 조문 519개짜리 문서에서는
+ * 그 조각이 519개가 된다. 이 결정은 `DESIGN.md` §11.5에 적어 두었다.
  */
 
 .page {
-  max-width: var(--el-container-wide);
-  margin: 0 auto;
-  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
-  display: grid;
-  gap: var(--el-space-5);
-  align-content: start;
+  background: var(--el-bg-subtle);
+  padding: var(--el-space-5) var(--el-space-4) var(--el-space-12);
 }
 
-.layout {
+/* 문서 한 장. 흰 종이 + 1px 테두리. 나무위키·위키백과가 쓰는 그 모양이다. */
+.sheet {
+  max-width: var(--el-container-wide);
+  margin: 0 auto;
+  padding: var(--el-space-6) var(--el-space-7) var(--el-space-8);
+  background: var(--el-bg-canvas);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+}
+
+/* 문서 머리. 제목과 그 아래 한 줄, 그리고 밑줄. */
+.header {
+  padding-bottom: var(--el-space-3);
+  border-bottom: 1px solid var(--el-border-default);
+  margin-bottom: var(--el-space-4);
+}
+
+/*
+ * 목차와 정보 틀이 나란히 선다. 나무위키가 문서 맨 앞에 두는 그 배치다 —
+ * 왼쪽에 목차, 오른쪽에 틀, 그 아래부터 본문.
+ */
+.lead {
   display: grid;
-  gap: var(--el-space-6);
+  gap: var(--el-space-4);
+  margin-bottom: var(--el-space-5);
   align-items: start;
 }
 
-.aside {
-  min-width: 0;
+@media (min-width: 900px) {
+  .lead {
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  }
+
+  /* 정보 틀은 오른쪽 끝에 붙는다. 본문이 시작되기 전에 값이 다 보여야 한다. */
+  .info {
+    justify-self: end;
+    width: min(100%, 420px);
+  }
 }
 
 .body {
   min-width: 0;
 }
 
-@media (min-width: 1024px) {
-  /*
-   * 두 단. 마크업 순서는 [목차][본문]이지만 화면에서는 본문이 왼쪽이다 —
-   * 읽는 것은 본문이고 목차는 곁다리라, 본문이 화면 가운데에서 밀려나면 안 된다.
-   */
-  .layout {
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
-    gap: var(--el-space-10);
-  }
-
-  .aside {
-    grid-column: 2;
-    grid-row: 1;
-    /* 조문 519개를 훑는 동안 목차가 따라온다. 헤더 높이만큼 띄운다. */
-    position: sticky;
-    top: var(--el-space-6);
-    max-height: calc(100vh - var(--el-space-12));
-    overflow-y: auto;
-  }
-
-  .body {
-    grid-column: 1;
-    grid-row: 1;
-  }
-}
-
 @media (max-width: 640px) {
   .page {
-    padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
+    padding: 0 0 var(--el-space-10);
+  }
+
+  /* 좁은 화면에서는 시트가 화면을 꽉 채운다 — 종이 가장자리를 보여 줄 자리가 없다. */
+  .sheet {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    padding: var(--el-space-5) var(--el-space-4) var(--el-space-8);
   }
 }

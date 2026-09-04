@@ -79,3 +79,10 @@
   color: var(--el-action);
   font-weight: 700;
 }
+
+/* 문서 제목. 위키의 문서 이름 자리다 — 크고 조용하게. */
+.docTitle {
+  font-size: var(--el-text-heading-l);
+  line-height: 1.3;
+  margin-bottom: var(--el-space-2);
+}

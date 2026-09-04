@@ -88,7 +88,7 @@
 
 .sentence {
   margin: 0;
-  line-height: var(--el-leading-body);
+  line-height: 1.7;
 }
 
 /* 근거 보기 링크가 이동한 원문 문장. 동시에 하나만 활성화되는 native :target 상태다. */
@@ -130,15 +130,15 @@
  */
 .sentenceHeading {
   font-weight: 700;
-  /* 구간 제목 띠. 법령 화면의 장 제목과 같은 모양이라 두 문서가 같은 문법으로 읽힌다. */
-  padding: var(--el-space-2) 0 var(--el-space-2) var(--el-space-3);
-  border-bottom: 2px solid var(--el-action);
-  border-left: 4px solid var(--el-action);
-  background: var(--el-bg-subtle);
-  scroll-margin-top: var(--el-space-8);
-  margin-top: var(--el-space-6);
-  /* 앵커로 뛰어왔을 때 표제가 화면 맨 위에 딱 붙지 않게 한다. */
-  scroll-margin-top: var(--el-space-8);
+  font-size: var(--el-text-heading-xs);
+  /*
+   * 위키의 문단 제목이다 — 색 면이 아니라 **밑줄**로 구간을 나눈다.
+   * 판결문 한 건에 표제가 예닐곱 개인데 그때마다 색 띠가 깔리면 면이 본문보다 먼저 보인다.
+   */
+  margin: var(--el-space-6) 0 var(--el-space-2);
+  padding-bottom: var(--el-space-1);
+  border-bottom: 2px solid var(--el-fg-1);
+  scroll-margin-top: var(--el-space-6);
 }
 
 .sentenceHeading:first-child {

@@ -1,49 +1,45 @@
 /*
- * 목차. `DESIGN.md` §11.5
+ * 목차. `DESIGN.md` §11.5 — 나무위키의 목차 박스
  *
- * 넓은 화면에서는 옆에 붙어 따라오고, 좁은 화면에서는 접힌다.
+ * 작고 촘촘한 상자다. 문서 맨 앞에서 자리를 조금만 차지하고, 항목은 번호로 읽힌다.
+ * 카드가 아니라 **틀**이라 그림자도 둥근 모서리도 크지 않다.
  */
 
 .toc {
   font-size: var(--el-text-body-s);
+  align-self: start;
 }
 
 .box {
-  border: 1px solid var(--el-border-subtle);
-  border-radius: var(--el-radius-m);
-  background: var(--el-bg-subtle);
-  padding: var(--el-space-4);
-}
-
-.summary {
-  font-weight: 700;
-  font-size: var(--el-text-body-m);
-  cursor: pointer;
-  /* 손가락으로 눌러야 한다. 기본 마커 높이는 작다. */
-  min-height: var(--el-touch-target);
-  display: flex;
-  align-items: center;
-}
-
-/*
- * 번호를 CSS 카운터로 붙인다(1. 2. / 1.1 1.2). 위키 목차의 표지이고, 남에게 "두 번째
- * 구간"이라고 말할 수 있게 한다. 마크업의 `ol`을 그대로 두고 모양만 정하므로,
- * 스크린리더에는 여전히 순서 있는 목록으로 읽힌다.
- */
-.list {
-  margin: var(--el-space-3) 0 0;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-xs);
+  background: var(--el-bg-canvas);
   padding: 0;
+}
+
+/* "목차" 머리. 접고 펴는 삼각형은 브라우저가 그린다. */
+.summary {
+  padding: var(--el-space-2) var(--el-space-3);
+  border-bottom: 1px solid var(--el-border-subtle);
+  background: var(--el-bg-subtle);
+  font-weight: 700;
+  font-size: var(--el-text-body-s);
+  cursor: pointer;
+}
+
+.list {
+  margin: 0;
+  padding: var(--el-space-2) var(--el-space-3);
   list-style: none;
-  counter-reset: toc-top;
   display: grid;
-  gap: var(--el-space-1);
+  gap: 2px;
+  counter-reset: toc-top;
   /* 목차가 길면 그 안에서만 스크롤한다. 화면을 다 밀어내지 않는다. */
   max-height: 60vh;
   overflow-y: auto;
 }
 
 .top {
-  margin-top: var(--el-space-2);
   counter-increment: toc-top;
   counter-reset: toc-sub;
 }
@@ -52,10 +48,6 @@
   content: counter(toc-top) ". ";
   color: var(--el-fg-3);
   font-variant-numeric: tabular-nums;
-}
-
-.top:first-child {
-  margin-top: 0;
 }
 
 .sub {
@@ -69,38 +61,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
+/*
+ * 항목. 위키의 목차 링크는 파란 글자이고 촘촘하다 — 여백을 크게 두면 스무 항목짜리
+ * 목차가 본문보다 길어진다.
+ */
 .link {
-  color: var(--el-action);
   display: block;
-  padding: var(--el-space-1) var(--el-space-2);
-  border-radius: var(--el-radius-xs);
-  line-height: var(--el-leading-tight);
-}
-
-.top > .link {
-  color: var(--el-fg-1);
-  font-weight: 700;
+  padding: 1px 0;
+  color: var(--el-action);
+  line-height: 1.5;
+  text-decoration: none;
 }
 
 .link:hover {
-  background: var(--el-bg-canvas);
+  text-decoration: underline;
 }
 
-@media (min-width: 1024px) {
-  /* 넓은 화면에서는 본문을 따라온다. 519개 조문을 훑는 동안 목차가 사라지면 안 된다. */
-  .toc {
-    position: sticky;
-    top: var(--el-space-6);
-  }
-}
-
-@media (max-width: 1023px) {
-  /*
-   * 좁은 화면에서는 접어 둔다. 목차가 화면을 다 채우면 본문을 보려고 스크롤부터 해야 한다.
-   * `open` 속성은 마크업에 있으므로 CSS로 여닫지 못한다 — 대신 높이를 제한한다.
-   */
-  .list {
-    max-height: 40vh;
-  }
+.top > .link {
+  color: var(--el-action);
+  font-weight: 400;
 }
