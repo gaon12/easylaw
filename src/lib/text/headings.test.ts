@@ -32,8 +32,26 @@ describe("detectHeadings", () => {
     expect(isHeading(spans[5]?.text ?? "")).toBe(false);
   });
 
-  it("문장 id를 그대로 들고 간다 — 앵커가 그 문장에 걸린다", () => {
-    expect(detectHeadings(spans).map((h) => h.id)).toEqual(["a", "b", "d", "e"]);
+  it("어느 문장에 걸린 표제인지 들고 간다", () => {
+    expect(detectHeadings(spans).map((h) => h.spanId)).toEqual(["a", "b", "d", "e"]);
+  });
+
+  /*
+   * 앵커는 **순서로** 짓는다. 문장 id(UUID)를 주소에 쓰면 사람이 읽을 수 없고,
+   * 판결문을 다시 받아 오면 바뀌어 저장해 둔 링크가 조용히 깨진다.
+   */
+  it("앵커는 셀 수 있는 이름이다 — 남에게 '이 구간'을 보낼 수 있어야 한다", () => {
+    expect(detectHeadings(spans).map((h) => h.id)).toEqual(["s-1", "s-2", "s-3", "s-4"]);
+  });
+
+  it("같은 표제가 두 번 나와도 앵커는 겹치지 않는다", () => {
+    const twice = [
+      { id: "x", text: "【이    유】" },
+      { id: "y", text: "본안에 관한 판단이다." },
+      { id: "z", text: "【이    유】" },
+    ];
+
+    expect(detectHeadings(twice).map((h) => h.id)).toEqual(["s-1", "s-2"]);
   });
 });
 

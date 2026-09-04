@@ -23,8 +23,27 @@ function tidyHeading(raw: string): string {
 }
 
 interface HeadingSpan {
+  /** 앵커 id. `s-1`처럼 **순서로** 짓는다 — 아래 `sectionAnchor` 참고. */
   readonly id: string;
+  /** 이 표제를 담고 있는 원문 문장의 id. 화면이 그 문장에 앵커를 걸 때 쓴다. */
+  readonly spanId: string;
   readonly label: string;
+}
+
+/**
+ * 구간 앵커. `s-1`, `s-2` …
+ *
+ * **span id(UUID)를 주소에 쓰지 않는다.** 두 가지가 나빠서다.
+ *
+ * 1. 주소가 사람이 읽을 수 없는 것이 된다 — 나무위키의 `#s-2.1`처럼 **셀 수 있는** 이름이
+ *    남에게 "이 구간"을 보내는 데 쓰인다.
+ * 2. UUID는 판결문을 다시 받아 오면 바뀐다. 그때 누가 저장해 둔 링크가 조용히 깨진다.
+ *
+ * 표제의 글자로 짓지 않는 이유는 같은 표제가 두 번 나오는 판결문이 있기 때문이다
+ * (`【이 유】`가 본안과 반소에 각각 나오는 경우). 순서는 언제나 유일하다.
+ */
+function sectionAnchor(index: number): string {
+  return `s-${index + 1}`;
 }
 
 /**
@@ -39,7 +58,11 @@ function detectHeadings(spans: readonly { id: string; text: string }[]): Heading
     const matched = HEADING.exec(span.text);
     const label = matched?.[1];
     if (label !== undefined) {
-      headings.push({ id: span.id, label: tidyHeading(label) });
+      headings.push({
+        id: sectionAnchor(headings.length),
+        spanId: span.id,
+        label: tidyHeading(label),
+      });
     }
   }
   return headings;
@@ -50,5 +73,5 @@ function isHeading(text: string): boolean {
   return HEADING.test(text);
 }
 
-export { detectHeadings, isHeading, tidyHeading };
+export { detectHeadings, isHeading, sectionAnchor, tidyHeading };
 export type { HeadingSpan };

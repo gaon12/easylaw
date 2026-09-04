@@ -1,5 +1,6 @@
 import type { Citation } from "@/lib/law-citation/detect";
-import { isHeading } from "@/lib/text/headings";
+import { wiki } from "@/lib/strings";
+import { detectHeadings, isHeading } from "@/lib/text/headings";
 import { CitedText } from "./cited-text";
 import { LevelBody } from "./level-body";
 import styles from "./viewer.module.css";
@@ -33,6 +34,12 @@ function OriginalPanel({
   citations?: ReadonlyMap<string, readonly Citation[]>;
   decidedAt?: Date | null;
 }) {
+  /*
+   * 표제에는 **주소로 쓸 수 있는 앵커**를 건다(`headings.ts`의 `sectionAnchor`).
+   * 문장 id(UUID)를 주소에 쓰면 사람이 읽을 수 없고, 판결문을 다시 받아 오면 바뀐다.
+   */
+  const anchors = new Map(detectHeadings(spans).map((heading) => [heading.spanId, heading]));
+
   const paragraphs = new Map<number, Span[]>();
   for (const span of spans) {
     const bucket = paragraphs.get(span.paraIdx) ?? [];
@@ -48,7 +55,7 @@ function OriginalPanel({
           {sentences.map((span) => (
             <p
               className={isHeading(span.text) ? styles.sentenceHeading : styles.sentence}
-              id={span.id}
+              id={anchors.get(span.id)?.id ?? span.id}
               key={span.id}
             >
               <CitedText
@@ -56,6 +63,19 @@ function OriginalPanel({
                 decidedAt={decidedAt ?? null}
                 text={span.text}
               />
+              {/*
+                구간 링크. 위키가 문단마다 두는 그 링크다 — 남에게 "이 구간"을 보낼 수
+                있어야 목차가 제 일을 다 한다. 표제에만 둔다(문장마다 두면 소음이다).
+              */}
+              {anchors.has(span.id) ? (
+                <a
+                  aria-label={wiki.sectionLinkLabel(anchors.get(span.id)?.label ?? "")}
+                  className={styles.sectionLink}
+                  href={`#${anchors.get(span.id)?.id}`}
+                >
+                  {wiki.sectionLinkMark}
+                </a>
+              ) : null}
             </p>
           ))}
         </div>

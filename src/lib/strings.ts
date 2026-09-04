@@ -1007,6 +1007,9 @@ export const workspace = {
  * 사용자는 그것이 다른 기능인 줄 안다.
  */
 export const wiki = {
+  /** 구간 링크. 위키의 문단 링크와 같은 뜻이고, 글자는 하나면 된다. */
+  sectionLinkMark: "§",
+  sectionLinkLabel: (section: string) => `${section} 구간 링크`,
   tocLabel: "목차",
   /** 문단 링크 기호. 위키에서 제목 옆의 `¶`가 하는 일이다. */
   anchorMark: "#",
