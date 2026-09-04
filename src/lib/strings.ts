@@ -52,9 +52,10 @@ export const home = {
   heroTitle: "판결문, 읽을 수 있게 바꿔 드려요",
   heroBody:
     "사건번호를 넣으면 판결문을 찾아서 쉬운 말로 설명해 드려요. 판결문을 갖고 계시면 올려도 돼요.",
-  searchLabel: "사건번호로 찾기",
-  searchPlaceholder: "2019도12345",
-  searchHint: "사건번호를 모르시면 사건 내용을 적어도 돼요.",
+  searchLabel: "판결문·법령 찾기",
+  /** 무엇으로 찾을 수 있는지를 예시로 말한다. 사건번호만 되는 줄 알면 그것만 넣는다. */
+  searchPlaceholder: "사건번호·법령 이름·사건 내용 아무거나",
+  searchHint: "예: 2019도12345 · 도로교통법 · 부당해고 구제",
   searchSubmit: "찾기",
 
   /**
@@ -1029,6 +1030,14 @@ export const search = {
    * 그래서 "지금은 찾아볼 수 없어요"를 판례에만 말하고 법령은 그대로 보여 준다.
    */
   lawsTitle: (count: number) => `법령 ${count}건`,
+  /**
+   * 우리가 이미 받아 둔 판결문 안에서 찾은 것.
+   *
+   * **어디서 나온 결과인지 구분해서 말한다.** 법제처에서 온 것과 우리가 갖고 있는 것은
+   * 다음에 할 수 있는 일이 다르다 — 갖고 있는 것은 곧바로 열리고 설명도 이미 있을 수 있다.
+   */
+  corpusTitle: (count: number) => `받아 둔 판결문 ${count}건`,
+  corpusHint: "이미 가져와 둔 판결문이라 바로 열립니다.",
   precedentsTitle: (count: number) => `판례 ${count}건`,
   effectiveAt: (date: string) => `${date} 시행`,
   lawsOnlyBody:

@@ -4,6 +4,7 @@ import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Infobox } from "@/components/ui/infobox";
+import type { JudgmentHit } from "@/db/corpus/search";
 import { CASE_CODES } from "@/lib/case-number/codes";
 import { formatDate } from "@/lib/format";
 import type { PrecedentSummary } from "@/lib/law-api/parse";
@@ -76,6 +77,43 @@ function LawResults({ laws, timeZone }: { laws: readonly LawHit[]; timeZone: str
                 .filter(Boolean)
                 .join(search.codeSeparator)}
             </p>
+          </Card>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * 우리가 이미 받아 둔 판결문. **법제처 키가 없어도 나온다.**
+ *
+ * 찾은 자리(`snippet`)를 함께 보여 준다 — 왜 이 결과가 나왔는지 보이지 않으면 목록이
+ * 사건번호의 나열이 된다.
+ */
+function CorpusResults({ hits, timeZone }: { hits: readonly JudgmentHit[]; timeZone: string }) {
+  return (
+    <section className={styles.group}>
+      <h2 className={styles.groupTitle}>{search.corpusTitle(hits.length)}</h2>
+      <p className={styles.groupHint}>{search.corpusHint}</p>
+      <ul className={styles.hits}>
+        {hits.map((hit) => (
+          <Card as="li" key={hit.judgmentId} padding="tight">
+            <Link
+              className={styles.hitLink}
+              href={`/case/${encodeURIComponent(hit.caseNoCanonical)}`}
+            >
+              {hit.caseName ?? hit.caseNoDisplay}
+            </Link>
+            <p className={styles.hitMeta}>
+              {[
+                hit.caseNoDisplay,
+                hit.court,
+                hit.decidedAt === null ? undefined : formatDate(hit.decidedAt, timeZone),
+              ]
+                .filter(Boolean)
+                .join(search.codeSeparator)}
+            </p>
+            {hit.snippet.length > 0 ? <p className={styles.snippet}>{hit.snippet}</p> : null}
           </Card>
         ))}
       </ul>
@@ -191,6 +229,7 @@ async function SearchPage(props: { searchParams: Promise<{ q?: string | string[]
   const nothing =
     results.laws.length === 0 &&
     results.precedents.length === 0 &&
+    results.corpusHits.length === 0 &&
     results.caseLookup === undefined;
 
   return (
@@ -203,6 +242,11 @@ async function SearchPage(props: { searchParams: Promise<{ q?: string | string[]
       </p>
 
       {results.caseLookup === undefined ? null : <CaseLookupNotice lookup={results.caseLookup} />}
+
+      {/* 우리가 가진 것을 먼저 보여 준다 — 곧바로 열리고, 설명이 이미 있을 수도 있다. */}
+      {results.corpusHits.length > 0 ? (
+        <CorpusResults hits={results.corpusHits} timeZone={timeZone} />
+      ) : null}
 
       {results.laws.length > 0 ? <LawResults laws={results.laws} timeZone={timeZone} /> : null}
 

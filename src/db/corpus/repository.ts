@@ -20,6 +20,7 @@ import {
   renditionSentence,
   structureNode,
 } from "./schema";
+import { searchLawIds } from "./search";
 
 type Level = (typeof rendition.level.enumValues)[number];
 type JobStage = (typeof generationJob.stage.enumValues)[number];
@@ -806,23 +807,20 @@ const LAW_SEARCH_LIMIT = 20;
  * **법 하나에 판이 여럿이므로 `lawId`로 묶고 가장 최근 시행판만 낸다.** 안 그러면
  * "도로교통법"을 찾았을 때 같은 이름이 132번 나온다.
  */
-function searchLawVersions(db: CorpusDb, query: string, limit = LAW_SEARCH_LIMIT) {
-  const trimmed = query.trim();
-  if (trimmed.length === 0) {
-    return [];
-  }
-
-  const pattern = `%${trimmed}%`;
+/**
+ * 색인이 답할 수 없는 짧은 질의를 위한 되돌림 경로.
+ *
+ * 트라이그램 색인은 세 글자부터 걸린다. 그보다 짧은 질의("법", "소송" 같은)는 예전처럼
+ * 전체를 훑는다 — 168,494행이라 25ms쯤 걸리지만, **못 찾는 것보다는 느린 편이 낫다.**
+ */
+function searchLawVersionsByScan(db: CorpusDb, query: string, limit: number) {
+  const pattern = `%${query}%`;
   const rows = db
     .select()
     .from(lawVersion)
     .where(or(like(lawVersion.name, pattern), like(lawVersion.shortName, pattern)))
-    /*
-     * 현행을 먼저, 그다음 시행일 역순. 이름만 맞으면 폐지된 옛 법령이 먼저 나올 수 있는데,
-     * 찾는 사람이 원하는 것은 대개 지금 살아 있는 법이다.
-     */
     .orderBy(desc(lawVersion.effectiveAt))
-    .limit(limit * MATCHES_PER_LAW)
+    .limit(limit * SCAN_MATCHES_PER_LAW)
     .all();
 
   const byLaw = new Map<string, (typeof rows)[number]>();
@@ -834,11 +832,54 @@ function searchLawVersions(db: CorpusDb, query: string, limit = LAW_SEARCH_LIMIT
   return [...byLaw.values()].slice(0, limit);
 }
 
-/**
- * 한 법에 판이 여럿이라 넉넉히 읽고 묶는다. 도로교통법만 132판이므로 이 배수가 작으면
- * 서로 다른 법이 몇 개 안 나온다.
- */
-const MATCHES_PER_LAW = 40;
+/** 한 법에 판이 여럿이라 넉넉히 읽고 묶는다. 도로교통법만 132판이다. */
+const SCAN_MATCHES_PER_LAW = 40;
+
+function searchLawVersions(db: CorpusDb, query: string, limit = LAW_SEARCH_LIMIT) {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    return [];
+  }
+
+  /*
+   * **색인으로 법을 먼저 고르고, 그 법의 판만 읽는다.**
+   *
+   * 예전에는 `name LIKE '%질의%'`로 168,494행을 훑었다(실측 25.46ms — `drizzle/corpus/0006`에
+   * 수치를 남겼다). 앞머리 와일드카드는 인덱스를 쓸 수 없어서 결과가 없을수록 느려진다.
+   */
+  const lawIds = searchLawIds(db, trimmed, limit);
+  if (lawIds === undefined) {
+    // 두 글자 이하라 색인이 답할 수 없다. 예전처럼 훑는다 — 느린 것과 못 찾는 것 중 느린 쪽이 낫다.
+    return searchLawVersionsByScan(db, trimmed, limit);
+  }
+  if (lawIds.length === 0) {
+    return [];
+  }
+
+  const rows = db
+    .select()
+    .from(lawVersion)
+    .where(inArray(lawVersion.lawId, lawIds))
+    /*
+     * 현행을 먼저, 그다음 시행일 역순. 이름만 맞으면 폐지된 옛 법령이 먼저 나올 수 있는데,
+     * 찾는 사람이 원하는 것은 대개 지금 살아 있는 법이다.
+     */
+    .orderBy(desc(lawVersion.effectiveAt))
+    .all();
+
+  const byLaw = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    if (!byLaw.has(row.lawId)) {
+      byLaw.set(row.lawId, row);
+    }
+  }
+
+  // 색인이 매긴 순서를 지킨다 — 시행일 정렬은 **한 법 안에서** 최신 판을 고르는 데만 쓴다.
+  return lawIds.flatMap((lawId) => {
+    const row = byLaw.get(lawId);
+    return row === undefined ? [] : [row];
+  });
+}
 
 interface LawNameEntry {
   readonly lawId: string;

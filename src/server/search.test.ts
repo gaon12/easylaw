@@ -5,12 +5,20 @@ const mocks = vi.hoisted(() => ({
   lookupCase: vi.fn(),
   searchByKeyword: vi.fn(),
   searchLawVersions: vi.fn(),
+  searchJudgments: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db/client", () => ({ corpusDb: () => ({}) }));
 vi.mock("@/db/corpus/repository", () => ({
   searchLawVersions: mocks.searchLawVersions,
+}));
+/*
+ * 코퍼스 전문 검색은 FTS5 가상 테이블을 훑는다. 여기서는 검색이 세 곳을 어떻게 합치는지만
+ * 보므로 흉내만 낸다 — 색인 자체는 `db/corpus/search.test.ts`가 실제 DB로 시험한다.
+ */
+vi.mock("@/db/corpus/search", () => ({
+  searchJudgments: mocks.searchJudgments,
 }));
 vi.mock("@/lib/law-api/client", () => ({ lawApi: mocks.lawApi }));
 vi.mock("@/server/lookup", () => ({ lookupCase: mocks.lookupCase }));
@@ -34,6 +42,7 @@ beforeEach(() => {
   mocks.lawApi.mockReturnValue({ searchByKeyword: mocks.searchByKeyword });
   mocks.searchByKeyword.mockResolvedValue([]);
   mocks.searchLawVersions.mockReturnValue([]);
+  mocks.searchJudgments.mockReturnValue([]);
 });
 
 describe("searchEverything", () => {

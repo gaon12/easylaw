@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { PreferencesSync } from "@/components/preferences-sync";
 import { PREFERENCES_SCRIPT } from "@/lib/preferences";
@@ -26,7 +27,13 @@ export const viewport: Viewport = {
  * 여기서 셸을 그리면 설치 화면에도 서비스 메뉴가 따라붙는데, 그 메뉴는 설치가 끝나기
  * 전에는 전부 `/setup`으로 되튕겨 아무 데도 가지 못한다.
  */
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  /*
+   * 인라인 스크립트에 붙일 표(nonce). `proxy.ts`가 요청마다 새로 만들어 헤더에 담아 준다.
+   * 이 값이 없으면 CSP가 이 스크립트를 막고, 그러면 화면 설정이 첫 페인트에 적용되지 않는다.
+   */
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     /*
      * `suppressHydrationWarning`은 **이 태그 한 겹에만** 걸린다(자식에는 걸리지 않는다).
@@ -49,7 +56,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         */}
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: 코드에서 만든 고정 문자열이고 사용자 입력이 섞이지 않는다. 첫 페인트 전에 실행되어야 해서 다른 방법이 없다. */}
         {/* biome-ignore lint/style/useNamingConvention: `__html`은 React가 정한 이름이라 바꿀 수 없다. */}
-        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_SCRIPT }} nonce={nonce} />
       </head>
       <body>
         <PreferencesSync />

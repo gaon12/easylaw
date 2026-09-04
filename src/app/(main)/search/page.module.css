@@ -1,5 +1,5 @@
 .page {
-  max-width: var(--el-container);
+  max-width: var(--el-container-wide);
   margin: 0 auto;
   padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
   display: grid;
@@ -114,4 +114,27 @@
   color: var(--el-fg-2);
   font-size: var(--el-text-body-xs);
   line-height: var(--el-leading-body);
+}
+
+/* 구간 안내 한 줄. 어디서 나온 결과인지 말한다. */
+.groupHint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  margin-top: calc(-1 * var(--el-space-2));
+}
+
+/*
+ * 찾은 자리. 왜 이 결과가 나왔는지 보여 준다 — 없으면 목록이 사건번호의 나열이 된다.
+ * 두 줄까지만 보이고 나머지는 문서를 열어서 본다.
+ */
+.snippet {
+  margin-top: var(--el-space-2);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
