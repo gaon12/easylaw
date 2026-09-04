@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { listUsersForAdmin } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { admin, adminTest, setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
@@ -9,6 +10,7 @@ import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/
 import { saveSettings } from "@/server/setup-actions";
 import styles from "./page.module.css";
 import { SecretField } from "./secret-field";
+import { UserRoles } from "./user-roles";
 
 /** 화면에서 고칠 수 있는 항목. 설치 완료 표시는 여기서 건드리지 않는다. */
 const EDITABLE = [
@@ -153,6 +155,8 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
           </Button>
         </Card>
       </form>
+
+      <UserRoles users={listUsersForAdmin(db)} />
 
       {/*
         저장한 값이 실제로 통하는지 확인하는 통로. 폼 안에 두지 않는 이유는, 시험이

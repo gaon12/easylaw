@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { hasAdmin } from "@/db/app/repository";
+import { hasAdmin, type RoleChangeResult, setUserRole } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import type { AuthProblem } from "./auth";
 import { signIn, signUp } from "./auth";
@@ -20,6 +20,10 @@ import { isSetupComplete, markSetupComplete, type SettingKey, writeSettings } fr
 interface SetupState {
   readonly problem?: AuthProblem | "already_done";
   readonly email?: string;
+}
+
+interface AdminRoleState {
+  readonly problem?: Exclude<RoleChangeResult, "updated" | "unchanged">;
 }
 
 function field(formData: FormData, name: string): string {
@@ -161,5 +165,34 @@ async function saveSettings(formData: FormData): Promise<void> {
   redirect("/admin?saved=1");
 }
 
-export { createAdmin, finishSetup, saveConnections, saveService, saveSettings, signInAdmin };
-export type { SetupState };
+/** 관리자 화면에서 기존 가입자를 관리자로 지정한다. 비밀번호를 다루지 않는다. */
+async function setAdminRole(
+  _previous: AdminRoleState,
+  formData: FormData,
+): Promise<AdminRoleState> {
+  const session = await currentSession();
+  const targetId = field(formData, "user_id");
+  if (session?.role !== "admin") {
+    return { problem: "forbidden" };
+  }
+  if (targetId.length === 0) {
+    return { problem: "not_found" };
+  }
+
+  const result = setUserRole(appDb(), session.userId, targetId, "admin");
+  if (result !== "updated" && result !== "unchanged") {
+    return { problem: result };
+  }
+  redirect("/admin?saved=1");
+}
+
+export {
+  createAdmin,
+  finishSetup,
+  saveConnections,
+  saveService,
+  saveSettings,
+  setAdminRole,
+  signInAdmin,
+};
+export type { AdminRoleState, SetupState };

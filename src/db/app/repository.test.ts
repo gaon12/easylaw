@@ -18,7 +18,9 @@ import {
   listMaskCounts,
   listUploadSpans,
   listUploadsForOwner,
+  listUsersForAdmin,
   saveUpload,
+  setUserRole,
   summarizeOwnerData,
   type UploadInput,
   updateNickname,
@@ -80,6 +82,45 @@ describe("계정", () => {
     // 기존 계정의 비밀번호가 덮이면 안 된다.
     expect(findUserByEmail(db, "hong@example.com")?.id).toBe(first);
     expect(findUserByEmail(db, "hong@example.com")?.passwordHash).toBe("hash");
+  });
+
+  it("관리자는 비밀번호 해시 없이 계정 목록을 본다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
+    expect(adminId).toBeDefined();
+    expect(memberId).toBeDefined();
+    const rows = listUsersForAdmin(db);
+    expect(rows.map((row) => row.email)).toEqual(
+      expect.arrayContaining(["member@example.com", "admin@example.com"]),
+    );
+    expect(rows[0]).not.toHaveProperty("passwordHash");
+  });
+
+  it("관리자가 기존 계정을 관리자로 지정하고 감사 로그를 남긴다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
+    expect(setUserRole(db, adminId as string, memberId as string, "admin")).toBe("updated");
+    expect(findUserById(db, memberId as string)?.role).toBe("admin");
+    expect(db.select().from(auditLog).all().at(-1)?.action).toBe("user.role_changed");
+  });
+
+  it("마지막 관리자는 강등할 수 없고 비관리자 요청은 거절한다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
+    expect(setUserRole(db, adminId as string, adminId as string, "member")).toBe("last_admin");
+    expect(setUserRole(db, memberId as string, adminId as string, "member")).toBe("forbidden");
   });
 });
 

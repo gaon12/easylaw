@@ -96,6 +96,66 @@ function findUserById(db: AppDb, userId: string) {
   return db.select().from(user).where(eq(user.id, userId)).get();
 }
 
+/** 관리자 화면에 표시할 계정 목록. 비밀번호 해시는 반환하지 않는다. */
+function listUsersForAdmin(db: AppDb) {
+  return db
+    .select({
+      id: user.id,
+      email: user.email,
+      nickname: user.nickname,
+      role: user.role,
+      createdAt: user.createdAt,
+      lastSeenAt: user.lastSeenAt,
+    })
+    .from(user)
+    .orderBy(desc(user.createdAt))
+    .all();
+}
+
+type RoleChangeResult = "updated" | "not_found" | "forbidden" | "last_admin" | "unchanged";
+
+/**
+ * 관리자만 계정 권한을 바꾼다. 마지막 관리자 강등은 막아 설치·운영이 잠기지 않게 한다.
+ * 모든 검사와 변경을 한 트랜잭션에 넣어 두 요청이 동시에 마지막 관리자를 없애지 못한다.
+ */
+function setUserRole(
+  db: AppDb,
+  actorId: string,
+  targetId: string,
+  role: UserRole,
+): RoleChangeResult {
+  return db.transaction((tx) => {
+    const actor = tx.select({ role: user.role }).from(user).where(eq(user.id, actorId)).get();
+    if (actor?.role !== "admin") {
+      return "forbidden";
+    }
+    const target = tx.select({ role: user.role }).from(user).where(eq(user.id, targetId)).get();
+    if (target === undefined) {
+      return "not_found";
+    }
+    if (target.role === role) {
+      return "unchanged";
+    }
+    if (target.role === "admin" && role === "member") {
+      const admins = tx.select({ id: user.id }).from(user).where(eq(user.role, "admin")).all();
+      if (admins.length <= 1) {
+        return "last_admin";
+      }
+    }
+    tx.update(user).set({ role }).where(eq(user.id, targetId)).run();
+    tx.insert(auditLog)
+      .values({
+        id: newId(),
+        actor: actorId,
+        action: "user.role_changed",
+        target: targetId,
+        meta: { from: target.role, to: role },
+      })
+      .run();
+    return "updated";
+  });
+}
+
 function touchUser(db: AppDb, userId: string): void {
   db.update(user).set({ lastSeenAt: new Date() }).where(eq(user.id, userId)).run();
 }
@@ -479,6 +539,7 @@ export {
   findUserByEmail,
   findUserById,
   hasAdmin,
+  listUsersForAdmin,
   listMaskCounts,
   listUploadSpans,
   listUploadsForOwner,
@@ -488,5 +549,6 @@ export {
   touchUser,
   updateNickname,
   updateRetention,
+  setUserRole,
 };
-export type { SaveResult, SpanInput, UploadInput, UserRole };
+export type { RoleChangeResult, SaveResult, SpanInput, UploadInput, UserRole };

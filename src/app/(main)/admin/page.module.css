@@ -28,6 +28,15 @@
   gap: var(--el-space-5);
 }
 
+.sectionTitle {
+  font-size: var(--el-text-heading-s);
+}
+
+.usageSummary {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
 .field {
   display: grid;
   gap: var(--el-space-2);
@@ -85,6 +94,55 @@
 .afterForm {
   display: flex;
   gap: var(--el-space-4);
+}
+
+.usersSection {
+  display: grid;
+  gap: var(--el-space-3);
+}
+
+.userList {
+  display: grid;
+  gap: var(--el-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.userRow {
+  align-items: center;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  display: flex;
+  gap: var(--el-space-3);
+  justify-content: space-between;
+  min-height: var(--el-touch-target);
+  padding: var(--el-space-3) var(--el-space-4);
+}
+
+.userIdentity {
+  display: grid;
+  gap: var(--el-space-1);
+  min-width: 0;
+}
+
+.userIdentity span {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  overflow-wrap: anywhere;
+}
+
+.roleBadge {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  white-space: nowrap;
+}
+
+.roleError {
+  color: var(--el-danger);
+  display: block;
+  font-size: var(--el-text-body-xs);
+  margin-top: var(--el-space-1);
 }
 
 /* 링크는 색만으로 구분하지 않는다(§11) — 밑줄을 지우지 않는다. */
