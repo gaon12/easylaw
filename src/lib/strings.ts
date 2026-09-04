@@ -1100,6 +1100,17 @@ export const viewer = {
   /** 인용 링크의 툴팁. 어디로 가는지 미리 알려 준다. */
   citationHint: (lawName: string, article: string) => `${lawName} ${article} 보기`,
 
+  /**
+   * 인용 법령 목록(위키의 각주 목록 자리).
+   *
+   * **"몇 개 법"이라고 센다.** 조문 수를 세면 같은 법의 조문 열 개가 열 건으로 보이는데,
+   * 읽는 사람이 알고 싶은 것은 "무슨 법을 근거로 삼았나"다.
+   */
+  citedLawsTitle: (count: number) => `이 판결이 인용한 법령 ${count}개`,
+  citedLawsHint: "조문을 누르면 판결 당시 시행되던 내용을 볼 수 있어요.",
+  articleLabel: (articleNo: string) => `제${articleNo}조`,
+  articleBranchLabel: (articleNo: string, branchNo: string) => `제${articleNo}조의${branchNo}`,
+
   levels: {
     L0: "원문",
     L1: "법조",

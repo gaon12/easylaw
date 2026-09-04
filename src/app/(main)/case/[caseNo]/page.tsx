@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
+import { CitedLaws } from "@/components/viewer/cited-laws";
 import { LevelTabs } from "@/components/viewer/level-tabs";
 import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
@@ -279,6 +280,12 @@ export default async function CasePage(props: {
           />
         </section>
       </div>
+
+      {/*
+        인용 법령을 문서 끝에 모은다(위키의 각주 목록). 본문 안의 링크만으로는 무엇을
+        근거로 삼았는지 알려면 판결문을 끝까지 읽어야 한다.
+      */}
+      <CitedLaws citations={citations} decidedAt={summary.decidedAt} />
     </div>
   );
 }
