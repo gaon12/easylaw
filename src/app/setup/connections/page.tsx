@@ -1,12 +1,10 @@
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { setup } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
 import { DEFAULT_DAILY_GENERATION_LIMIT, DEFAULT_LLM_MODEL } from "@/server/settings";
-import { saveConnections } from "@/server/setup-actions";
 import styles from "../setup-steps.module.css";
 import { StepRail } from "../step-rail";
+import { ConnectionsForm } from "./connections-form";
 
 /**
  * 설치 4단계 — 외부 연결. `PAGES.md` §17
@@ -28,88 +26,14 @@ export default async function ConnectionsPage() {
   return (
     <>
       <StepRail current="connections" />
-
       <header className={styles.header}>
         <h1 className={styles.title}>{setup.connectionsTitle}</h1>
         <p className={styles.intro}>{setup.connectionsIntro}</p>
       </header>
-
-      <form action={saveConnections}>
-        <Card className={styles.form}>
-          <fieldset className={styles.group}>
-            <legend className={styles.groupTitle}>{setup.lawApiTitle}</legend>
-            <p className={styles.groupBody}>{setup.lawApiBody}</p>
-            <label className={styles.field}>
-              <span className={styles.label}>{setup.lawApiLabel}</span>
-              <input
-                autoComplete="off"
-                className={styles.input}
-                name="law_api_oc"
-                placeholder={setup.lawApiPlaceholder}
-                type="text"
-              />
-            </label>
-          </fieldset>
-
-          <fieldset className={styles.group}>
-            <legend className={styles.groupTitle}>{setup.llmTitle}</legend>
-            <p className={styles.groupBody}>{setup.llmBody}</p>
-
-            <label className={styles.field}>
-              <span className={styles.label}>{setup.llmBaseUrlLabel}</span>
-              <input
-                autoComplete="off"
-                className={styles.input}
-                name="llm_base_url"
-                placeholder={setup.llmBaseUrlPlaceholder}
-                type="url"
-              />
-              <span className={styles.hint}>{setup.llmBaseUrlHint}</span>
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.label}>{setup.llmApiKeyLabel}</span>
-              <input
-                autoComplete="off"
-                className={styles.input}
-                name="llm_api_key"
-                type="password"
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.label}>{setup.llmModelLabel}</span>
-              <input
-                autoComplete="off"
-                className={styles.input}
-                defaultValue={DEFAULT_LLM_MODEL}
-                name="llm_model"
-                type="text"
-              />
-              <span className={styles.hint}>{setup.llmModelHint}</span>
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.label}>{setup.limitLabel}</span>
-              <input
-                className={styles.input}
-                defaultValue={DEFAULT_DAILY_GENERATION_LIMIT}
-                inputMode="numeric"
-                min={1}
-                name="generation_daily_limit"
-                type="number"
-              />
-              <span className={styles.hint}>{setup.limitHint}</span>
-            </label>
-          </fieldset>
-
-          <p className={styles.optional}>{setup.optionalNote}</p>
-
-          <Button size="l" type="submit">
-            {setup.connectionsSubmit}
-          </Button>
-        </Card>
-      </form>
+      <ConnectionsForm
+        dailyLimit={DEFAULT_DAILY_GENERATION_LIMIT}
+        defaultModel={DEFAULT_LLM_MODEL}
+      />
     </>
   );
 }

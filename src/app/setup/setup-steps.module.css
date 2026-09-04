@@ -133,6 +133,12 @@
   gap: var(--el-space-4);
 }
 
+.results {
+  display: grid;
+  gap: var(--el-space-3);
+  max-width: 640px;
+}
+
 .recheck {
   font-size: var(--el-text-body-s);
 }
