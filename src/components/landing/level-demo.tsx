@@ -1,4 +1,5 @@
 import { LevelBody } from "@/components/viewer/level-body";
+import { LevelTraits } from "@/components/viewer/level-traits";
 import { LEVEL_ORDER } from "@/components/viewer/levels";
 import { demo, viewer } from "@/lib/strings";
 import styles from "./level-demo.module.css";
@@ -46,6 +47,7 @@ function LevelDemo() {
         {LEVEL_ORDER.map((level, index) => (
           <div className={`${styles.panel} ${styles[`p${index}`]}`} key={level}>
             <p className={styles.note}>{viewer.levelNotes[level]}</p>
+            <LevelTraits level={level} />
             {/*
               레벨별 본문 규격을 데모에서도 그대로 쓴다(`DESIGN.md` §7).
               첫 화면에서 보여 주는 모양과 실제 뷰어의 모양이 다르면 데모가 거짓말이 된다.
