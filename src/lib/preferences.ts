@@ -16,16 +16,22 @@ type TextSize = (typeof TEXT_SIZES)[number];
 const DISPLAY_MODES = ["light", "more", "system"] as const;
 type DisplayMode = (typeof DISPLAY_MODES)[number];
 
+/** 문서를 열 때 처음 보여 줄 단계. 원문도 선택할 수 있어야 기존 동작을 그대로 고를 수 있다. */
+const DEFAULT_LEVELS = ["L0", "L1", "L2", "L3", "L4"] as const;
+type DefaultLevel = (typeof DEFAULT_LEVELS)[number];
+
 interface Preferences {
   readonly textSize: TextSize;
   readonly display: DisplayMode;
+  readonly defaultLevel: DefaultLevel;
 }
 
-const DEFAULTS: Preferences = { textSize: "m", display: "system" };
+const DEFAULTS: Preferences = { textSize: "m", display: "system", defaultLevel: "L0" };
 
 const TEXT_SIZE_KEY = "easylaw:text-size";
 /** 예전 이름. 대비 설정만 있던 시절의 값을 그대로 이어받는다. */
 const DISPLAY_KEY = "easylaw:contrast";
+const DEFAULT_LEVEL_KEY = "easylaw:default-level";
 
 const TEXT_SIZE_ATTRIBUTE = "data-text-size";
 const CONTRAST_ATTRIBUTE = "data-contrast";
@@ -36,6 +42,10 @@ function isTextSize(value: string | null): value is TextSize {
 
 function isDisplayMode(value: string | null): value is DisplayMode {
   return value !== null && (DISPLAY_MODES as readonly string[]).includes(value);
+}
+
+function isDefaultLevel(value: string | null): value is DefaultLevel {
+  return value !== null && (DEFAULT_LEVELS as readonly string[]).includes(value);
 }
 
 /**
@@ -62,9 +72,11 @@ function readPreferences(): Preferences {
   try {
     const textSize = window.localStorage.getItem(TEXT_SIZE_KEY);
     const display = window.localStorage.getItem(DISPLAY_KEY);
+    const defaultLevel = window.localStorage.getItem(DEFAULT_LEVEL_KEY);
     return {
       textSize: isTextSize(textSize) ? textSize : DEFAULTS.textSize,
       display: migrateDisplay(display) ?? DEFAULTS.display,
+      defaultLevel: isDefaultLevel(defaultLevel) ? defaultLevel : DEFAULTS.defaultLevel,
     };
   } catch {
     return DEFAULTS;
@@ -75,6 +87,7 @@ function writePreferences(preferences: Preferences): void {
   try {
     window.localStorage.setItem(TEXT_SIZE_KEY, preferences.textSize);
     window.localStorage.setItem(DISPLAY_KEY, preferences.display);
+    window.localStorage.setItem(DEFAULT_LEVEL_KEY, preferences.defaultLevel);
   } catch {
     // 저장은 못 해도 이번 화면에는 적용된다. 그 편이 아무 일도 일어나지 않는 것보다 낫다.
   }
@@ -138,11 +151,17 @@ var t=localStorage.getItem(${JSON.stringify(TEXT_SIZE_KEY)});
 if(t&&t!==${JSON.stringify(DEFAULTS.textSize)}&&${JSON.stringify(TEXT_SIZES)}.indexOf(t)>=0){r.setAttribute(${JSON.stringify(TEXT_SIZE_ATTRIBUTE)},t);}
 var d=localStorage.getItem(${JSON.stringify(DISPLAY_KEY)});
 if(d==="more"||((d===null||d==="system")&&matchMedia("(prefers-contrast: more)").matches)){r.setAttribute(${JSON.stringify(CONTRAST_ATTRIBUTE)},"more");}
+var l=localStorage.getItem(${JSON.stringify(DEFAULT_LEVEL_KEY)});
+if(l&&l!==${JSON.stringify(DEFAULTS.defaultLevel)}&&${JSON.stringify(DEFAULT_LEVELS)}.indexOf(l)>=0&&/^\\/(case|doc)\\/[^/]+\\/?$/.test(location.pathname)){
+var u=new URL(location.href);if(!u.searchParams.has("level")){u.searchParams.set("level",l);location.replace(u.pathname+u.search+u.hash);}
+}
 }catch(e){}})();`;
 
 export {
   applyPreferences,
   CONTRAST_ATTRIBUTE,
+  DEFAULT_LEVEL_KEY,
+  DEFAULT_LEVELS,
   DEFAULTS,
   DISPLAY_KEY,
   DISPLAY_MODES,
@@ -153,4 +172,4 @@ export {
   TEXT_SIZES,
   writePreferences,
 };
-export type { DisplayMode, Preferences, TextSize };
+export type { DefaultLevel, DisplayMode, Preferences, TextSize };

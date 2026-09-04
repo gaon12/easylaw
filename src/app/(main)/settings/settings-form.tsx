@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   applyPreferences,
+  DEFAULT_LEVELS,
   DEFAULTS,
   DISPLAY_MODES,
   type Preferences,
@@ -11,7 +12,7 @@ import {
   TEXT_SIZES,
   writePreferences,
 } from "@/lib/preferences";
-import { settings } from "@/lib/strings";
+import { settings, viewer } from "@/lib/strings";
 import styles from "./page.module.css";
 
 /**
@@ -49,6 +50,28 @@ function SettingsForm() {
 
   return (
     <div className={styles.controls}>
+      <fieldset className={styles.group}>
+        <legend className={styles.groupLabel}>{settings.defaultLevelLabel}</legend>
+        <p className={styles.groupHint}>{settings.defaultLevelHint}</p>
+        <div className={styles.options}>
+          {DEFAULT_LEVELS.map((level) => (
+            <label className={`${styles.option} ${styles.optionWide}`} key={level}>
+              <input
+                checked={preferences.defaultLevel === level}
+                className="sr-only"
+                name="defaultLevel"
+                onChange={() => {
+                  update({ ...preferences, defaultLevel: level });
+                }}
+                type="radio"
+              />
+              <span className={styles.optionText}>{viewer.levels[level]}</span>
+              <span className={styles.optionHint}>{viewer.levelNotes[level]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <fieldset className={styles.group}>
         <legend className={styles.groupLabel}>{settings.textSizeLabel}</legend>
         <div className={styles.options}>

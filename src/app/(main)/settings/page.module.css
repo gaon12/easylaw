@@ -57,6 +57,11 @@
   font-weight: 700;
 }
 
+.groupHint {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
 .options {
   display: flex;
   flex-wrap: wrap;
