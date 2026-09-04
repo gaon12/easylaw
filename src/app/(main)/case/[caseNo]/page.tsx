@@ -77,21 +77,20 @@ function placeholderState(
 }
 
 /**
- * 원문 칸. 표제로 만든 목차와 본문.
+ * 원문 칸.
  *
- * 표제가 둘 이상일 때만 목차를 낸다 — 하나뿐이면 목차가 아니라 소음이다.
+ * 목차는 여기 있지 않다 — 문서 앞으로 올렸다(위키식). 2단 대조에서 원문 칸 안에 두면
+ * 설명을 읽는 사람에게는 목차가 없는 것과 같다.
  */
 function OriginalSection({
   spans,
   citations,
   decidedAt,
-  headings,
   reason,
 }: {
   spans: readonly { id: string; paraIdx: number; text: string }[];
   citations: ReadonlyMap<string, readonly Citation[]>;
   decidedAt: Date | null;
-  headings: readonly { id: string; label: string }[];
   /** 원문을 못 가져왔으면 그 이유. 가져왔으면 null. */
   reason: string | null;
 }) {
@@ -99,21 +98,7 @@ function OriginalSection({
     return <p className={styles.notice}>{reason}</p>;
   }
 
-  return (
-    <>
-      {headings.length > 1 ? (
-        <TableOfContents
-          entries={headings.map((heading) => ({
-            id: heading.id,
-            label: heading.label,
-            depth: 1 as const,
-          }))}
-          label={viewer.originalToc}
-        />
-      ) : null}
-      <OriginalPanel citations={citations} decidedAt={decidedAt} spans={spans} />
-    </>
-  );
+  return <OriginalPanel citations={citations} decidedAt={decidedAt} spans={spans} />;
 }
 
 /**
@@ -174,6 +159,54 @@ function NotAvailable({ query }: { query: string }) {
 }
 
 /**
+ * 단계 스위처와 그 아래 한 줄. 어느 단계인지, 그 단계가 어떤 말로 쓰는지, 그리고
+ * 점자로 가는 길.
+ */
+function ViewerNav({ basePath, level }: { basePath: string; level: ViewLevel }) {
+  return (
+    <div className={styles.levels}>
+      <LevelTabs basePath={basePath} current={level} />
+      {/* 고른 단계가 어떤 말로 쓰는지 한 줄로 알린다. 탭 이름만으로는 알 수 없다. */}
+      <p className={styles.levelNote}>
+        {viewer.levelNotes[level]}
+        {/*
+          점자는 **지금 보고 있는 단계 그대로** 넘어간다. 단계마다 문장이 다르므로
+          "무엇을 점자로 바꿀 것인가"를 다시 묻지 않는다.
+        */}
+        <Link className={styles.brailleLink} href={`${basePath}/braille?level=${level}`}>
+          {brailleStrings.cta}
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 문서 목차. **문서 앞에 둔다**(`DESIGN.md` §11.5 · 위키식).
+ *
+ * 원문 칸 안에 있을 때는 2단 대조에서 오른쪽 칸에 갇혀, 왼쪽(설명)을 읽는 사람에게는
+ * 없는 것과 같았다. 구간 앵커는 원문 쪽에 걸리지만 목차는 문서 전체의 길잡이다.
+ *
+ * 표제가 둘 이상일 때만 낸다 — 하나뿐이면 목차가 아니라 소음이다.
+ */
+function DocumentToc({ headings }: { headings: readonly { id: string; label: string }[] }) {
+  if (headings.length <= 1) {
+    return null;
+  }
+
+  return (
+    <TableOfContents
+      entries={headings.map((heading) => ({
+        id: heading.id,
+        label: heading.label,
+        depth: 1 as const,
+      }))}
+      label={viewer.originalToc}
+    />
+  );
+}
+
+/**
  * 공개 판례 뷰어. `PAGES.md` §5
  *
  * 원문(L0)은 언제나 바로 보여 준다. 설명은 캐시가 있으면 즉시, 없으면 사용자가 요청할 때
@@ -218,20 +251,9 @@ export default async function CasePage(props: {
         timeZone={timeZone}
       />
 
-      <div className={styles.levels}>
-        <LevelTabs basePath={basePath} current={level} />
-        {/* 고른 단계가 어떤 말로 쓰는지 한 줄로 알린다. 탭 이름만으로는 알 수 없다. */}
-        <p className={styles.levelNote}>
-          {viewer.levelNotes[level]}
-          {/*
-            점자는 **지금 보고 있는 단계 그대로** 넘어간다. 단계마다 문장이 다르므로
-            "무엇을 점자로 바꿀 것인가"를 다시 묻지 않는다.
-          */}
-          <Link className={styles.brailleLink} href={`${basePath}/braille?level=${level}`}>
-            {brailleStrings.cta}
-          </Link>
-        </p>
-      </div>
+      <ViewerNav basePath={basePath} level={level} />
+
+      <DocumentToc headings={headings} />
 
       <div className={styles.panels}>
         {level === "L0" ? null : (
@@ -252,7 +274,6 @@ export default async function CasePage(props: {
           <OriginalSection
             citations={citations}
             decidedAt={summary.decidedAt}
-            headings={headings}
             reason={textResult.ok ? null : textResult.reason}
             spans={spans}
           />
