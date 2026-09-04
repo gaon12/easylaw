@@ -50,6 +50,13 @@
       "when": 1788522212817,
       "tag": "0006_law_name_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788524864576,
+      "tag": "0007_fix_source_url",
+      "breakpoints": true
     }
   ]
 }

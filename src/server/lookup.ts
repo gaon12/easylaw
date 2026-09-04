@@ -64,6 +64,21 @@ function toSummary(row: {
   };
 }
 
+/**
+ * 국가법령정보센터에서 이 판례를 여는 **공개 주소**.
+ *
+ * 예전에는 오픈API 주소(`DRF/lawService.do?target=prec…`)를 그대로 링크했다. 그 주소는
+ * **인증키(OC)를 요구한다** — 키가 없으면 1.4KB짜리 오류 페이지가 오고, 출처 링크를 누른
+ * 사람은 판결문 대신 그것을 본다. 실제로 그랬다.
+ *
+ * **키를 붙여 고치지 않는다.** `law_api_oc`는 설정에서 비밀 항목(`secret: true`)이고,
+ * 화면에 실리는 링크에 넣으면 누구나 볼 수 있는 자리에 우리 인증키를 두는 일이 된다(§7).
+ * 공개 열람 주소는 키 없이 열린다 — 사람이 볼 것은 이쪽이고, API 주소는 기계용이다.
+ */
+function publicPrecedentUrl(precedentId: string): string {
+  return `https://www.law.go.kr/precInfoP.do?precSeq=${encodeURIComponent(precedentId)}`;
+}
+
 /** 법제처가 준 판례 하나를 코퍼스에 넣는다. 메타데이터만 넣고 본문은 따로 받는다. */
 function storePrecedent(canonical: string, precedent: PrecedentSummary): string {
   return upsertJudgment(corpusDb(), {
@@ -74,7 +89,7 @@ function storePrecedent(canonical: string, precedent: PrecedentSummary): string 
     decidedAt: precedent.decidedAt,
     caseType: precedent.caseTypeName,
     source: "law_go_kr",
-    sourceUrl: `https://www.law.go.kr/DRF/lawService.do?target=prec&ID=${precedent.precedentId}&type=HTML`,
+    sourceUrl: publicPrecedentUrl(precedent.precedentId),
   });
 }
 
