@@ -234,12 +234,41 @@ function findUploadRendition(db: AppDb, uploadId: string, level: Level, promptVe
 }
 
 function listUploadSentences(db: AppDb, renditionId: string) {
-  return db
+  const sentences = db
     .select()
     .from(uploadRenditionSentence)
     .where(eq(uploadRenditionSentence.renditionId, renditionId))
     .orderBy(uploadRenditionSentence.orderIdx)
     .all();
+
+  /*
+   * 공개 판례와 같은 방식으로 설명 문장의 근거를 한 번에 붙인다. 문장마다
+   * `upload_node_span`을 다시 읽으면 긴 판결문에서 N+1이 되므로, 구조 노드 id를 모아
+   * 한 쿼리로 읽고 메모리에서 문장에 배분한다.
+   */
+  const nodeIds = sentences
+    .map((sentence) => sentence.structureNodeId)
+    .filter((id): id is string => id !== null);
+  if (nodeIds.length === 0) {
+    return sentences.map((sentence) => ({ ...sentence, sourceSpanIds: [] as string[] }));
+  }
+
+  const spansByNode = new Map<string, string[]>();
+  for (const row of db
+    .select({ structureNodeId: uploadNodeSpan.structureNodeId, spanId: uploadNodeSpan.spanId })
+    .from(uploadNodeSpan)
+    .where(inArray(uploadNodeSpan.structureNodeId, nodeIds))
+    .all()) {
+    const spans = spansByNode.get(row.structureNodeId) ?? [];
+    spans.push(row.spanId);
+    spansByNode.set(row.structureNodeId, spans);
+  }
+
+  return sentences.map((sentence) => ({
+    ...sentence,
+    sourceSpanIds:
+      sentence.structureNodeId === null ? [] : (spansByNode.get(sentence.structureNodeId) ?? []),
+  }));
 }
 
 type ClaimResult =

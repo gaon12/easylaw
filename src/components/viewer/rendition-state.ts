@@ -29,6 +29,8 @@ interface Sentence {
   readonly text: string;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
   readonly checkReason: string | null;
+  /** 이 설명 문장이 나온 원문 span. 올린 문서와 공개 판례가 같은 모양을 쓴다. */
+  readonly sourceSpanIds?: readonly string[];
 }
 
 export type { PlaceholderState, Sentence, Stage };

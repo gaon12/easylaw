@@ -158,7 +158,9 @@ describe("saveUploadRendition", () => {
       "무슨 일이 있었나요",
       "법원이 이렇게 봤어요.",
     ]);
+    expect(sentences[0]?.sourceSpanIds).toEqual([]);
     expect(sentences[1]?.structureNodeId).toBe(nodeId);
+    expect(sentences[1]?.sourceSpanIds).toEqual([spanIds[0]]);
     expect(findUploadRendition(db, uploadId, "L2", "v1")?.id).toBe(renditionId);
   });
 
