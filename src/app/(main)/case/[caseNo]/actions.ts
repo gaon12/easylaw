@@ -6,6 +6,7 @@ import { corpusDb } from "@/db/client";
 import { findJudgmentByCaseNo, type Level } from "@/db/corpus/repository";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { beginGeneration, runGeneration } from "@/server/generate";
+import { caseStore } from "@/server/pipeline-store";
 
 /**
  * 설명 만들기. `PRODUCT.md` §5.1 · §5.3
@@ -45,14 +46,15 @@ async function requestGeneration(formData: FormData): Promise<void> {
   }
 
   const level = rawLevel as Level;
-  const begun = beginGeneration(judgment.id, level);
+  const store = caseStore(judgment.id);
+  const begun = beginGeneration(store, level);
   if (begun.kind === "claimed") {
     /*
      * 응답을 보낸 뒤에 돌린다. 실패해도 여기서 붙잡지 않는다 — `runGeneration`이 어떤
      * 끝이든 작업을 닫고, 화면은 그 작업 상태를 보고 말한다.
      */
     after(async () => {
-      await runGeneration(judgment.id, level, begun.jobId);
+      await runGeneration(store, level, begun.jobId);
     });
   }
 

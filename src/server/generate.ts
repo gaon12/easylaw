@@ -1,18 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { corpusDb } from "@/db/client";
-import {
-  claimGenerationJob,
-  countGenerationsOn,
-  finishGenerationJob,
-  type Level,
-  listSpans,
-  listStructureNodes,
-  reserveGenerationSlot,
-  saveRendition,
-  saveStructure,
-  setGenerationStage,
-} from "@/db/corpus/repository";
+import { countGenerationsOn, reserveGenerationSlot } from "@/db/corpus/repository";
 import { dayKey } from "@/lib/format";
 import { llm } from "@/lib/llm/client";
 import { type Claim, checkEntailment, toConfidence } from "@/lib/pipeline/entail";
@@ -20,6 +9,7 @@ import { extractStructure } from "@/lib/pipeline/extract";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
 import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
+import type { PipelineStore, StoreLevel } from "@/server/pipeline-store";
 import { generationDailyLimit, siteTimeZone } from "@/server/settings";
 
 /**
@@ -47,6 +37,12 @@ const PIPELINE_VERSION = `${EXTRACT_VERSION}+${RENDER_PROMPT_VERSION}`;
 const MAX_ATTEMPTS = 2;
 
 /**
+ * 이 파일은 **어느 저장소인지 모른다.** 공개 판례든 올린 판결문이든 `PipelineStore` 하나로
+ * 받는다(`PRODUCT.md` §6.3). 어느 DB를 쓸지는 store를 만드는 쪽이 이미 정했다.
+ */
+type Level = StoreLevel;
+
+/**
  * 사이트 시간대의 오늘. 상한은 "하루"에 걸리는데, 그 하루는 서버가 어디서 도는지가 아니라
  * 설치할 때 고른 시간대를 따라야 한다(`lib/format.ts`).
  */
@@ -56,7 +52,6 @@ function today(now: Date = new Date()): string {
 
 /** 상한에 걸려 닫은 작업에 남기는 말. 화면은 이 문자열이 아니라 남은 몫을 보고 판단한다. */
 const LIMIT_REASON = "오늘 만들 수 있는 만큼을 다 만들었습니다.";
-
 /**
  * 오늘 얼마나 남았나. 상한은 `app` DB의 설정이고 사용량은 `corpus` DB에 있어서
  * **두 저장소를 잇는 이 계층**이 합친다(§10.2 — 두 DB를 조인하지 않는다).
@@ -93,11 +88,10 @@ type GenerateResult =
  * 다시 뽑으면 같은 일을 네 번 하고 네 번 다른 결과가 나온다.
  */
 async function ensureStructure(
-  judgmentId: string,
+  store: PipelineStore,
   signal?: AbortSignal,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const db = corpusDb();
-  if (listStructureNodes(db, judgmentId).length > 0) {
+  if (store.listNodes().length > 0) {
     return { ok: true };
   }
 
@@ -106,7 +100,7 @@ async function ensureStructure(
     return { ok: false, reason: "AI 연결이 설정되지 않았습니다." };
   }
 
-  const spans = listSpans(db, judgmentId);
+  const spans = store.listSpans();
   if (spans.length === 0) {
     return { ok: false, reason: "원문이 없습니다." };
   }
@@ -116,7 +110,7 @@ async function ensureStructure(
     return { ok: false, reason: "구조를 하나도 뽑지 못했습니다." };
   }
 
-  saveStructure(db, judgmentId, extracted.nodes);
+  store.saveNodes(extracted.nodes);
   return { ok: true };
 }
 
@@ -154,16 +148,15 @@ function claimsFor(
 async function tryUntilGrounded(input: {
   client: NonNullable<ReturnType<typeof llm>>;
   level: Level;
-  judgmentId: string;
+  store: PipelineStore;
   jobId: string;
   signal?: AbortSignal | undefined;
 }): Promise<
   | { ok: true; sentences: Awaited<ReturnType<typeof attemptOnce>>["sentences"] }
   | { ok: false; reason: string }
 > {
-  const db = corpusDb();
-  const nodes = listStructureNodes(db, input.judgmentId);
-  const spanText = new Map(listSpans(db, input.judgmentId).map((span) => [span.id, span.text]));
+  const nodes = input.store.listNodes();
+  const spanText = new Map(input.store.listSpans().map((span) => [span.id, span.text]));
 
   let lastReason = "근거 있는 설명을 만들지 못했습니다.";
 
@@ -174,6 +167,7 @@ async function tryUntilGrounded(input: {
       level: input.level,
       nodes,
       spanText,
+      store: input.store,
       jobId: input.jobId,
       signal: input.signal,
     });
@@ -201,17 +195,17 @@ async function attemptOnce(input: {
   level: Level;
   nodes: readonly { id: string; kind: string; payload: unknown; spanIds: readonly string[] }[];
   spanText: ReadonlyMap<string, string>;
+  store: PipelineStore;
   jobId: string;
   signal?: AbortSignal | undefined;
 }) {
-  const { client, level, nodes, spanText, jobId, signal } = input;
-  const db = corpusDb();
+  const { client, level, nodes, spanText, store, jobId, signal } = input;
 
-  setGenerationStage(db, jobId, "render");
+  store.setStage(jobId, "render");
   const rendered = await renderLevel(client, level, nodes, signal);
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
-  setGenerationStage(db, jobId, "verify");
+  store.setStage(jobId, "verify");
   const checks = await checkEntailment(
     client,
     claimsFor(rendered.lines, nodeSpans, spanText),
@@ -256,14 +250,12 @@ async function attemptOnce(input: {
  * 근거 없는 문장을 배지만 붙여 내보내지 않는다(P2). 반면 `needs_check`는 내보낸다.
  * "확인이 필요하다"와 "근거가 없다"는 다른 말이다.
  */
-function beginGeneration(judgmentId: string, level: Level): BeginResult {
-  const db = corpusDb();
+function beginGeneration(store: PipelineStore, level: Level): BeginResult {
   if (llm() === undefined) {
     return { kind: "unavailable" };
   }
 
-  const claim = claimGenerationJob(db, {
-    judgmentId,
+  const claim = store.claimJob({
     level,
     promptVersion: PIPELINE_VERSION,
     workerId: randomUUID(),
@@ -281,8 +273,8 @@ function beginGeneration(judgmentId: string, level: Level): BeginResult {
    *
    * 못 떼면 작업을 실패로 닫는다. 선점만 하고 남겨 두면 그 자리가 90초 동안 막힌다.
    */
-  if (!reserveGenerationSlot(db, { day: today(), limit: generationDailyLimit() })) {
-    finishGenerationJob(db, claim.jobId, { ok: false, error: LIMIT_REASON });
+  if (!reserveGenerationSlot(corpusDb(), { day: today(), limit: generationDailyLimit() })) {
+    store.finishJob(claim.jobId, { ok: false, error: LIMIT_REASON });
     return { kind: "limited" };
   }
 
@@ -297,41 +289,39 @@ function beginGeneration(judgmentId: string, level: Level): BeginResult {
  * 일은 응답을 보낸 뒤에 이어져야 한다.
  */
 async function runGeneration(
-  judgmentId: string,
+  store: PipelineStore,
   level: Level,
   jobId: string,
   signal?: AbortSignal,
 ): Promise<GenerateResult> {
-  const db = corpusDb();
   const client = llm();
   if (client === undefined) {
-    finishGenerationJob(db, jobId, { ok: false, error: "AI 연결이 설정되지 않았습니다." });
+    store.finishJob(jobId, { ok: false, error: "AI 연결이 설정되지 않았습니다." });
     return { kind: "unavailable" };
   }
 
   try {
-    setGenerationStage(db, jobId, "structure");
-    const structure = await ensureStructure(judgmentId, signal);
+    store.setStage(jobId, "structure");
+    const structure = await ensureStructure(store, signal);
     if (!structure.ok) {
-      finishGenerationJob(db, jobId, { ok: false, error: structure.reason });
+      store.finishJob(jobId, { ok: false, error: structure.reason });
       return { kind: "failed", reason: structure.reason };
     }
 
-    const tried = await tryUntilGrounded({ client, level, judgmentId, jobId, signal });
+    const tried = await tryUntilGrounded({ client, level, store, jobId, signal });
     if (!tried.ok) {
-      finishGenerationJob(db, jobId, { ok: false, error: tried.reason });
+      store.finishJob(jobId, { ok: false, error: tried.reason });
       return { kind: "failed", reason: tried.reason };
     }
 
-    setGenerationStage(db, jobId, "save");
-    const renditionId = saveRendition(db, {
-      judgmentId,
+    store.setStage(jobId, "save");
+    const renditionId = store.saveRendition({
       level,
       model: client.model,
       promptVersion: PIPELINE_VERSION,
       sentences: tried.sentences,
     });
-    finishGenerationJob(db, jobId, { ok: true });
+    store.finishJob(jobId, { ok: true });
 
     return {
       kind: "done",
@@ -345,7 +335,7 @@ async function runGeneration(
      * 작업을 실패로 닫아야 한다. 선점만 하고 끝나면 그 좀비 작업이 캐시를 영구히 막는다
      * (§5.3이 이 구조의 최악으로 꼽은 상황이다). 회수 주기가 있지만 90초를 기다릴 이유가 없다.
      */
-    finishGenerationJob(db, jobId, { ok: false, error: reason });
+    store.finishJob(jobId, { ok: false, error: reason });
     return { kind: "failed", reason };
   }
 }
@@ -357,15 +347,15 @@ async function runGeneration(
  * 화면 쪽은 `beginGeneration`으로 자리를 잡고 `runGeneration`을 응답 뒤로 미룬다.
  */
 async function generateRendition(
-  judgmentId: string,
+  store: PipelineStore,
   level: Level,
   signal?: AbortSignal,
 ): Promise<GenerateResult> {
-  const begun = beginGeneration(judgmentId, level);
+  const begun = beginGeneration(store, level);
   if (begun.kind !== "claimed") {
     return begun;
   }
-  return await runGeneration(judgmentId, level, begun.jobId, signal);
+  return await runGeneration(store, level, begun.jobId, signal);
 }
 
 export { beginGeneration, generateRendition, generationBudget, PIPELINE_VERSION, runGeneration };

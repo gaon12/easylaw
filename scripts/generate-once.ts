@@ -29,6 +29,7 @@ import {
 import { generationJob, rendition } from "@/db/corpus/schema";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { generateRendition, generationBudget, PIPELINE_VERSION } from "@/server/generate";
+import { caseStore } from "@/server/pipeline-store";
 import { llmConfig } from "@/server/settings";
 
 const LEVELS: readonly string[] = ["L1", "L2", "L3", "L4"];
@@ -91,7 +92,7 @@ async function main(): Promise<void> {
   }
 
   const startedAt = Date.now();
-  const result = await generateRendition(judgment.id, level);
+  const result = await generateRendition(caseStore(judgment.id), level);
   const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
 
   out("");
