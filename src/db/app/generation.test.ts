@@ -1,8 +1,10 @@
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
 import {
   claimUploadJob,
+  findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
   finishUploadJob,
@@ -14,6 +16,7 @@ import {
   setUploadJobStage,
 } from "./generation";
 import { createUser, listUploadSpans, saveUpload } from "./repository";
+import { uploadRendition } from "./schema";
 
 let db: AppDb;
 let close: () => void;
@@ -175,6 +178,51 @@ describe("saveUploadRendition", () => {
     });
 
     expect(findUploadRendition(db, uploadId, "L2", "v2")).toBeUndefined();
+  });
+
+  it("현재 프롬프트 버전과 관계없이 그 레벨의 가장 최근 설명을 읽는다", () => {
+    const { uploadId } = seedUpload();
+    const olderId = saveUploadRendition(db, {
+      uploadId,
+      level: "L2",
+      model: "old-model",
+      promptVersion: "old-prompt",
+      sentences: [{ orderIdx: 0, text: "예전 설명", confidence: "grounded" }],
+    });
+    const newerId = saveUploadRendition(db, {
+      uploadId,
+      level: "L2",
+      model: "new-model",
+      promptVersion: "new-prompt",
+      sentences: [{ orderIdx: 0, text: "새 설명", confidence: "grounded" }],
+    });
+    const otherLevelId = saveUploadRendition(db, {
+      uploadId,
+      level: "L4",
+      model: "newest-model",
+      promptVersion: "newest-prompt",
+      sentences: [{ orderIdx: 0, text: "다른 단계 설명", confidence: "grounded" }],
+    });
+
+    db.update(uploadRendition)
+      .set({ generatedAt: new Date("2026-09-01T00:00:00Z") })
+      .where(eq(uploadRendition.id, olderId))
+      .run();
+    db.update(uploadRendition)
+      .set({ generatedAt: new Date("2026-09-02T00:00:00Z") })
+      .where(eq(uploadRendition.id, newerId))
+      .run();
+    db.update(uploadRendition)
+      .set({ generatedAt: new Date("2026-09-03T00:00:00Z") })
+      .where(eq(uploadRendition.id, otherLevelId))
+      .run();
+
+    expect(findLatestUploadRendition(db, uploadId, "L2")).toMatchObject({
+      id: newerId,
+      promptVersion: "new-prompt",
+      generatedAt: new Date("2026-09-02T00:00:00Z"),
+    });
+    expect(findLatestUploadRendition(db, uploadId, "L4")?.id).toBe(otherLevelId);
   });
 
   it("문서를 지우면 설명본도 함께 지워진다", () => {

@@ -13,7 +13,7 @@
  * 문서를 확인한 뒤 그 `uploadId`를 넘긴다 — 확인을 두 번 하면 한 번은 언젠가 빠진다.
  */
 
-import { and, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import type { AppDb } from "../client";
 import {
   uploadGenerationJob,
@@ -233,6 +233,16 @@ function findUploadRendition(db: AppDb, uploadId: string, level: Level, promptVe
     .get();
 }
 
+/** 프롬프트 버전을 가리지 않고 이 문서·레벨에서 가장 최근에 만든 설명을 읽는다. */
+function findLatestUploadRendition(db: AppDb, uploadId: string, level: Level) {
+  return db
+    .select()
+    .from(uploadRendition)
+    .where(and(eq(uploadRendition.uploadId, uploadId), eq(uploadRendition.level, level)))
+    .orderBy(desc(uploadRendition.generatedAt))
+    .get();
+}
+
 function listUploadSentences(db: AppDb, renditionId: string) {
   const sentences = db
     .select()
@@ -436,6 +446,7 @@ function findUploadJobProgress(
 
 export {
   claimUploadJob,
+  findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
   finishUploadJob,
