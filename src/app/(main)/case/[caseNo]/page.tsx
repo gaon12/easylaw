@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import {
 } from "@/db/corpus/repository";
 import { formatDate } from "@/lib/format";
 import type { Citation } from "@/lib/law-citation/detect";
-import { viewer } from "@/lib/strings";
+import { braille as brailleStrings, viewer } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
 import { findCitations } from "@/server/citations";
 import { generationBudget, PIPELINE_VERSION, REQUEST_LIMIT_REASON } from "@/server/generate";
@@ -220,7 +221,16 @@ export default async function CasePage(props: {
       <div className={styles.levels}>
         <LevelTabs basePath={basePath} current={level} />
         {/* 고른 단계가 어떤 말로 쓰는지 한 줄로 알린다. 탭 이름만으로는 알 수 없다. */}
-        <p className={styles.levelNote}>{viewer.levelNotes[level]}</p>
+        <p className={styles.levelNote}>
+          {viewer.levelNotes[level]}
+          {/*
+            점자는 **지금 보고 있는 단계 그대로** 넘어간다. 단계마다 문장이 다르므로
+            "무엇을 점자로 바꿀 것인가"를 다시 묻지 않는다.
+          */}
+          <Link className={styles.brailleLink} href={`${basePath}/braille?level=${level}`}>
+            {brailleStrings.cta}
+          </Link>
+        </p>
       </div>
 
       <div className={styles.panels}>

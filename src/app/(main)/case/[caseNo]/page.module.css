@@ -63,3 +63,10 @@
     padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);
   }
 }
+
+/* 점자 화면으로 가는 길. 단계 설명 줄 끝에 붙는다 — 지금 보는 단계를 그대로 가져간다. */
+.brailleLink {
+  margin-left: var(--el-space-3);
+  color: var(--el-action);
+  font-weight: 700;
+}

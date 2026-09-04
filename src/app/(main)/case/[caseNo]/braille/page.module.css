@@ -1,0 +1,87 @@
+/*
+ * 점자 화면. 조용해야 한다 — 이 화면에서 할 일은 점자 덩어리를 통째로 가져가는 것 하나다.
+ */
+
+.page {
+  max-width: var(--el-container);
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-5);
+}
+
+.header {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.title {
+  font-size: var(--el-text-heading-l);
+}
+
+.meta {
+  color: var(--el-fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.back {
+  justify-self: start;
+  color: var(--el-action);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
+  align-items: center;
+}
+
+.status {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+/*
+ * 점자 칸은 **글꼴 대체에 맡긴다.** 유니코드 점자(U+2800~)는 Pretendard에 없으므로
+ * 운영체제 글꼴로 떨어지는데, 그 편이 낫다 — 점자 단말기로 복사할 때 중요한 것은 모양이
+ * 아니라 코드포인트다. 크기만 넉넉히 두어 눈으로도 줄을 셀 수 있게 한다.
+ */
+.braille {
+  margin: 0;
+  padding: var(--el-space-5);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-m);
+  background: var(--el-bg-canvas);
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", monospace;
+  font-size: 1.5rem;
+  line-height: 1.9;
+  /* 점자는 줄바꿈으로 뜻이 갈린다. 자동 줄바꿈을 켜되 문장 줄바꿈은 그대로 지킨다. */
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: auto;
+}
+
+.source {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.empty {
+  display: grid;
+  gap: var(--el-space-2);
+  padding: var(--el-space-8) var(--el-space-5);
+  border: 1px dashed var(--el-border-default);
+  border-radius: var(--el-radius-l);
+  text-align: center;
+  justify-items: center;
+}
+
+.emptyTitle {
+  font-size: var(--el-text-heading-xs);
+}
+
+.emptyBody {
+  color: var(--el-fg-2);
+  max-width: 46ch;
+}
