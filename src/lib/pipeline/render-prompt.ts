@@ -133,7 +133,7 @@ function outputExample(level: Level): string {
     '  {"role": "body", "text": "…", "from": "n0"}',
     ...sections.map(
       (section) =>
-        `  {"role": "heading", "text": "${section}"},\n  {"role": "body", "text": "…", "from": "n1"}`,
+        `  {"role": "heading", "text": "${section}"},\n  {"role": "body", "text": "…", "from": "n0"}`,
     ),
   ];
 

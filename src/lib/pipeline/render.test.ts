@@ -30,6 +30,7 @@ const goodL2 = {
   sentences: [
     { role: "body", text: "법원은 상고를 받아들이지 않았어요.", from: "n0" },
     { role: "body", text: "원심의 판단이 옳다고 보았어요.", from: "n1" },
+    { role: "body", text: "피고는 법리를 잘못 적용했다고 주장했어요.", from: "n2" },
     { role: "heading", text: "다음 절차" },
     { role: "body", text: "이 판결에 대해 더 다툴 수 있는지 확인해 보세요.", from: "n0" },
   ],
@@ -84,7 +85,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v3");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v5");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {
@@ -126,6 +127,19 @@ describe("프롬프트", () => {
     expect(l4).not.toContain("시간 순서와 인물의 흐름");
   });
 
+  it("결론만 짧게 쓰지 않고 레벨별 흐름과 모든 핵심 노드의 설명을 요구한다", () => {
+    expect(renderInstruction("L1")).toContain("판결 요지");
+    expect(renderInstruction("L1")).toContain("인용 법령 노드도 모두");
+    expect(renderInstruction("L2")).toContain("나에게 어떤 영향이 있나요");
+    expect(renderInstruction("L3")).toContain("법원은 무엇을 살펴봤나요");
+    expect(renderInstruction("L4")).toContain("왜 그런가요");
+
+    for (const level of ["L1", "L2", "L3", "L4"] as const) {
+      expect(renderInstruction(level)).toContain("결론 몇 문장만 쓰고 끝내지 않습니다");
+      expect(renderInstruction(level)).toContain("최소 한 번씩 다룹니다");
+    }
+  });
+
   it("모든 레벨에 단정 금지를 말한다 — 전문가가 지적한 결함이다", () => {
     for (const level of ["L1", "L2", "L3", "L4"] as const) {
       expect(renderInstruction(level)).toContain("이겼습니다");
@@ -140,10 +154,26 @@ describe("결과", () => {
     expect(result.lines.map((line) => line.structureNodeId)).toEqual([
       "node-a",
       "node-b",
+      "node-c",
       null,
       "node-a",
     ]);
     expect(result.blocked).toBe(false);
+    expect(result.missingNodeIds).toEqual([]);
+  });
+
+  it("핵심 구조 노드를 빼먹은 짧은 설명은 표시하지 않는다", async () => {
+    const answer = {
+      sentences: [
+        { role: "body", text: "법원은 상고를 받아들이지 않았습니다.", from: "n0" },
+        { role: "heading", text: "다음 절차" },
+        { role: "body", text: "판결 내용을 확인합니다.", from: "n0" },
+      ],
+    };
+    const result = await renderLevel(fakeClient(answer), "L2", nodes);
+
+    expect(result.missingNodeIds).toEqual(["node-b", "node-c"]);
+    expect(result.blocked).toBe(true);
   });
 
   it("제목은 근거가 없어도 grounded다 — 우리가 정한 섹션 이름이다", async () => {
