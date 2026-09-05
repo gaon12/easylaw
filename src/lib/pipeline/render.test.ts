@@ -49,6 +49,11 @@ describe("프롬프트", () => {
     expect(document).not.toContain('{"party":"defendant"');
   });
 
+  /*
+   * 인용 법령 노드는 **문장으로 만들지 않는다.** 넘겨 줬더니 모델이 "제16조 제6항이
+   * 인용되었다" 같은, 읽는 사람에게 아무것도 알려 주지 않는 문장을 썼다. 그 조문이 무슨
+   * 말을 하는지는 판단 노드가 담고 있고, 조문 자체는 화면의 링크와 모달이 맡는다.
+   */
   it("모든 구조 필드를 모델이 바로 읽을 수 있는 한국어 한 줄로 보낸다", async () => {
     const client = fakeClient(goodL2);
     await renderLevel(client, "L2", [
@@ -73,9 +78,22 @@ describe("프롬프트", () => {
         "[n3] 검사의 주장: 유죄라고 주장함",
         "[n4] 법원의 판단과 이유: 청구에 이유가 없음",
         "[n5] 재판의 결론: 상고 기각",
-        "[n6] 인용 법령: 민법 제390조 제1항 제2호",
       ].join("\n"),
     );
+  });
+
+  it("인용 법령 노드는 문장 만들기에 넘기지 않는다", async () => {
+    const client = fakeClient(goodL2);
+    await renderLevel(client, "L2", [
+      { id: "o", kind: "conclusion", payload: { text: "상고 기각" } },
+      {
+        id: "law",
+        kind: "citation",
+        payload: { law_name: "민법", article: "제390조", clause: "제1항" },
+      },
+    ]);
+
+    expect(client.lastRequest?.documents?.[0]?.text).not.toContain("제390조");
   });
 
   it("지시문이 실제 한국어 입력 모양과 주장 주체를 설명하고 버전을 구분한다", () => {
@@ -85,7 +103,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v6");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v7");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {
@@ -129,7 +147,7 @@ describe("프롬프트", () => {
 
   it("결론만 짧게 쓰지 않고 레벨별 흐름과 모든 핵심 노드의 설명을 요구한다", () => {
     expect(renderInstruction("L1")).toContain("판결 요지");
-    expect(renderInstruction("L1")).toContain("인용 법령 노드도 모두");
+    expect(renderInstruction("L1")).toContain("모든 노드를 본문에서 최소 한 번씩");
     expect(renderInstruction("L2")).toContain("나에게 어떤 영향이 있나요");
     expect(renderInstruction("L3")).toContain("법원은 무엇을 살펴봤나요");
     expect(renderInstruction("L4")).toContain("왜 그런가요");
@@ -297,5 +315,26 @@ describe("from 읽기", () => {
     expect(() =>
       parseRendition({ sentences: [{ role: "body", text: "…", from: "판결문 3번째 줄" }] }),
     ).toThrow();
+  });
+});
+
+/*
+ * 필수 제목이 없는 단계(L1)에서 모델이 권장 흐름의 제목을 **본문 문장으로** 적어 냈다.
+ * 지시문은 "제목을 달아"라고 말했지만 예시에 제목이 없었고, 그때는 예시가 이긴다.
+ */
+describe("출력 예시", () => {
+  it("어느 단계에서든 제목 예시를 하나는 보여 준다", () => {
+    for (const level of ["L1", "L2", "L3", "L4"] as const) {
+      expect(renderInstruction(level)).toContain('{"role": "heading"');
+    }
+  });
+
+  it("필수 제목이 있으면 그 제목을 그대로 예시에 적는다", () => {
+    expect(renderInstruction("L4")).toContain('"text": "그래서 어떻게 되나요"');
+    expect(renderInstruction("L4")).toContain('"text": "이해 확인"');
+  });
+
+  it("필수 제목이 없으면 그 단계의 권장 흐름 첫 제목을 쓴다", () => {
+    expect(renderInstruction("L1")).toContain('{"role": "heading", "text": "판결 요지"}');
   });
 });
