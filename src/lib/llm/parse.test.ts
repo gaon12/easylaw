@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJson, parseCompletion } from "./parse";
+import { extractJson, jsonCandidates, parseCompletion } from "./parse";
 
 /** 최소한의 정상 응답. 각 테스트가 필요한 부분만 덮어쓴다. */
 function response(overrides: Record<string, unknown> = {}): unknown {
@@ -78,5 +78,42 @@ describe("extractJson", () => {
 
   it("잘린 JSON은 던진다 — 조용히 절반만 쓰지 않는다", () => {
     expect(() => extractJson('{"a": 1, "b"')).toThrow();
+  });
+});
+
+/*
+ * Gemma가 실제로 보낸 모양이다 — 초안을 쓰고, 그것을 스스로 점검하는 글을 쓰고, 고친 답을
+ * 다시 썼다. 첫 `{`부터 마지막 `}`까지 한 번에 자르면 두 덩어리를 통째로 삼켜 아무것도
+ * 읽히지 않는다.
+ */
+describe("jsonCandidates", () => {
+  it("답을 두 번 쓴 응답에서 둘 다 꺼내고, 나중 것을 먼저 준다", () => {
+    const text = [
+      "생각을 적어 봅니다.",
+      "```json",
+      '{"sentences": [{"role": "body", "text": "초안"}]}',
+      "```",
+      "다시 보니 고칠 곳이 있습니다.",
+      "```json",
+      '{"sentences": [{"role": "body", "text": "고친 것"}]}',
+      "```",
+    ].join("\n");
+
+    const candidates = jsonCandidates(text);
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]).toEqual({ sentences: [{ role: "body", text: "고친 것" }] });
+    expect(candidates[1]).toEqual({ sentences: [{ role: "body", text: "초안" }] });
+  });
+
+  it("문자열 안의 중괄호를 세지 않는다 — 판결문에 섞여 들어온다", () => {
+    expect(jsonCandidates('앞말 {"a": "여는 괄호 { 와 닫는 괄호 }"} 뒷말')[0]).toEqual({
+      a: "여는 괄호 { 와 닫는 괄호 }",
+    });
+  });
+
+  it("읽을 것이 하나도 없으면 빈 목록이다 — 던지는 것은 빈 응답뿐이다", () => {
+    expect(jsonCandidates("죄송합니다, 만들 수 없습니다.")).toEqual([]);
+    expect(() => jsonCandidates("   ")).toThrow("빈 응답");
   });
 });
