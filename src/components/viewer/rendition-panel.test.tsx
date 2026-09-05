@@ -6,6 +6,7 @@ import { RenditionPanel } from "./rendition-panel";
 function renderConfidence(
   confidence: "grounded" | "needs_check" | "ungrounded",
   checkReason: string | null,
+  sourceSpanIds?: readonly string[],
 ): string {
   return renderToStaticMarkup(
     <RenditionPanel
@@ -18,6 +19,7 @@ function renderConfidence(
           text: "법원이 이유를 살펴보았습니다.",
           confidence,
           checkReason,
+          sourceSpanIds,
         },
       ]}
     />,
@@ -45,5 +47,15 @@ describe("확인 필요 안내", () => {
 
     expect(html).not.toContain(viewer.confidence.grounded);
     expect(html).not.toContain(viewer.needsCheckHint);
+  });
+
+  it("근거 링크의 이름에서 문장과 확인 안내를 가리지 않는다", () => {
+    const html = renderConfidence("needs_check", null, ["source-1"]);
+
+    expect(html).toContain('href="#source-1"');
+    expect(html).toContain("법원이 이유를 살펴보았습니다.");
+    expect(html).toContain(viewer.evidence);
+    expect(html).toContain(viewer.needsCheckHint);
+    expect(html).not.toContain(`aria-label="${viewer.evidenceOf(1)}"`);
   });
 });

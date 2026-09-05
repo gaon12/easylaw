@@ -76,11 +76,7 @@ function RenditionPanel({
                   <ConfidenceMark sentence={sentence} />
                 </p>
               ) : (
-                <a
-                  aria-label={viewer.evidenceOf((sentence.orderIdx ?? 0) + 1)}
-                  className={styles.sentenceLink}
-                  href={`#${sentence.sourceSpanIds[0]}`}
-                >
+                <a className={styles.sentenceLink} href={`#${sentence.sourceSpanIds[0]}`}>
                   <span className={styles.sentenceText} data-speech-index={index}>
                     {sentence.text}
                   </span>
