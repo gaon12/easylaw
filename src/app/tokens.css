@@ -124,6 +124,7 @@
   --el-evidence-bg: var(--el-primary-10);
   --el-evidence-line: var(--el-primary-30);
   --el-evidence-active-bg: var(--el-primary-20);
+  --el-evidence-marker-bg: oklch(0.93 0.13 98);
   --el-difficulty-bg: var(--el-warning-5);
 
   /* ── 타이포 ─────────────────────────────────────────────── */
@@ -273,6 +274,7 @@
   --el-evidence-bg: var(--el-primary-80);
   --el-evidence-line: var(--el-primary-40);
   --el-evidence-active-bg: var(--el-primary-70);
+  --el-evidence-marker-bg: oklch(0.42 0.085 88);
   --el-difficulty-bg: oklch(0.3 0.05 58);
 
   --el-brand-strong: #006c63;
