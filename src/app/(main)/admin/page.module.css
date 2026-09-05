@@ -201,3 +201,24 @@
   border-color: var(--el-action);
   color: var(--el-action-hover);
 }
+
+/* 칸 아래에 붙는 잘못 안내. 설치 마법사의 같은 자리와 같은 모양이다. */
+.fieldError {
+  color: var(--el-danger-70);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--el-danger);
+}
+
+/*
+  주소가 틀린 동안에는 저장을 누를 수 없다. 칸이 스스로 판단하고(`BaseUrlField`) 폼이
+  그것을 보고 잠근다 — 잠금 상태를 리액트로 끌어올리려면 폼 전체가 클라이언트가 되어야 한다.
+  키보드로 넘어오는 제출까지 막지는 못하므로, 저장 자리에서 한 번 더 본다.
+*/
+.form:has([data-invalid="true"]) button[type="submit"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
