@@ -23,9 +23,19 @@
   min-height: 100dvh;
 }
 
+/*
+ * 머리띠. **흰 면 + 주황 밑줄이다.**
+ *
+ * 색 면을 통째로 깔면 브랜드는 세지지만 화면이 그쪽으로 기울고, 판결문을 읽는 자리보다
+ * 머리띠가 먼저 눈에 든다. 흰 면에 굵은 밑줄만 두면 브랜드는 선명하게 남으면서
+ * **본문이 화면의 주인공으로 돌아온다** — 공공 서비스 상단이 대개 이 모양인 이유다.
+ *
+ * 밑줄은 문서 블록의 3px 머리선과 같은 시그니처다(`wiki/*.module.css`). 같은 색·같은
+ * 두께가 화면 여기저기서 반복되면 그것이 곧 브랜드가 된다.
+ */
 .header {
-  border-bottom: 1px solid var(--el-brand-deep);
-  background: var(--el-brand-strong);
+  border-bottom: 3px solid var(--el-brand-signature);
+  background: var(--el-bg-canvas);
 }
 
 /*
@@ -51,22 +61,30 @@
   align-items: center;
   min-height: var(--el-touch-target);
   gap: var(--el-space-2);
-  color: var(--el-fg-inverse);
+  color: var(--el-fg-1);
   font-size: var(--el-text-heading-s);
   font-weight: 700;
   letter-spacing: -0.01em;
   text-decoration: none;
 }
 
+/*
+ * 흰 머리띠에서 유일한 색 덩어리다.
+ *
+ * **시그니처(#ff6000)가 아니라 한 단 진한 색을 쓴다.** 여기에는 `§` 글자가 얹히는데,
+ * 시그니처 위의 흰 글자는 3.03:1이라 본문 기준에 못 미친다(§3.3 규칙 5). 밑줄처럼
+ * 글자가 없는 자리에만 시그니처를 쓴다.
+ */
 .brandMark {
   display: inline-grid;
   place-items: center;
   width: 28px;
   height: 28px;
-  border: 1px solid color-mix(in srgb, white 62%, transparent);
   border-radius: var(--el-radius-s);
-  background: color-mix(in srgb, white 14%, transparent);
+  background: var(--el-brand-strong);
+  color: var(--el-fg-inverse);
   font-size: var(--el-text-body-m);
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -104,21 +122,27 @@
   min-height: var(--el-touch-target);
   padding: 0 var(--el-space-4);
   border-radius: var(--el-radius-s);
-  color: var(--el-fg-inverse);
+  color: var(--el-fg-1);
   font-size: var(--el-text-body-m);
   font-weight: 500;
   text-decoration: none;
 }
 
 .navLink:hover {
-  background: var(--el-brand-deep);
-  color: var(--el-fg-inverse);
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
 }
 
+/* 메뉴 중 하나만 강조한다. 옅은 주황 면 + 진한 주황 글자(6.33:1). */
 .navCta {
   font-weight: 700;
-  color: var(--el-fg-inverse);
-  background: color-mix(in srgb, white 14%, transparent);
+  color: var(--el-brand-fg);
+  background: var(--el-brand-surface);
+}
+
+.navCta:hover {
+  color: var(--el-brand-fg);
+  background: var(--el-primary-20);
 }
 
 /*
@@ -135,12 +159,12 @@
   min-height: var(--el-touch-target);
   padding: var(--el-space-1) var(--el-space-3) var(--el-space-1) var(--el-space-1);
   border-radius: var(--el-radius-pill);
-  color: var(--el-fg-inverse);
+  color: var(--el-fg-1);
   text-decoration: none;
 }
 
 .accountLink:hover {
-  background: var(--el-brand-deep);
+  background: var(--el-bg-subtle);
 }
 
 /* 무늬가 배경과 붙어 보이지 않게 얇은 테두리를 준다. */
@@ -148,7 +172,7 @@
   width: 32px;
   height: 32px;
   border-radius: var(--el-radius-pill);
-  border: 1px solid var(--el-border-subtle);
+  border: 1px solid var(--el-border-default);
   background: var(--el-bg-canvas);
 }
 
@@ -171,7 +195,7 @@
   border: 0;
   border-radius: var(--el-radius-s);
   background: none;
-  color: var(--el-fg-inverse);
+  color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
   cursor: pointer;
 }
@@ -179,8 +203,8 @@
 /* 헤더를 조금 높인다. 글자가 커진 만큼 위아래 숨 쉴 자리가 필요하다. */
 
 .navButton:hover {
-  background: var(--el-brand-deep);
-  color: var(--el-fg-inverse);
+  background: var(--el-bg-subtle);
+  color: var(--el-fg-1);
 }
 
 .main {
