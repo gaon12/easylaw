@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ButtonLink } from "@/components/ui/button";
-import { viewer } from "@/lib/strings";
+import { law, viewer } from "@/lib/strings";
 import styles from "./citation-dialog.module.css";
+import { isSimplifiedLevel, type ViewLevel } from "./levels";
 
 /**
  * 인용을 누르면 그 조문을 **그 자리에서** 보여 준다. `PAGES.md` §5
@@ -84,6 +85,7 @@ function CitationDialog({
   href,
   query,
   label,
+  level,
   title,
 }: {
   /** 상세 보기가 가는 곳. 스크립트가 없으면 이 링크가 그대로 동작한다. */
@@ -92,6 +94,8 @@ function CitationDialog({
   query: string;
   /** 원문에 적힌 인용 글자. */
   label: string;
+  /** 인용을 연 판결문 화면의 읽기 단계. API 조회에는 보내지 않는다. */
+  level: ViewLevel;
   /** 링크 설명(스크린리더·툴팁). */
   title: string;
 }) {
@@ -151,6 +155,9 @@ function CitationDialog({
         </header>
 
         <div className={styles.content}>
+          {isSimplifiedLevel(level) ? (
+            <p className={styles.originalNote}>{law.originalTextNotice(viewer.levels[level])}</p>
+          ) : null}
           {state.status === "loaded" ? <ArticleView article={state.article} /> : null}
           {state.status === "loading" ? (
             <p className={styles.notice}>{viewer.citationLoading}</p>

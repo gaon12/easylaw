@@ -214,7 +214,7 @@ export default async function DocPage(props: {
           가고, 법령 화면이 "선고일을 알 수 없어 오늘 시행 중인 법을 보여 준다"고 말한다.
           모르는 날짜를 지어내 "판결 당시의 법"이라고 하는 것보다 낫다.
         */}
-        <OriginalPanel citations={citations} spans={spans} />
+        <OriginalPanel citations={citations} level={level} spans={spans} />
       </section>
 
       <Card as="section" className={styles.danger} padding="tight">

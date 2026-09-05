@@ -1,11 +1,12 @@
 import { Alert } from "@/components/ui/alert";
 import type { TocEntry } from "@/components/ui/types";
+import { isSimplifiedLevel, toLevel } from "@/components/viewer/levels";
 import { WikiDocument } from "@/components/wiki/document";
 import { WikiInfobox } from "@/components/wiki/infobox";
 import { WikiSection } from "@/components/wiki/section";
 import { formatDate } from "@/lib/format";
 import { asOfNote, readAsOf } from "@/lib/law-citation/as-of";
-import { law as strings, wiki } from "@/lib/strings";
+import { law as strings, viewer, wiki } from "@/lib/strings";
 import { type ArticleText, lawAsOf } from "@/server/law";
 import { siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
@@ -15,6 +16,14 @@ const TOC_ARTICLE_LIMIT = 40;
 
 /** 항의 key로 쓸 앞글자 길이. 같은 조문 안에서 항끼리 구분되면 충분하다. */
 const CLAUSE_KEY_LENGTH = 12;
+
+interface LawSearchParams {
+  readonly 조?: string;
+  readonly 의?: string;
+  readonly 때?: string;
+  readonly id?: string;
+  readonly level?: string | string[];
+}
 
 /** 조문 하나의 앵커 id. 주소에 그대로 보이므로 사람이 읽을 수 있게 둔다. */
 function articleAnchor(articleNo: string, branchNo: string): string {
@@ -121,10 +130,11 @@ function ArticleEntry({
  */
 export default async function LawPage(props: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ 조?: string; 의?: string; 때?: string; id?: string }>;
+  searchParams: Promise<LawSearchParams>;
 }) {
   const [params, query] = await Promise.all([props.params, props.searchParams]);
   const name = decodeURIComponent(params.name);
+  const level = toLevel(query.level);
   /*
    * 날짜를 받았는가. **받았을 때만 "판결 당시의 법"이라고 말할 수 있다** —
    * 못 받았으면 오늘 기준이고, 그것을 판결 당시라고 하면 거짓말이 된다.
@@ -177,6 +187,11 @@ export default async function LawPage(props: {
           ]}
           title={law.lawName}
         />
+      }
+      meta={
+        isSimplifiedLevel(level) ? (
+          <p className={styles.originalNote}>{strings.originalTextNotice(viewer.levels[level])}</p>
+        ) : undefined
       }
       title={<h1 className={styles.title}>{law.lawName}</h1>}
       toc={buildToc(law.articles, law.sections)}

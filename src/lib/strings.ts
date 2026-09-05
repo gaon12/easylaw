@@ -1055,6 +1055,8 @@ export const search = {
  * 지금 상황에 그대로 적용해 버릴 수 있고, 그건 이 서비스가 가장 피해야 할 오해다.
  */
 export const law = {
+  originalTextNotice: (level: string) =>
+    `${level} 설명에서 법령을 열었어요. 아래는 쉽게 바꾸지 않은 법령 원문이에요. 어려운 법률 문장이 나올 수 있어요.`,
   effectiveAt: "이 판의 시행일",
   articleCount: "조문 수",
   articles: (count: number) => `${count}개`,

@@ -87,11 +87,13 @@ function OriginalSection({
   spans,
   citations,
   decidedAt,
+  level,
   reason,
 }: {
   spans: readonly { id: string; paraIdx: number; text: string }[];
   citations: ReadonlyMap<string, readonly Citation[]>;
   decidedAt: Date | null;
+  level: ViewLevel;
   /** 원문을 못 가져왔으면 그 이유. 가져왔으면 null. */
   reason: string | null;
 }) {
@@ -99,7 +101,7 @@ function OriginalSection({
     return <p className={styles.notice}>{reason}</p>;
   }
 
-  return <OriginalPanel citations={citations} decidedAt={decidedAt} spans={spans} />;
+  return <OriginalPanel citations={citations} decidedAt={decidedAt} level={level} spans={spans} />;
 }
 
 /**
@@ -236,6 +238,7 @@ function ViewerPanels({
         <OriginalSection
           citations={citations}
           decidedAt={decidedAt}
+          level={level}
           reason={textReason}
           spans={spans}
         />
@@ -317,7 +320,7 @@ export default async function CasePage(props: {
         인용 법령을 문서 끝에 모은다(위키의 각주 목록). 본문 안의 링크만으로는 무엇을
         근거로 삼았는지 알려면 판결문을 끝까지 읽어야 한다.
       */}
-      <CitedLaws citations={citations} decidedAt={summary.decidedAt} />
+      <CitedLaws citations={citations} decidedAt={summary.decidedAt} level={level} />
     </WikiDocument>
   );
 }

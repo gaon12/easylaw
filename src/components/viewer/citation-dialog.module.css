@@ -135,6 +135,14 @@
   color: var(--el-fg-2);
 }
 
+.originalNote {
+  padding: var(--el-space-2) var(--el-space-3);
+  border-left: 3px solid var(--el-brand-strong);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
+  font-size: var(--el-text-body-s);
+}
+
 .foot {
   display: flex;
   justify-content: flex-end;

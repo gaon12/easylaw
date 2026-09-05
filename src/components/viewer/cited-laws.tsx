@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Citation, LawRef } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
 import styles from "./cited-laws.module.css";
+import type { ViewLevel } from "./levels";
+import { withReadingLevel } from "./levels";
 
 /**
  * 이 판결이 인용한 법령. `PAGES.md` §5 · 위키의 각주 목록에 해당한다.
@@ -41,7 +43,12 @@ function articleLabel(citation: Citation): string {
 }
 
 /** 인용 하나를 조문 항목으로. 주소는 본문 링크와 같은 규칙으로 만든다(§10.2와 같은 이유). */
-function toArticle(citation: Citation, law: LawRef, at: string | undefined): CitedArticle {
+function toArticle(
+  citation: Citation,
+  law: LawRef,
+  at: string | undefined,
+  level: ViewLevel,
+): CitedArticle {
   const query = new URLSearchParams({ 조: citation.articleNo, id: law.lawId });
   if (citation.branchNo !== undefined) {
     query.set("의", citation.branchNo);
@@ -53,7 +60,7 @@ function toArticle(citation: Citation, law: LawRef, at: string | undefined): Cit
   return {
     key: `${citation.articleNo}-${citation.branchNo ?? ""}`,
     label: articleLabel(citation),
-    href: `/law/${encodeURIComponent(law.name)}?${query}`,
+    href: `/law/${encodeURIComponent(law.name)}?${withReadingLevel(query, level)}`,
   };
 }
 
@@ -69,6 +76,7 @@ function toArticle(citation: Citation, law: LawRef, at: string | undefined): Cit
 function groupByLaw(
   citations: ReadonlyMap<string, readonly Citation[]>,
   decidedAt: Date | null,
+  level: ViewLevel,
 ): CitedLaw[] {
   const laws = new Map<string, { name: string; articles: Map<string, CitedArticle> }>();
   const at = decidedAt === null ? undefined : decidedAt.toISOString().slice(0, DATE_LENGTH);
@@ -80,7 +88,7 @@ function groupByLaw(
     }
 
     const entry = laws.get(law.lawId) ?? { name: law.name, articles: new Map() };
-    const article = toArticle(citation, law, at);
+    const article = toArticle(citation, law, at, level);
     if (!entry.articles.has(article.key)) {
       entry.articles.set(article.key, article);
     }
@@ -97,11 +105,13 @@ function groupByLaw(
 function CitedLaws({
   citations,
   decidedAt,
+  level,
 }: {
   citations: ReadonlyMap<string, readonly Citation[]>;
   decidedAt: Date | null;
+  level: ViewLevel;
 }) {
-  const laws = groupByLaw(citations, decidedAt);
+  const laws = groupByLaw(citations, decidedAt, level);
   if (laws.length === 0) {
     return null;
   }

@@ -29,6 +29,17 @@
   line-height: var(--el-leading-body);
 }
 
+.originalNote {
+  width: fit-content;
+  margin-top: var(--el-space-2);
+  padding: var(--el-space-2) var(--el-space-3);
+  border-left: 3px solid var(--el-brand-strong);
+  background: var(--el-brand-surface);
+  color: var(--el-brand-fg);
+  font-size: var(--el-text-body-s);
+  line-height: var(--el-leading-body);
+}
+
 /*
  * 목차 + 본문 2단.
  *

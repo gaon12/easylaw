@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lintRendition, type RenditionSentence } from "@/lib/rendition/lint";
-import { demo, help, viewer } from "./strings";
+import { demo, help, law, viewer } from "./strings";
 
 /**
  * 랜딩 데모의 예시 문장이 **우리가 만든 작성 규칙을 스스로 지키는지** 검사한다.
@@ -65,5 +65,14 @@ describe("이용 안내의 쉬운 말 버전", () => {
     for (const sentence of endings) {
       expect(sentence.trimEnd().endsWith("요.") || sentence.trimEnd().endsWith("에요.")).toBe(true);
     }
+  });
+});
+
+describe("법령 원문 안내", () => {
+  it.each(["어린이", "쉬운말"])("%s 단계 이름과 원문임을 함께 알린다", (level) => {
+    const notice = law.originalTextNotice(level);
+
+    expect(notice).toContain(level);
+    expect(notice).toContain("법령 원문");
   });
 });
