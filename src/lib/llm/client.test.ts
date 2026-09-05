@@ -97,6 +97,21 @@ describe("요청 만들기", () => {
     await createLlmClient(CONFIG).complete({ instruction: "요약해 주세요." });
     expect(lastRequest().body.response_format).toBeUndefined();
   });
+
+  /*
+   * `system` 하나만 보내면 Gemini의 OpenAI 호환 계층이 그것을 `systemInstruction`으로
+   * 옮기고 `contents`를 비운 채 넘겨 400이 온다. 연결 시험이 정확히 그런 요청이라,
+   * 주소와 키가 다 맞는데도 "안 된다"가 됐다.
+   */
+  it("문서가 없으면 지시를 user 자리에 담는다 — system만 있는 요청을 못 받는 제공자가 있다", async () => {
+    stubFetch(() => ok("좋아요"));
+    await createLlmClient(CONFIG).complete({ instruction: "요약해 주세요." });
+
+    const { messages } = lastRequest().body;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.role).toBe("user");
+    expect(messages[0]?.content).toContain("요약해 주세요.");
+  });
 });
 
 describe("판결문은 데이터다 (CONVENTIONS.md §7)", () => {
@@ -210,6 +225,27 @@ describe("응답 다루기", () => {
     );
     expect(result).toEqual({ 쟁점: ["소멸시효"] });
     expect(lastRequest().body.response_format).toEqual({ type: "json_object" });
+  });
+
+  it("답을 두 번 쓴 응답에서 규격을 통과하는 쪽을 고른다", async () => {
+    stubFetch(() =>
+      ok(
+        [
+          "먼저 이렇게 써 봅니다.",
+          '{"쟁점":"소멸시효"}',
+          "다시 보니 배열이어야 합니다.",
+          '{"쟁점":["소멸시효"]}',
+        ].join("\n"),
+      ),
+    );
+    const schema = z.object({ 쟁점: z.array(z.string()) });
+
+    const result = await createLlmClient(CONFIG).completeJson(
+      { instruction: "뽑아 주세요." },
+      (v) => schema.parse(v),
+    );
+
+    expect(result).toEqual({ 쟁점: ["소멸시효"] });
   });
 
   it("규격에 맞지 않는 JSON은 던진다 — 반쪽짜리를 통과시키지 않는다", async () => {

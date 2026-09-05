@@ -1,8 +1,8 @@
 import "server-only";
 import OpenAi, { APIConnectionError, APIError, APIUserAbortError } from "openai";
 import { type LlmConfig, llmConfig } from "@/server/settings";
-import { baseUrlAdvice, trimBaseUrl } from "./base-url";
-import { type Completion, extractJson, parseCompletion } from "./parse";
+import { baseUrlAdvice, checkBaseUrl, trimBaseUrl } from "./base-url";
+import { type Completion, jsonCandidates, parseCompletion } from "./parse";
 
 /**
  * LLM 클라이언트. `.dev/PRODUCT.md` §5.5 · `.dev/CONVENTIONS.md` §7
@@ -149,7 +149,16 @@ interface ChatMessage {
 function buildMessages(request: CompletionRequest): ChatMessage[] {
   const documents = request.documents ?? [];
   if (documents.length === 0) {
-    return [{ role: "system", content: request.instruction }];
+    /*
+     * **지시만 있어도 `user` 자리에 담는다.** `system` 하나만 보내면 Gemini의 OpenAI
+     * 호환 계층이 그것을 `systemInstruction`으로 옮기고 `contents`를 비운 채 넘겨
+     * `GenerateContentRequest.contents: contents is not specified` 400이 온다. 연결
+     * 시험이 정확히 그런 요청이라, 주소와 키가 다 맞는데도 "안 된다"가 됐다.
+     *
+     * 담을 문서가 없을 때는 잃는 것도 없다 — 지시와 자료를 갈라 두는 이유는 신뢰할 수
+     * 없는 입력을 지시에서 떼어 놓기 위한 것인데(§7), 여기에는 그 입력이 없다.
+     */
+    return [{ role: "user", content: request.instruction }];
   }
 
   const fence = fenceName();
@@ -176,10 +185,17 @@ function buildMessages(request: CompletionRequest): ChatMessage[] {
  * - 완성된 엔드포인트(`…/chat/completions`)를 통째로 넣으면 주소가 두 번 붙어 404가 된다.
  *
  * 둘 다 사용자가 고칠 수 있는 문제다. **고칠 방법을 알려 주지 않으면 고칠 수 없을 뿐이다.**
+ *
+ * **다만 아무 때나 주소를 탓하지 않는다.** 같은 400이 주소가 멀쩡할 때도 온다 —
+ * `system` 메시지만 보내면 호환 계층이 `contents`를 비운 채 넘긴다. 주소가 이미 맞는데
+ * "주소를 고치라"고 말하면, 맞는 값을 고치게 만들고 진짜 원인은 가려진다. 실제로
+ * `…/v1beta/openai`를 제대로 넣은 사람에게 `…/v1beta/openai/openai`로 고치라고 했다.
  */
 function diagnoseEndpoint(baseUrl: string, status: number, detail: string): string | undefined {
   if (detail.includes("GenerateContentRequest") || detail.includes("contents is not specified")) {
-    return `이 주소는 OpenAI 호환 엔드포인트가 아니라 Gemini 네이티브 API입니다. ${baseUrlAdvice("gemini_native", baseUrl)}`;
+    return checkBaseUrl(baseUrl) === "gemini_native"
+      ? `이 주소는 OpenAI 호환 엔드포인트가 아니라 Gemini 네이티브 API입니다. ${baseUrlAdvice("gemini_native", baseUrl)}`
+      : "AI 서버가 우리가 보낸 대화를 읽지 못했습니다. 주소는 맞습니다 — 모델 이름이 이 제공자의 것인지 확인하세요.";
   }
 
   if (status === NOT_FOUND) {
@@ -252,6 +268,28 @@ function rejectedParam(
 }
 
 const BAD_REQUEST = 400;
+
+/**
+ * 이 연결이 거절한 값들. **한 번 배우면 다시 묻지 않는다.**
+ *
+ * Gemini는 `thinking`을 모른다 — 매번 보내면 매번 400을 받고 다시 거는 셈이라, 모든
+ * 호출이 왕복 한 번씩을 버린다. 제공자가 바뀌면 열쇠도 바뀌므로 낡은 답이 남지 않는다.
+ *
+ * 프로세스 안에서만 산다. 서버를 다시 띄우면 다시 배우는데, 그 값이 한 번 틀리는
+ * 비용은 왕복 한 번이라 어디에 적어 둘 만큼 비싸지 않다.
+ */
+const knownRejections = new Map<string, Set<OptionalParam>>();
+
+function rejectionsFor(config: LlmConfig): Set<OptionalParam> {
+  const key = `${trimBaseUrl(config.baseUrl)}|${config.model}`;
+  const known = knownRejections.get(key);
+  if (known !== undefined) {
+    return known;
+  }
+  const fresh = new Set<OptionalParam>();
+  knownRejections.set(key, fresh);
+  return fresh;
+}
 
 /**
  * **닿지 못한 것**인가. 그렇다면 왜인지.
@@ -340,7 +378,7 @@ async function requestCompletion(
    * 이 재시도는 §5.5 [7]의 재시도와 다르다. 그쪽은 **같은 요청**을 다시 보내는 것이고,
    * 이쪽은 제공자가 받아 주는 요청을 찾는 것이라 파이프라인이 알 필요가 없다.
    */
-  const dropped = new Set<OptionalParam>();
+  const dropped = rejectionsFor(config);
 
   for (;;) {
     try {
@@ -356,6 +394,24 @@ async function requestCompletion(
       dropped.add(rejected);
     }
   }
+}
+
+/** 후보 중 규격을 통과하는 첫 번째. 하나도 없으면 마지막으로 걸린 이유를 돌려준다. */
+function firstValid<T>(
+  candidates: readonly unknown[],
+  validate: (value: unknown) => T,
+): { ok: true; value: T } | { ok: false; reason: string } {
+  let reason = "알 수 없는 이유";
+
+  for (const candidate of candidates) {
+    try {
+      return { ok: true, value: validate(candidate) };
+    } catch (error) {
+      reason = error instanceof Error ? error.message : reason;
+    }
+  }
+
+  return { ok: false, reason };
 }
 
 function createLlmClient(config: LlmConfig): LlmClient {
@@ -377,24 +433,34 @@ function createLlmClient(config: LlmConfig): LlmClient {
         throw new LlmError(truncationMessage(completion), { retryable: true });
       }
 
-      let parsed: unknown;
+      /*
+       * **후보를 차례로 규격에 대 본다.** 모델이 답을 한 번만 쓴다는 보장이 없다 —
+       * 초안을 쓰고, 스스로 점검하는 글을 쓰고, 고친 답을 다시 쓰는 모델이 있다(Gemma).
+       * 그때 첫 조각만 보고 "규격에 맞지 않는다"고 하면, 바로 뒤에 있는 맞는 답을 버린다.
+       * 규격이 문지기라는 사실은 그대로다 — 통과한 것만 쓴다.
+       */
+      let candidates: unknown[];
       try {
-        parsed = extractJson(completion.text);
+        candidates = jsonCandidates(completion.text);
       } catch (error) {
         throw new LlmError(error instanceof Error ? error.message : "JSON을 읽지 못했습니다.", {
           retryable: true,
         });
       }
 
-      try {
-        return validate(parsed);
-      } catch (error) {
-        // 스키마 불일치는 모델이 다시 쓰면 맞을 수 있다. 재시도는 호출자가 정한다(§5.5 [7]).
-        throw new LlmError(
-          `AI가 만든 JSON이 규격에 맞지 않습니다: ${error instanceof Error ? error.message : "알 수 없는 이유"}`,
-          { retryable: true },
-        );
+      if (candidates.length === 0) {
+        throw new LlmError("모델 응답에서 JSON을 찾지 못했습니다.", { retryable: true });
       }
+
+      const checked = firstValid(candidates, validate);
+      if (checked.ok) {
+        return checked.value;
+      }
+
+      // 스키마 불일치는 모델이 다시 쓰면 맞을 수 있다. 재시도는 호출자가 정한다(§5.5 [7]).
+      throw new LlmError(`AI가 만든 JSON이 규격에 맞지 않습니다: ${checked.reason}`, {
+        retryable: true,
+      });
     },
   };
 }
