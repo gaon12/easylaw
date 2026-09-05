@@ -32,14 +32,13 @@ function ConfidenceMark({ sentence }: { sentence: Sentence }) {
   }
 
   const needsCheck = sentence.confidence === "needs_check";
+  const reason = sentence.checkReason ?? (needsCheck ? viewer.needsCheckHint : null);
   return (
     <span className={styles.mark}>
       <Badge tone={needsCheck ? "needs-check" : "ungrounded"}>
         {viewer.confidence[sentence.confidence]}
       </Badge>
-      {sentence.checkReason === null ? null : (
-        <span className={styles.reason}>{sentence.checkReason}</span>
-      )}
+      {reason === null ? null : <span className={styles.reason}>{reason}</span>}
     </span>
   );
 }
