@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { normalizeSpanLabel } from "./span-label";
 
 /** `n0` 형태. 구조 노드에 붙인 이름이다(`renderable.ts`). */
 const NODE_LABEL = /^n\d+$/u;
@@ -28,7 +29,12 @@ const sentenceSchema = z.object({
    * **제목에는 없어도 된다.** 제목은 우리가 정한 섹션 이름이지 판결문에서 나온 말이
    * 아니다. 없는 근거를 억지로 적게 하면 아무 노드나 적어 낸다.
    */
-  from: z.string().regex(NODE_LABEL, "노드 이름은 n0 형태여야 합니다.").optional(),
+  from: z
+    .string()
+    /* 문서에 `[n0] …`으로 적혀 있어 모델이 대괄호째 답한다. 벗겨도 가리키는 노드는 같다. */
+    .transform(normalizeSpanLabel)
+    .refine((label) => NODE_LABEL.test(label), "노드 이름은 n0 형태여야 합니다.")
+    .optional(),
 });
 
 const renditionSchema = z.object({
