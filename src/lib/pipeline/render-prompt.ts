@@ -181,6 +181,8 @@ function renderInstruction(level: Level): string {
     "## 근거",
     "",
     "- 본문 문장마다 `from`에 그 내용이 나온 노드 이름(`n0` 같은)을 적습니다.",
+    '- `from`에는 **노드 이름 하나만** 적습니다. `"n0, n1"`처럼 여러 개를 적지 않습니다.',
+    "  여러 노드의 내용을 말하고 싶으면 **문장을 나누어** 각각 자기 노드를 답니다.",
     "- 제목에는 `from`을 적지 않아도 됩니다.",
     "- 어느 노드에서 나왔는지 댈 수 없는 문장은 **쓰지 않습니다.**",
     "",
@@ -196,6 +198,6 @@ function renderInstruction(level: Level): string {
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-05-v5";
+const RENDER_PROMPT_VERSION = "render-2026-09-05-v6";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };

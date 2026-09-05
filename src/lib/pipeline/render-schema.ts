@@ -13,6 +13,26 @@ import { normalizeSpanLabel } from "./span-label";
 /** `n0` 형태. 구조 노드에 붙인 이름이다(`renderable.ts`). */
 const NODE_LABEL = /^n\d+$/u;
 
+/** 이름을 가르는 것들. 모델이 `n0, n1`이나 `n0 n1`처럼 붙여 적는다. */
+const LABEL_SEPARATORS = /[\s,]+/u;
+
+/**
+ * 모델이 답한 `from`을 **노드 하나**로 읽는다.
+ *
+ * 두 가지를 흘려 준다. 문서 줄이 `[n0] …`이라 **대괄호째** 베껴 오는 것과, 여러 노드를
+ * 참고한 문장에 `"n0, n1, n2"`처럼 **여러 이름을 적어 오는** 것이다. 둘 다 Gemma에서
+ * 실제로 나왔고, 그때마다 규격 검사에 걸려 **설명 한 편이 통째로** 버려졌다.
+ *
+ * 첫 이름만 쓴다. `rendition_sentence`는 노드 하나를 가리키게 되어 있고(근거 추적의
+ * 출발점은 하나여야 한다), 모델이 댄 이름은 모두 실제 노드다. **고른 것이 맞는지는
+ * 여기서 판단하지 않는다** — 문장이 그 노드에서 도출되는지는 사실 대조([6a])가 보고,
+ * 아니면 `needs_check`로 표시된다. 여기서 관대해도 그 검사가 느슨해지지 않는다.
+ */
+function firstNodeLabel(raw: string): string {
+  const [first = ""] = normalizeSpanLabel(raw).split(LABEL_SEPARATORS);
+  return normalizeSpanLabel(first);
+}
+
 /**
  * 문장 하나.
  *
@@ -31,8 +51,7 @@ const sentenceSchema = z.object({
    */
   from: z
     .string()
-    /* 문서에 `[n0] …`으로 적혀 있어 모델이 대괄호째 답한다. 벗겨도 가리키는 노드는 같다. */
-    .transform(normalizeSpanLabel)
+    .transform(firstNodeLabel)
     .refine((label) => NODE_LABEL.test(label), "노드 이름은 n0 형태여야 합니다.")
     .optional(),
 });

@@ -85,7 +85,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v5");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v6");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {
@@ -272,5 +272,30 @@ describe("규격 검사", () => {
 
   it("문장이 하나도 없으면 받지 않는다", () => {
     expect(() => parseRendition({ sentences: [] })).toThrow();
+  });
+});
+
+/*
+ * Gemma가 실제로 답한 모양이다 — 여러 노드를 참고한 문장에 `"n0, n1, n2, n3"`처럼 이름을
+ * 붙여 적었고, 그때마다 설명 한 편이 통째로 버려졌다.
+ */
+describe("from 읽기", () => {
+  it("이름을 여러 개 적어 오면 첫 번째를 쓴다", () => {
+    expect(
+      parseRendition({ sentences: [{ role: "body", text: "…", from: "n0, n1, n2" }] }).sentences[0]
+        ?.from,
+    ).toBe("n0");
+  });
+
+  it("대괄호째 베껴 와도 읽는다", () => {
+    expect(
+      parseRendition({ sentences: [{ role: "body", text: "…", from: "[n3]" }] }).sentences[0]?.from,
+    ).toBe("n3");
+  });
+
+  it("노드 이름이 아니면 여전히 거절한다 — 관대함은 표기까지다", () => {
+    expect(() =>
+      parseRendition({ sentences: [{ role: "body", text: "…", from: "판결문 3번째 줄" }] }),
+    ).toThrow();
   });
 });
