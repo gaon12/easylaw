@@ -4,7 +4,17 @@ import type { ReactNode } from "react";
 import { PreferencesSync } from "@/components/preferences-sync";
 import { PREFERENCES_SCRIPT } from "@/lib/preferences";
 import { site } from "@/lib/strings";
+import { startDictSchedule } from "@/server/dict-schedule";
 import "./globals.css";
+
+/*
+ * 사전 갱신 예약을 여기서 건다. **`instrumentation.ts`가 아닌 이유는 그 파일이 edge
+ * 런타임에서도 불리기 때문이다** — 런타임을 갈라도 번들러가 양쪽을 다 따라가서
+ * `better-sqlite3`가 edge 번들에 걸린다. 화면을 그리는 곳은 언제나 Node다.
+ *
+ * 여러 번 불려도 한 번만 걸린다(`dict-schedule.ts`의 모듈 표시).
+ */
+startDictSchedule();
 
 export const metadata: Metadata = {
   title: {

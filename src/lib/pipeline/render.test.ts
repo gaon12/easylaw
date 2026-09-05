@@ -103,7 +103,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v8");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v9");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {

@@ -35,6 +35,16 @@ const schema = z.object({
    * 판례와 올린 문서는 다치지 않는다 — 그래서 셋을 같은 파일에 두지 않는다.
    */
   DICT_DB_PATH: z.string().min(1).default("data/dict.sqlite"),
+  /**
+   * 사전을 서버가 스스로 갱신할까. 기본은 켬.
+   *
+   * **운영체제 스케줄러에 기대지 않는다** — 자가 호스팅하는 사람이 무엇을 쓰는지 모른다.
+   * 끄는 자리를 두는 이유는 망이 막힌 곳과, 자료를 검토하고 넣는 곳이 있기 때문이다.
+   */
+  DICT_AUTO_SYNC: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
 });
 
 type Env = z.infer<typeof schema>;
