@@ -10,7 +10,8 @@ import { extractStructure } from "@/lib/pipeline/extract";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
 import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
-import type { PipelineStore, StoreLevel } from "@/server/pipeline-store";
+import { HEARTBEAT_MS } from "@/lib/timing";
+import type { PipelineStore, StoreLevel, StoreStage } from "@/server/pipeline-store";
 import {
   DEFAULT_GENERATION_IP_LIMIT,
   DEFAULT_GENERATION_SESSION_LIMIT,
@@ -234,15 +235,13 @@ async function attemptOnce(input: {
 }) {
   const { client, level, nodes, spanText, store, jobId, signal } = input;
 
-  store.setStage(jobId, "render");
-  const rendered = await renderLevel(client, level, nodes, signal);
+  const rendered = await whileAlive(store, jobId, "render", () =>
+    renderLevel(client, level, nodes, signal),
+  );
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
-  store.setStage(jobId, "verify");
-  const checks = await checkEntailment(
-    client,
-    claimsFor(rendered.lines, nodeSpans, spanText),
-    signal,
+  const checks = await whileAlive(store, jobId, "verify", () =>
+    checkEntailment(client, claimsFor(rendered.lines, nodeSpans, spanText), signal),
   );
   const byOrder = new Map(checks.map((check) => [check.orderIdx, check]));
 
@@ -338,6 +337,37 @@ function beginGeneration(
  * 선점은 요청 안에서 끝나야 화면이 곧바로 "만들고 있어요"를 그릴 수 있고, 오래 걸리는
  * 일은 응답을 보낸 뒤에 이어져야 한다.
  */
+/**
+ * 일하는 동안 **계속** "살아 있다"고 적는다.
+ *
+ * 예전에는 단계가 바뀔 때만 적었다. 그래서 두 heartbeat 사이의 간격이 곧 AI 호출 하나의
+ * 길이였고, 답을 300초 기다리는 정상 작업이 좀비로 회수돼 **같은 판결문에 두 번 지출**하고
+ * 둘이 서로의 구조를 밟았다. 회수 시간을 호출보다 길게 잡는 방법도 있지만, 그러면 정말
+ * 죽은 작업이 그만큼 오래 그 판결문을 막는다.
+ *
+ * 기다리는 동안에도 말하면 둘 다 풀린다 — 호출은 얼마든지 길어도 되고, 회수는 빨라도 된다.
+ * 단계 이름을 그대로 다시 적는 것이 곧 heartbeat다(`setStage`).
+ */
+async function whileAlive<T>(
+  store: PipelineStore,
+  jobId: string,
+  stage: StoreStage,
+  work: () => Promise<T>,
+): Promise<T> {
+  store.setStage(jobId, stage);
+  const beat = setInterval(() => {
+    store.setStage(jobId, stage);
+  }, HEARTBEAT_MS);
+  /* 노드를 붙잡아 두지 않는다. 이 타이머 하나 때문에 프로세스가 안 끝나면 안 된다. */
+  beat.unref?.();
+
+  try {
+    return await work();
+  } finally {
+    clearInterval(beat);
+  }
+}
+
 async function runGeneration(
   store: PipelineStore,
   level: Level,
@@ -351,8 +381,9 @@ async function runGeneration(
   }
 
   try {
-    store.setStage(jobId, "structure");
-    const structure = await ensureStructure(store, signal);
+    const structure = await whileAlive(store, jobId, "structure", () =>
+      ensureStructure(store, signal),
+    );
     if (!structure.ok) {
       store.finishJob(jobId, { ok: false, error: structure.reason });
       return { kind: "failed", reason: structure.reason };

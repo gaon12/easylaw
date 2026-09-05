@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAi, { APIConnectionError, APIError, APIUserAbortError } from "openai";
+import { REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_SECONDS } from "@/lib/timing";
 import { type LlmConfig, llmConfig } from "@/server/settings";
 import { baseUrlAdvice, checkBaseUrl, trimBaseUrl } from "./base-url";
 import { type Completion, jsonCandidates, parseCompletion } from "./parse";
@@ -27,10 +28,16 @@ import { type Completion, jsonCandidates, parseCompletion } from "./parse";
  * **인터페이스로 감싸는 이유**는 `law-api`와 같다 — 테스트에서 구현을 갈아 끼운다.
  * `CONVENTIONS.md` §8: LLM 응답을 테스트에서 실제로 호출하지 않는다.
  *
- * 아직 스트리밍을 하지 않는다. §6이 요구하는 스트리밍은 **사용자가 기다리는 화면**을 위한
- * 것인데, 파이프라인의 첫 단계인 구조화 추출은 JSON 한 덩어리가 다 와야 쓸 수 있어서
- * 스트리밍으로 얻을 것이 없다. 화면에 흘려보내는 것은 [5] 레벨 렌더링과 SSE 진행
- * 전달(§5.3)이 붙을 때 이 인터페이스에 `stream…`을 더해서 한다.
+ * **흘려받는다(2026-09-05).** 화면에 흘려보내려는 것이 아니라 — 그것은 §6의 일이고 아직
+ * 하지 않는다 — **끊기지 않으려고** 그렇게 한다. 한 덩어리로 받으면 모델이 다 쓸 때까지
+ * 서버가 아무것도 보내지 않는데, Node의 `fetch`는 첫 바이트를 300초 안에 못 받으면 끊는다.
+ * 우리 타임아웃을 아무리 올려도 그 아래에서 끊겼다: 실제로 305·328·335초에서 "응답하지
+ * 않았습니다"가 났고, 그 요청들은 살아 있었다. 흘려받으면 머리글이 곧바로 오고 조각이
+ * 계속 도착해 그 시계가 다시 돈다.
+ *
+ * 모아서 한 덩어리로 만든 뒤 파서에 넘긴다(`collectStream`). 응답의 모양을 아는 곳은
+ * 여전히 `parse.ts` 하나다. 화면으로 흘려보내는 일이 필요해지면 그때 이 인터페이스에
+ * `stream…`을 더한다.
  */
 interface LlmClient {
   readonly model: string;
@@ -66,19 +73,6 @@ interface CompletionRequest {
   /** 기본 0 — 같은 판결문에 같은 결과가 나와야 회귀를 알아볼 수 있다. */
   readonly temperature?: number;
 }
-
-/**
- * 생성은 수십 초가 걸린다(§5.1). 법제처 조회의 10초 타임아웃을 그대로 쓰면 정상 응답을
- * 실패로 만든다. 그렇다고 무한정 기다리면 좀비 작업이 캐시를 영구히 막는다(§5.3).
- *
- * **120초로는 모자랐다(2026-09-05).** 생각을 글로 길게 쓰는 모델이 있다 — Gemma는
- * 15문장짜리 판결문 하나에 96초, 60문장짜리에 210초를 썼고, 그 사이 호출 하나가 120초를
- * 넘으면 정상 응답이 실패가 됐다. 좀비 회수 시간(`STALE_AFTER_MS`)은 이 값보다 길어야
- * 한다 — 짧으면 답을 기다리는 작업을 죽은 것으로 보고 같은 판결문에 두 번 지출한다.
- */
-const REQUEST_TIMEOUT_SECONDS = 240;
-const MS_PER_SECOND = 1000;
-const REQUEST_TIMEOUT_MS = REQUEST_TIMEOUT_SECONDS * MS_PER_SECOND;
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
@@ -228,8 +222,10 @@ function diagnoseEndpoint(baseUrl: string, status: number, detail: string): stri
  *   우리 파이프라인은 이미 구조를 뽑아 놓고 그것만 보고 문장을 만들게 하므로(§5.5 [4]→[5])
  *   모델이 따로 궁리할 것이 없다. 이 값을 아는 제공자에게만 듣고, 나머지는 거절 →
  *   빼고 재시도로 흘러간다. OpenAI의 생각하는 모델은 이 이름을 모르므로 영향을 받지 않는다.
+ * - `stream_options` — 흘려받을 때도 토큰 사용량을 알려 달라는 요청. 이것을 모르는
+ *   제공자에게는 사용량이 오지 않을 뿐이라 빼도 그만이다.
  */
-const OPTIONAL_PARAMS = ["response_format", "thinking"] as const;
+const OPTIONAL_PARAMS = ["response_format", "thinking", "stream_options"] as const;
 
 type OptionalParam = (typeof OPTIONAL_PARAMS)[number];
 
@@ -242,17 +238,55 @@ function buildParams(
   config: LlmConfig,
   request: CompletionRequest,
   dropped: ReadonlySet<OptionalParam>,
-): OpenAi.Chat.ChatCompletionCreateParamsNonStreaming {
+): OpenAi.Chat.ChatCompletionCreateParamsStreaming {
   return {
     model: config.model,
     messages: buildMessages(request),
     temperature: request.temperature ?? 0,
     max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    stream: true,
+    ...(dropped.has("stream_options") ? {} : { stream_options: { include_usage: true } }),
     ...(request.json === true && !dropped.has("response_format")
       ? { response_format: { type: "json_object" as const } }
       : {}),
     ...(dropped.has("thinking") ? {} : { thinking: { type: "disabled" } }),
-  } as OpenAi.Chat.ChatCompletionCreateParamsNonStreaming;
+  } as OpenAi.Chat.ChatCompletionCreateParamsStreaming;
+}
+
+/**
+ * 흘러오는 조각을 하나의 응답 봉투로 모은다. **모양을 아는 곳은 파서 한 곳뿐이다** —
+ * 여기서는 조각을 이어 붙이기만 하고, 읽는 일은 `parseCompletion`에 그대로 넘긴다.
+ */
+async function collectStream(
+  stream: AsyncIterable<OpenAi.Chat.ChatCompletionChunk>,
+): Promise<unknown> {
+  let text = "";
+  let finishReason: string | null = null;
+  let usage: unknown;
+  let chunks = 0;
+
+  for await (const chunk of stream) {
+    chunks += 1;
+    const choice = chunk.choices[0];
+    text += choice?.delta?.content ?? "";
+    if (choice?.finish_reason != null) {
+      finishReason = choice.finish_reason;
+    }
+    if (chunk.usage != null) {
+      usage = chunk.usage;
+    }
+  }
+
+  /*
+   * 200이 왔는데 조각이 하나도 없었다. 대개 주소가 다른 서비스를 가리키고 있다 —
+   * 로그인 페이지 HTML이 200으로 오는 식이다. 빈 답으로 넘기면 "모델이 아무 말도 안 했다"와
+   * 구분되지 않고, 그 차이가 사라지면 어디를 봐야 하는지도 사라진다.
+   */
+  if (chunks === 0) {
+    throw new Error("응답이 비어 있습니다.");
+  }
+
+  return { choices: [{ message: { content: text }, finish_reason: finishReason }], usage };
 }
 
 /**
@@ -389,8 +423,8 @@ async function requestCompletion(
     try {
       const params = buildParams(config, request, dropped);
       // biome-ignore lint/performance/noAwaitInLoops: 앞 시도의 거절을 보고 다음 요청을 만든다. 동시에 걸 수 없다.
-      const response = await client.chat.completions.create(params, { signal });
-      return parseCompletion(response);
+      const stream = await client.chat.completions.create(params, { signal });
+      return parseCompletion(await collectStream(stream));
     } catch (error) {
       const rejected = error instanceof APIError ? rejectedParam(error, dropped) : undefined;
       if (rejected === undefined) {

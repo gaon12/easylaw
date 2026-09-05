@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
 import { createTestCorpusDb } from "../testing";
 import {
@@ -20,7 +21,6 @@ import {
   listStructureNodes,
   recordLookupMiss,
   reserveGenerationSlot,
-  STALE_AFTER_MS,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,

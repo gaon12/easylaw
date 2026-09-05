@@ -41,11 +41,24 @@ function stubFetch(respond: () => Response): void {
   });
 }
 
+/**
+ * 흘려받는 응답 하나. 전송이 스트리밍이라(2026-09-05) 시험도 SSE로 답한다 —
+ * 보는 것은 그대로이고, 답이 오는 모양만 다르다.
+ */
 function ok(content: string, finishReason = "stop", usage?: unknown): Response {
-  return new Response(
-    JSON.stringify({ choices: [{ message: { content }, finish_reason: finishReason }], usage }),
-    { status: 200, headers: { "content-type": "application/json" } },
-  );
+  const events = [
+    { choices: [{ delta: { content }, finish_reason: null }] },
+    {
+      choices: [{ delta: {}, finish_reason: finishReason }],
+      ...(usage === undefined ? {} : { usage }),
+    },
+  ];
+  const body = `${events.map((event) => `data: ${JSON.stringify(event)}`).join("\n\n")}\n\ndata: [DONE]\n\n`;
+
+  return new Response(body, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
 }
 
 /** 제공자가 "그 값은 모른다"고 답하는 400. 이름이 본문에 실려 온다. */

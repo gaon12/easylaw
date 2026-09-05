@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
 import {
@@ -10,7 +11,6 @@ import {
   finishUploadJob,
   listUploadSentences,
   listUploadStructureNodes,
-  STALE_AFTER_MS,
   saveUploadRendition,
   saveUploadStructure,
   setUploadJobStage,

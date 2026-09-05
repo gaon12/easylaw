@@ -14,6 +14,7 @@
  */
 
 import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
 import {
   uploadGenerationJob,
@@ -32,17 +33,7 @@ type JobStatus = (typeof uploadGenerationJob.status.enumValues)[number];
 
 const newId = (): string => crypto.randomUUID();
 
-/**
- * 이 시간 동안 heartbeat가 없으면 죽은 작업으로 보고 회수한다.
- *
- * **한 번의 AI 호출보다 넉넉해야 한다.** heartbeat는 시도 사이에 찍히므로, 두 heartbeat
- * 사이의 간격이 곧 호출 하나의 길이다(`LLM 요청 타임아웃` 240초). 이 값이 그보다 짧으면
- * 정상적으로 답을 기다리는 작업을 좀비로 보고 회수해, 같은 판결문에 두 번 지출한다.
- * 예전의 90초는 타임아웃 120초보다도 짧았다. `corpus` 쪽과 같은 값이다.
- *
- * 반대로 너무 길면 정말 죽은 작업이 그 시간만큼 그 판결문을 막는다. 240초 + 여유로 잡는다.
- */
-const STALE_AFTER_MS = 300_000;
+/* 좀비 판정 기준은 `lib/timing.ts` 하나뿐이다. `corpus` 쪽과 같은 값을 쓴다. */
 
 interface StructureNodeInput {
   kind: StructureKind;
@@ -515,7 +506,6 @@ export {
   saveUploadRendition,
   saveUploadStructure,
   setUploadJobStage,
-  STALE_AFTER_MS,
 };
 export type {
   ClaimResult,
