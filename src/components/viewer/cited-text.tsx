@@ -3,6 +3,8 @@ import { CitationDialog } from "@/components/viewer/citation-dialog";
 import type { Citation } from "@/lib/law-citation/detect";
 import { formatCitation } from "@/lib/law-citation/detect";
 import { viewer } from "@/lib/strings";
+import type { ViewLevel } from "./levels";
+import { withReadingLevel } from "./levels";
 
 /**
  * 판결문 문장에서 법령 인용을 링크로 바꾼다. `PAGES.md` §5.2 ④
@@ -18,10 +20,12 @@ function CitedText({
   text,
   citations,
   decidedAt,
+  level,
 }: {
   text: string;
   citations: readonly Citation[];
   decidedAt: Date | null;
+  level: ViewLevel;
 }) {
   if (citations.length === 0) {
     return text;
@@ -55,6 +59,7 @@ function CitedText({
       if (at !== undefined) {
         query.set("때", at);
       }
+      const detailQuery = withReadingLevel(query, level);
 
       /*
        * 창으로 먼저 보여 준다(`citation-dialog.tsx`). 마크업은 여전히 링크라
@@ -62,9 +67,10 @@ function CitedText({
        */
       parts.push(
         <CitationDialog
-          href={`/law/${encodeURIComponent(citation.law.name)}?${query}`}
+          href={`/law/${encodeURIComponent(citation.law.name)}?${detailQuery}`}
           key={`${citation.start}-${citation.end}`}
           label={citation.text}
+          level={level}
           query={query.toString()}
           title={viewer.citationHint(citation.law.name, formatCitation(citation))}
         />,

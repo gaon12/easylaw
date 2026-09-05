@@ -4,6 +4,7 @@ import { wiki } from "@/lib/strings";
 import { detectHeadings } from "@/lib/text/headings";
 import { CitedText } from "./cited-text";
 import { LevelBody } from "./level-body";
+import type { ViewLevel } from "./levels";
 import styles from "./viewer.module.css";
 
 interface Span {
@@ -40,11 +41,13 @@ function OriginalPanel({
   spans,
   citations,
   decidedAt,
+  level,
 }: {
   spans: readonly Span[];
   /** span id → 그 문장에서 찾은 인용. 없으면 링크 없이 글자만 그린다. */
   citations?: ReadonlyMap<string, readonly Citation[]>;
   decidedAt?: Date | null;
+  level: ViewLevel;
 }) {
   /*
    * 표제에는 **주소로 쓸 수 있는 앵커**를 건다(`headings.ts`의 `sectionAnchor`).
@@ -72,6 +75,7 @@ function OriginalPanel({
                   <CitedText
                     citations={citations?.get(span.id) ?? []}
                     decidedAt={decidedAt ?? null}
+                    level={level}
                     text={span.text}
                   />
                 </p>
@@ -113,6 +117,7 @@ function OriginalPanel({
                     <CitedText
                       citations={citationsAfter(citations?.get(span.id) ?? [], bodyStart)}
                       decidedAt={decidedAt ?? null}
+                      level={level}
                       text={remainder}
                     />
                   </p>
