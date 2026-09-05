@@ -126,16 +126,23 @@ function styleLine(level: Level): string {
  * 규칙 목록에 "이 제목을 넣으세요"라고 써 두는 것만으로는 모자랐다 — Gemma가 L4에서
  * 제목을 빼먹어 `"그래서 어떻게 되나요" 섹션이 없습니다`로 통째로 버려졌다. 추출 단계에서
  * 배운 것과 같다: **모델은 예시를 베낀다.** 규칙에 있고 예시에 없으면 예시가 이긴다.
+ *
+ * **제목 예시를 언제나 하나는 보여 준다(2026-09-05).** 예전에는 `requiredSections`가 있는
+ * 단계에만 `heading`이 예시에 나왔다. 그래서 필수 제목이 없는 L1에서 모델이 권장 흐름의
+ * 제목들을 **본문 문장으로** 적어 냈다 — "판결 요지 및 결론"이 근거 없는 10자짜리 body가
+ * 되어 "확인 필요" 딱지가 붙었다. 지시문은 "제목을 달아"라고 말했지만 예시에 제목이
+ * 없었고, 그때는 예시가 이긴다.
  */
 function outputExample(level: Level): string {
-  const sections = LEVEL_RULES[level].requiredSections;
-  const lines = [
-    '  {"role": "body", "text": "…", "from": "n0"}',
-    ...sections.map(
-      (section) =>
-        `  {"role": "heading", "text": "${section}"},\n  {"role": "body", "text": "…", "from": "n0"}`,
-    ),
-  ];
+  const { requiredSections } = LEVEL_RULES[level];
+  /* 필수 제목이 없으면 권장 흐름의 첫 항목을 예시 제목으로 쓴다 — 이 단계의 실제 제목이다. */
+  const shown =
+    requiredSections.length > 0 ? requiredSections : LEVEL_BRIEF[level].plan.slice(0, 1);
+
+  const lines = shown.map(
+    (section) =>
+      `  {"role": "heading", "text": "${section}"},\n  {"role": "body", "text": "…", "from": "n0"}`,
+  );
 
   return ['{"sentences": [', lines.join(",\n"), "]}"].join("\n");
 }
@@ -160,7 +167,6 @@ function renderInstruction(level: Level): string {
     "판결문에서 뽑아낸 구조입니다. 각 줄은 `[n0] 한국어 라벨: 내용` 형태입니다.",
     "주장은 `원고 측의 주장`·`피고 측의 주장`처럼 **누가 한 말인지 라벨에 표시**됩니다.",
     "사실의 날짜는 알 수 있을 때 `사실관계(발생일: YYYY-MM-DD)`처럼 표시됩니다.",
-    "인용 법령은 법령명, 조, 항, 호 순서로 표시됩니다.",
     "**원문은 주지 않습니다. 이 구조에 적힌 것만 가지고 씁니다.**",
     "",
     "## 쓰는 법",
@@ -169,8 +175,7 @@ function renderInstruction(level: Level): string {
     `- 권장 흐름: ${brief.plan.map((section) => `\`${section}\``).join(" → ")}`,
     "- 구조에 해당 정보가 있으면 권장 흐름의 제목을 달아 충분히 설명합니다.",
     "  해당 정보가 전혀 없으면 내용을 지어내거나 빈 제목을 만들지 않습니다.",
-    "- 결론 몇 문장만 쓰고 끝내지 않습니다. 입력의 모든 사실·쟁점·주장·판단·결론 노드를",
-    "  본문에서 최소 한 번씩 다룹니다. 법조계 단계는 인용 법령 노드도 모두 다룹니다.",
+    "- 결론 몇 문장만 쓰고 끝내지 않습니다. 입력의 모든 노드를 본문에서 최소 한 번씩 다룹니다.",
     "- 서로 다른 쟁점과 판단 이유를 한 문장으로 뭉개지 않습니다. 한 노드가 복잡하면",
     "  같은 `from`을 단 여러 문장으로 나누어 배경, 판단 이유, 효과를 차례로 설명합니다.",
     "- 같은 말을 늘여 쓰거나 근거 없는 일반론으로 분량을 채우지 않습니다.",
@@ -198,6 +203,6 @@ function renderInstruction(level: Level): string {
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-05-v6";
+const RENDER_PROMPT_VERSION = "render-2026-09-05-v7";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };

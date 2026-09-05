@@ -164,6 +164,41 @@ function labelNodes(nodes: readonly RenderableNode[]): {
 const MAX_OUTPUT_TOKENS = 16_384;
 
 /**
+ * 모델이 답한 문장들을 우리 줄로 옮긴다. **신뢰도를 여기서 정한다.**
+ *
+ * - 제목은 우리가 정한 섹션 이름이라 근거가 필요 없다 → grounded.
+ * - 본문에 노드가 붙었으면 그 노드의 span이 근거다 → grounded.
+ * - 본문인데 노드를 못 찾았으면(지어낸 이름) 근거가 없다 → ungrounded.
+ *   `ungrounded`는 렌더를 막고 재생성 대상이 된다(§5.5 [7]).
+ *
+ * 이 값은 **함의 검사([6b]) 전의 잠정치**다. 그 검사가 돌면 `needs_check`로 내려갈 수 있다.
+ */
+function toLines(
+  sentences: readonly { role: "heading" | "body"; text: string; from?: string }[],
+  labels: { resolve: (label: string) => string | undefined },
+): { lines: RenderedLine[]; unknown: string[] } {
+  const unknown: string[] = [];
+  const lines: RenderedLine[] = [];
+
+  for (const sentence of sentences) {
+    const nodeId = sentence.from === undefined ? undefined : labels.resolve(sentence.from);
+    if (sentence.from !== undefined && nodeId === undefined) {
+      unknown.push(sentence.from);
+    }
+
+    lines.push({
+      orderIdx: lines.length,
+      role: sentence.role,
+      text: sentence.text,
+      structureNodeId: nodeId ?? null,
+      confidence: sentence.role === "heading" || nodeId !== undefined ? "grounded" : "ungrounded",
+    });
+  }
+
+  return { lines, unknown };
+}
+
+/**
  * 구조에서 그 레벨의 문장을 만든다.
  *
  * 만든 뒤 **바로 규칙 린터를 돌린다**(§5.5 [6](c)). 막는 문제가 있으면 결과에 표시해
@@ -173,9 +208,20 @@ const MAX_OUTPUT_TOKENS = 16_384;
 async function renderLevel(
   client: LlmClient,
   level: Level,
-  nodes: readonly RenderableNode[],
+  allNodes: readonly RenderableNode[],
   signal?: AbortSignal,
 ): Promise<RenderResult> {
+  /*
+   * **인용 법령 노드는 문장으로 만들지 않는다.**
+   *
+   * 넘겨 줬더니 모델이 "제16조 제6항이 인용되었다", "민법의 조합에 관한 규정이
+   * 적용되었다" 같은 문장을 썼다. 읽는 사람에게 아무것도 알려 주지 않는 문장이다 —
+   * 그 조문이 **무슨 말을 하는지**는 이미 판단 노드가 담고 있고, 조문 자체는 화면에서
+   * 링크와 모달이 맡는다(`citation-dialog`).
+   *
+   * 노드를 버리는 것이 아니라 **쓰는 자리를 옮기는 것**이다. 저장소에는 그대로 남는다.
+   */
+  const nodes = allNodes.filter((node) => node.kind !== "citation");
   const labels = labelNodes(nodes);
 
   const rendition = await client.completeJson(
@@ -188,42 +234,13 @@ async function renderLevel(
     signal,
   );
 
-  const unknown: string[] = [];
-  const lines: RenderedLine[] = [];
-
-  for (const sentence of rendition.sentences) {
-    const nodeId = sentence.from === undefined ? undefined : labels.resolve(sentence.from);
-    if (sentence.from !== undefined && nodeId === undefined) {
-      unknown.push(sentence.from);
-    }
-
-    /*
-     * 신뢰도를 여기서 정한다.
-     * - 제목은 우리가 정한 섹션 이름이라 근거가 필요 없다 → grounded.
-     * - 본문에 노드가 붙었으면 그 노드의 span이 근거다 → grounded.
-     * - 본문인데 노드를 못 찾았으면(지어낸 이름) 근거가 없다 → ungrounded.
-     *   `ungrounded`는 렌더를 막고 재생성 대상이 된다(§5.5 [7]).
-     *
-     * 이 값은 **함의 검사([6b]) 전의 잠정치**다. 그 검사가 돌면 `needs_check`로 내려갈 수 있다.
-     */
-    const confidence =
-      sentence.role === "heading" || nodeId !== undefined ? "grounded" : "ungrounded";
-
-    lines.push({
-      orderIdx: lines.length,
-      role: sentence.role,
-      text: sentence.text,
-      structureNodeId: nodeId ?? null,
-      confidence,
-    });
-  }
+  const { lines, unknown } = toLines(rendition.sentences, labels);
 
   const issues = lintRendition(level, lines);
   const coveredNodeIds = new Set(
     lines.flatMap((line) => (line.structureNodeId === null ? [] : [line.structureNodeId])),
   );
   const missingNodeIds = nodes
-    .filter((node) => node.kind !== "citation" || level === "L1")
     .filter((node) => !coveredNodeIds.has(node.id))
     .map((node) => node.id);
 
