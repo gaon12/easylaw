@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { viewer } from "@/lib/strings";
+import { braille, viewer } from "@/lib/strings";
 import { BrailleDocument } from "./braille-document";
 
 const baseProps = {
@@ -23,5 +23,17 @@ describe("BrailleDocument", () => {
     const html = renderToStaticMarkup(<BrailleDocument {...baseProps} outdatedAt={null} />);
 
     expect(html).not.toContain(viewer.outdatedBody);
+  });
+
+  it("주 고지는 자동 변환과 교정 필요만, 기술 출처는 도구와 라이선스를 알린다", () => {
+    const html = renderToStaticMarkup(<BrailleDocument {...baseProps} outdatedAt={null} />);
+
+    expect(braille.disclaimer).toContain("자동으로");
+    expect(braille.disclaimer).toContain("점자 교정");
+    expect(braille.disclaimer).not.toContain("braillify");
+    expect(braille.disclaimer).not.toContain("Apache-2.0");
+    expect(html).toContain(braille.source);
+    expect(braille.source).toContain("braillify");
+    expect(braille.source).toContain("Apache-2.0");
   });
 });
