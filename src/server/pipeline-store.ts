@@ -63,9 +63,11 @@ interface StoreNodeInput {
 
 interface StoreSentence {
   readonly orderIdx: number;
-  readonly role: "heading" | "body";
+  readonly role: "heading" | "body" | "gloss";
   readonly text: string;
   readonly structureNodeId: string | null;
+  /** 낱말 뜻의 출처. 그 밖에는 null이다. */
+  readonly source?: string | null;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
   readonly checkReason?: string | null;
 }

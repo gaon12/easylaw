@@ -1198,6 +1198,16 @@ export const viewer = {
     ungrounded: "근거 없음",
   },
   needsCheckHint: "원문과 대조해 보세요.",
+
+  /**
+   * 낱말 뜻. **판결문이 아니라 사전에서 온 문장이다.**
+   *
+   * 그래서 신뢰도 배지를 붙이지 않고 출처를 밝힌다 — 예전에는 이 문장도 본문이라
+   * "확인 필요"가 붙었는데, 확인할 원문이 애초에 없었다. 우리가 시켜서 쓴 문장을
+   * 우리가 깎은 셈이고, 가장 쉬워야 할 단계에 경고가 제일 많이 붙는 이유였다.
+   */
+  glossLabel: "낱말 뜻",
+  glossSource: (source: string) => `출처: ${source}`,
   generateCta: "설명 만들기",
   generateHint: "아직 아무도 만들지 않았어요",
   generateBody: "이 판결의 설명을 만들면 다음에 오는 사람도 바로 볼 수 있어요.",

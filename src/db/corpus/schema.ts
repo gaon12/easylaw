@@ -200,7 +200,16 @@ const renditionSentence = sqliteTable(
       .references(() => rendition.id, { onDelete: "cascade" }),
     orderIdx: integer("order_idx").notNull(),
     /** 섹션 제목("그래서 어떻게 되나요")과 본문을 구분한다. */
-    role: text("role", { enum: ["heading", "body"] })
+    /**
+     * 섹션 제목·본문·낱말 뜻을 구분한다.
+     *
+     * **`gloss`는 판결문이 아니라 사전에서 온 문장이다**(2026-09-05 추가). 그 전에는
+     * 낱말 풀이도 `body`였는데, 사전 뜻은 판결문에서 도출될 수 없으니 함의 검사가
+     * 전부 "확인 필요"로 깎았다 — 우리가 시켜서 쓴 문장을 우리가 깎았고, 그래서 가장
+     * 쉬워야 할 L4에 경고가 제일 많이 붙었다. 역할을 나누면 검사에서 빼고 화면에서도
+     * "낱말 뜻"으로 따로 보여 줄 수 있다.
+     */
+    role: text("role", { enum: ["heading", "body", "gloss"] })
       .notNull()
       .default("body"),
     text: text("text").notNull(),
@@ -208,6 +217,13 @@ const renditionSentence = sqliteTable(
     structureNodeId: text("structure_node_id").references(() => structureNode.id, {
       onDelete: "set null",
     }),
+    /**
+     * 이 문장이 어디서 왔나. **낱말 뜻(`gloss`)에만 채운다.**
+     *
+     * 사전에서 가져온 뜻은 출처를 밝혀야 쓸 수 있다. 밝히지 않으면 그 문장은 다시
+     * "누가 한 말인지 모르는 설명"이 되고, 그러면 모델이 지어낸 것과 구분되지 않는다.
+     */
+    source: text("source"),
     confidence: text("confidence", { enum: CONFIDENCES }).notNull(),
     checkReason: text("check_reason"),
   },

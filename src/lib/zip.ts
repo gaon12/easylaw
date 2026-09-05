@@ -1,7 +1,7 @@
-import { inflateRawSync } from "node:zlib";
-
 /**
  * 최소한의 ZIP 읽기. `scripts/sync-dict.ts`
+ *
+ * biome-ignore-all lint/correctness/noNodejsModules: 자료를 들여오는 스크립트 전용이다. 화면에서 부르지 않는다.
  *
  * **의존성을 하나 더 들이지 않으려고 직접 읽는다.** 사전 자료는 표준국어대사전이 zip으로만
  * 내려 주는데, 그것 하나 때문에 런타임 의존성을 늘리고 싶지 않았다 — 자가 호스팅하는
@@ -17,6 +17,8 @@ import { inflateRawSync } from "node:zlib";
  * 도는 스크립트**이고, 지금 자료가 68MB이기 때문이다. 그보다 커지면 그때 다시 본다.
  */
 
+import { inflateRawSync } from "node:zlib";
+
 /** 중앙 디렉터리 끝 표지. 여기서부터 거꾸로 읽는다. */
 const END_OF_CENTRAL_DIRECTORY = 0x06_05_4b_50;
 const CENTRAL_FILE_HEADER = 0x02_01_4b_50;
@@ -24,6 +26,25 @@ const LOCAL_FILE_HEADER = 0x04_03_4b_50;
 
 const STORED = 0;
 const DEFLATED = 8;
+
+/**
+ * 규격이 정한 필드 자리(바이트). **숫자를 코드에 흩어 놓지 않는다** — 한 칸만 밀려도
+ * 압축 해제가 엉뚱한 곳에서 시작해 "깨진 zip"처럼 보이고, 그때 어디가 틀렸는지 찾기 어렵다.
+ * 이름을 붙여 두면 규격 문서와 나란히 놓고 볼 수 있다.
+ */
+const CENTRAL = {
+  method: 10,
+  compressedSize: 20,
+  nameLength: 28,
+  extraLength: 30,
+  commentLength: 32,
+  localHeaderOffset: 42,
+  size: 46,
+} as const;
+
+const LOCAL = { nameLength: 26, extraLength: 28, size: 30 } as const;
+
+const EOCD = { entryCount: 10, directoryOffset: 16 } as const;
 
 /** EOCD는 가변 길이 주석 앞에 있다. 주석 최대치(65535) + 헤더만큼 뒤에서 찾는다. */
 const EOCD_MIN_SIZE = 22;
@@ -50,9 +71,9 @@ function dataOffset(buffer: Buffer, localHeaderAt: number): number {
   if (buffer.readUInt32LE(localHeaderAt) !== LOCAL_FILE_HEADER) {
     throw new Error("ZIP 항목의 지역 헤더가 깨졌습니다.");
   }
-  const nameLength = buffer.readUInt16LE(localHeaderAt + 26);
-  const extraLength = buffer.readUInt16LE(localHeaderAt + 28);
-  return localHeaderAt + 30 + nameLength + extraLength;
+  const nameLength = buffer.readUInt16LE(localHeaderAt + LOCAL.nameLength);
+  const extraLength = buffer.readUInt16LE(localHeaderAt + LOCAL.extraLength);
+  return localHeaderAt + LOCAL.size + nameLength + extraLength;
 }
 
 function readEntry(buffer: Buffer, method: number, at: number, size: number): Buffer {
@@ -71,28 +92,28 @@ function readEntry(buffer: Buffer, method: number, at: number, size: number): Bu
  */
 function readZip(buffer: Buffer): ZipEntry[] {
   const eocd = findEndOfCentralDirectory(buffer);
-  const count = buffer.readUInt16LE(eocd + 10);
-  let at = buffer.readUInt32LE(eocd + 16);
+  const count = buffer.readUInt16LE(eocd + EOCD.entryCount);
+  let at = buffer.readUInt32LE(eocd + EOCD.directoryOffset);
 
   const entries: ZipEntry[] = [];
   for (let index = 0; index < count; index += 1) {
     if (buffer.readUInt32LE(at) !== CENTRAL_FILE_HEADER) {
       throw new Error("ZIP 중앙 디렉터리가 깨졌습니다.");
     }
-    const method = buffer.readUInt16LE(at + 10);
-    const compressedSize = buffer.readUInt32LE(at + 20);
-    const nameLength = buffer.readUInt16LE(at + 28);
-    const extraLength = buffer.readUInt16LE(at + 30);
-    const commentLength = buffer.readUInt16LE(at + 32);
-    const localHeaderAt = buffer.readUInt32LE(at + 42);
-    const name = buffer.toString("utf8", at + 46, at + 46 + nameLength);
+    const method = buffer.readUInt16LE(at + CENTRAL.method);
+    const compressedSize = buffer.readUInt32LE(at + CENTRAL.compressedSize);
+    const nameLength = buffer.readUInt16LE(at + CENTRAL.nameLength);
+    const extraLength = buffer.readUInt16LE(at + CENTRAL.extraLength);
+    const commentLength = buffer.readUInt16LE(at + CENTRAL.commentLength);
+    const localHeaderAt = buffer.readUInt32LE(at + CENTRAL.localHeaderOffset);
+    const name = buffer.toString("utf8", at + CENTRAL.size, at + CENTRAL.size + nameLength);
 
     entries.push({
       name,
       read: () => readEntry(buffer, method, dataOffset(buffer, localHeaderAt), compressedSize),
     });
 
-    at += 46 + nameLength + extraLength + commentLength;
+    at += CENTRAL.size + nameLength + extraLength + commentLength;
   }
 
   return entries;

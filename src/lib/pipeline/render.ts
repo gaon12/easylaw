@@ -24,11 +24,23 @@ interface RenderableNode {
 /** 저장소(`saveRendition`)가 받는 모양에 맞춘 결과 문장. */
 interface RenderedLine {
   readonly orderIdx: number;
-  readonly role: "heading" | "body";
+  readonly role: "heading" | "body" | "gloss";
   readonly text: string;
-  /** 파생된 구조 노드. 제목은 없을 수 있다. */
+  /** 파생된 구조 노드. 제목과 낱말 뜻은 없다. */
   readonly structureNodeId: string | null;
+  /** 낱말 뜻의 출처. 그 밖에는 null이다. */
+  readonly source: string | null;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
+}
+
+/**
+ * 지시문에 실어 보낸 낱말 뜻. **모델이 만든 것이 아니라 우리가 찾아 준 것**이라,
+ * 돌아온 풀이 문장에 출처를 도로 붙일 수 있다.
+ */
+interface RenderGloss {
+  readonly term: string;
+  readonly definition: string;
+  readonly source: string;
 }
 
 interface RenderResult {
@@ -173,9 +185,27 @@ const MAX_OUTPUT_TOKENS = 16_384;
  *
  * 이 값은 **함의 검사([6b]) 전의 잠정치**다. 그 검사가 돌면 `needs_check`로 내려갈 수 있다.
  */
+/**
+ * 이 풀이가 어느 낱말의 것인지 찾아 출처를 붙인다.
+ *
+ * **앞 문장을 본다.** 풀이 문장 자체에는 그 낱말이 없다 — 지시문이 "낱말을 쓴 바로 다음
+ * 문장에서 뜻을 풀라"고 시키므로, 낱말은 앞 문장에 있고 풀이는 뜻만 적는다. 실제로
+ * "해태했는지 확인했어요" 다음에 "할 일을 이유 없이 넘기는 일이에요"가 온다.
+ * 풀이 문장에서 낱말을 찾으려 했더니 하나도 못 붙였다.
+ */
+function glossSource(
+  text: string,
+  previous: string | undefined,
+  glosses: readonly RenderGloss[],
+): string | null {
+  const near = `${previous ?? ""} ${text}`;
+  return glosses.find((gloss) => near.includes(gloss.term))?.source ?? null;
+}
+
 function toLines(
-  sentences: readonly { role: "heading" | "body"; text: string; from?: string }[],
+  sentences: readonly { role: "heading" | "body" | "gloss"; text: string; from?: string }[],
   labels: { resolve: (label: string) => string | undefined },
+  glosses: readonly RenderGloss[],
 ): { lines: RenderedLine[]; unknown: string[] } {
   const unknown: string[] = [];
   const lines: RenderedLine[] = [];
@@ -186,12 +216,20 @@ function toLines(
       unknown.push(sentence.from);
     }
 
+    /*
+     * 제목과 낱말 뜻은 판결문에 근거가 없는 것이 **정상이다.** 제목은 우리가 정한 이름이고,
+     * 낱말 뜻은 사전에서 왔다(출처는 `source`에 적힌다). 본문만 노드에 매여야 한다.
+     */
+    const needsNode = sentence.role === "body";
+
     lines.push({
       orderIdx: lines.length,
       role: sentence.role,
       text: sentence.text,
       structureNodeId: nodeId ?? null,
-      confidence: sentence.role === "heading" || nodeId !== undefined ? "grounded" : "ungrounded",
+      source:
+        sentence.role === "gloss" ? glossSource(sentence.text, lines.at(-1)?.text, glosses) : null,
+      confidence: needsNode && nodeId === undefined ? "ungrounded" : "grounded",
     });
   }
 
@@ -209,8 +247,10 @@ async function renderLevel(
   client: LlmClient,
   level: Level,
   allNodes: readonly RenderableNode[],
-  signal?: AbortSignal,
+  options: { glosses?: readonly RenderGloss[]; signal?: AbortSignal } = {},
 ): Promise<RenderResult> {
+  const glosses = options.glosses ?? [];
+  const { signal } = options;
   /*
    * **인용 법령 노드는 문장으로 만들지 않는다.**
    *
@@ -226,7 +266,7 @@ async function renderLevel(
 
   const rendition = await client.completeJson(
     {
-      instruction: renderInstruction(level),
+      instruction: renderInstruction(level, glosses),
       documents: [{ name: "판결문 구조", text: labels.document }],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
     },
@@ -234,7 +274,7 @@ async function renderLevel(
     signal,
   );
 
-  const { lines, unknown } = toLines(rendition.sentences, labels);
+  const { lines, unknown } = toLines(rendition.sentences, labels, glosses);
 
   const issues = lintRendition(level, lines);
   const coveredNodeIds = new Set(
@@ -260,4 +300,4 @@ async function renderLevel(
 }
 
 export { renderLevel };
-export type { RenderableNode, RenderedLine, RenderResult };
+export type { RenderableNode, RenderedLine, RenderGloss, RenderResult };

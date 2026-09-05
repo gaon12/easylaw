@@ -312,13 +312,16 @@ const uploadRenditionSentence = sqliteTable(
       .notNull()
       .references(() => uploadRendition.id, { onDelete: "cascade" }),
     orderIdx: integer("order_idx").notNull(),
-    role: text("role", { enum: ["heading", "body"] })
+    /** 공개 판례 쪽과 같다. `gloss`는 사전에서 온 문장이라 함의 검사를 하지 않는다. */
+    role: text("role", { enum: ["heading", "body", "gloss"] })
       .notNull()
       .default("body"),
     text: text("text").notNull(),
     structureNodeId: text("structure_node_id").references(() => uploadStructureNode.id, {
       onDelete: "set null",
     }),
+    /** 낱말 뜻의 출처. 공개 판례 쪽과 같은 이유다 — 밝히지 않으면 쓸 수 없다. */
+    source: text("source"),
     confidence: text("confidence", { enum: CONFIDENCES }).notNull(),
     checkReason: text("check_reason"),
   },

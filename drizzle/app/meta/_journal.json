@@ -57,6 +57,13 @@
       "when": 1788599756493,
       "tag": "0007_gifted_the_anarchist",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788611072161,
+      "tag": "0008_sticky_dust",
+      "breakpoints": true
     }
   ]
 }

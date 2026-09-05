@@ -43,7 +43,7 @@ const LEVEL_BRIEF: Readonly<Record<Level, LevelBrief>> = {
     reader: "초등학교 고학년~중학생",
     question: "무슨 일이었고 왜 그렇게 됐나",
     shape:
-      "초등 고학년~중학생이 아는 일상 낱말을 씁니다. 사건을 시간 순서와 인물의 흐름으로 설명합니다. 피할 수 없는 법률 용어는 쓴 뒤 바로 다음 짧은 문장에서 그 용어의 문맥상 뜻만 풀이합니다.",
+      "초등 고학년~중학생이 아는 일상 낱말을 씁니다. 사건을 시간 순서와 인물의 흐름으로 설명합니다.",
     plan: [
       "무슨 일이 있었나요",
       "사람들은 무엇을 말했나요",
@@ -56,7 +56,7 @@ const LEVEL_BRIEF: Readonly<Record<Level, LevelBrief>> = {
     reader: "발달장애인",
     question: "나에게 무슨 일이 일어났나",
     shape:
-      '한 문장에 한 가지 정보만 담습니다. 읽는 사람을 "당신"이라고 부릅니다. 법률 용어를 쓰면 바로 다음 별도 문장에서 그 용어의 문맥상 뜻만 풀이합니다. 마지막에는 이해 확인 질문을 넣습니다.',
+      '한 문장에 한 가지 정보만 담습니다. 읽는 사람을 "당신"이라고 부릅니다. 마지막에는 이해 확인 질문을 넣습니다.',
     plan: [
       "먼저 알아둘 것",
       "무슨 일이 있었나요",
@@ -154,7 +154,36 @@ function outputExample(level: Level): string {
  * "원문에서 직접 요약하지 않음"). 원문을 함께 주면 모델이 그쪽을 베끼고, 그러면
  * 문장이 어느 노드에서 나왔는지가 흐려져 근거 추적이 끊긴다.
  */
-function renderInstruction(level: Level): string {
+function glossSection(glosses: readonly PromptGloss[]): string[] {
+  if (glosses.length === 0) {
+    /*
+     * 줄 수 있는 뜻이 없으면 **아무 말도 하지 않는다.** "필요하면 풀이하라"고만 적어 두면
+     * 모델은 지어낸다 — 그것을 막으려고 이 구획을 만들었는데 그때만 옛 행동으로 돌아간다.
+     */
+    return ["- 낱말 뜻은 풀이하지 않습니다. 어려운 말은 쉬운 말로 **바꿔** 씁니다."];
+  }
+
+  return [
+    "- 아래 낱말이 본문에 나오면, 그 낱말을 쓴 **바로 다음 문장**에서 뜻을 풀어 줍니다.",
+    '  그 문장은 `"role": "gloss"`로 적고 `from`은 적지 않습니다.',
+    "- **여기 적힌 뜻만 씁니다.** 목록에 없는 낱말은 풀이하지 않고, 여기 적힌 뜻을",
+    "  이 단계의 말투로 짧게 옮깁니다. 뜻을 새로 지어내지 않습니다.",
+    "",
+    "### 낱말 뜻 (공식 정의)",
+    "",
+    ...glosses.map((gloss) => `- **${gloss.term}**: ${gloss.definition}`),
+  ];
+}
+
+/**
+ * 지시문에 실을 낱말 뜻. **찾아 온 것이지 만든 것이 아니다**(`server/glossary.ts`).
+ */
+interface PromptGloss {
+  readonly term: string;
+  readonly definition: string;
+}
+
+function renderInstruction(level: Level, glosses: readonly PromptGloss[] = []): string {
   const brief = LEVEL_BRIEF[level];
 
   return [
@@ -180,6 +209,7 @@ function renderInstruction(level: Level): string {
     "  같은 `from`을 단 여러 문장으로 나누어 배경, 판단 이유, 효과를 차례로 설명합니다.",
     "- 같은 말을 늘여 쓰거나 근거 없는 일반론으로 분량을 채우지 않습니다.",
     ...ruleLines(level),
+    ...(level === "L3" || level === "L4" ? glossSection(glosses) : []),
     ...COMMON_RULES,
     styleLine(level),
     "",
@@ -203,6 +233,7 @@ function renderInstruction(level: Level): string {
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-05-v7";
+const RENDER_PROMPT_VERSION = "render-2026-09-05-v8";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };
+export type { PromptGloss };

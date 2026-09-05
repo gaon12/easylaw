@@ -56,10 +56,12 @@ interface StructureNodeRow {
 
 interface SentenceInput {
   orderIdx: number;
-  role?: "heading" | "body";
+  role?: "heading" | "body" | "gloss";
   text: string;
   structureNodeId?: string | null;
   confidence: Confidence;
+  /** 낱말 뜻의 출처. 그 밖에는 null이다. */
+  source?: string | null;
   checkReason?: string | null;
 }
 
@@ -262,6 +264,7 @@ function saveUploadRendition(
             text: sentence.text,
             structureNodeId: sentence.structureNodeId ?? null,
             confidence: sentence.confidence,
+            source: sentence.source ?? null,
             checkReason: sentence.checkReason ?? null,
           })),
         )

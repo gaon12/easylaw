@@ -1,3 +1,4 @@
+/* biome-ignore-all lint/correctness/noNodejsModules: 시험용 zip을 만들어 읽기 코드를 검사한다. */
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { readZip } from "./zip";

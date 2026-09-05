@@ -8,10 +8,12 @@ import { SpeechReader } from "./speech-reader";
 interface Sentence {
   readonly id: string;
   readonly orderIdx?: number;
-  readonly role: "heading" | "body";
+  readonly role: "heading" | "body" | "gloss";
   readonly text: string;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
   readonly checkReason: string | null;
+  /** 낱말 뜻의 출처. 그 밖에는 null이다. */
+  readonly source?: string | null;
   /** 이 설명이 나온 원문 span. 첫 span으로 이동하되, 근거가 없으면 액션을 내지 않는다. */
   readonly sourceSpanIds?: readonly string[];
 }
@@ -43,6 +45,24 @@ function ConfidenceMark({ sentence }: { sentence: Sentence }) {
   );
 }
 
+/**
+ * 낱말 뜻. **판결문이 아니라 사전에서 온 문장이다.**
+ *
+ * 그래서 신뢰도 배지를 붙이지 않는다 — 붙이면 "확인 필요"가 되는데, 확인할 원문이 애초에
+ * 없다. 대신 **출처를 밝힌다.** 밝히지 않으면 모델이 지어낸 문장과 구분되지 않는다.
+ */
+function GlossRow({ sentence, index }: { sentence: Sentence; index: number }) {
+  return (
+    <p className={styles.gloss} data-speech-index={index}>
+      <span className={styles.glossLabel}>{viewer.glossLabel}</span>
+      <span className={styles.glossText}>{sentence.text}</span>
+      {sentence.source === null || sentence.source === undefined ? null : (
+        <span className={styles.glossSource}>{viewer.glossSource(sentence.source)}</span>
+      )}
+    </p>
+  );
+}
+
 function RenditionPanel({
   level,
   sentences,
@@ -63,12 +83,18 @@ function RenditionPanel({
           <p className={styles.summary}>{viewer.needsCheckSummary(needsCheckCount)}</p>
         ) : null}
 
-        {sentences.map((sentence, index) =>
-          sentence.role === "heading" ? (
-            <h3 className={styles.heading} data-speech-index={index} key={sentence.id}>
-              {sentence.text}
-            </h3>
-          ) : (
+        {sentences.map((sentence, index) => {
+          if (sentence.role === "heading") {
+            return (
+              <h3 className={styles.heading} data-speech-index={index} key={sentence.id}>
+                {sentence.text}
+              </h3>
+            );
+          }
+          if (sentence.role === "gloss") {
+            return <GlossRow index={index} key={sentence.id} sentence={sentence} />;
+          }
+          return (
             <div className={styles.sentenceRow} key={sentence.id}>
               {sentence.sourceSpanIds?.[0] === undefined ? (
                 <p className={styles.sentence} data-speech-index={index}>
@@ -85,8 +111,8 @@ function RenditionPanel({
                 </a>
               )}
             </div>
-          ),
-        )}
+          );
+        })}
       </LevelBody>
     </SpeechReader>
   );
