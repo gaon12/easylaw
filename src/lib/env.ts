@@ -28,6 +28,13 @@ const schema = z.object({
    * 같은 파일을 가리키면 분리의 의미가 사라지므로 아래에서 막는다.
    */
   APP_DB_PATH: z.string().min(1).default("data/app.sqlite"),
+  /**
+   * 사전 DB. **세 번째 파일이다.**
+   *
+   * 표준국어대사전과 법령용어처럼 **밖에서 받아 오는 자료**만 담는다. 지우고 다시 받아도
+   * 판례와 올린 문서는 다치지 않는다 — 그래서 셋을 같은 파일에 두지 않는다.
+   */
+  DICT_DB_PATH: z.string().min(1).default("data/dict.sqlite"),
 });
 
 type Env = z.infer<typeof schema>;

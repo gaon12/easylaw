@@ -34,7 +34,7 @@ interface LintIssue {
 
 interface RenditionSentence {
   readonly orderIdx: number;
-  readonly role: "heading" | "body";
+  readonly role: "heading" | "body" | "gloss";
   readonly text: string;
 }
 

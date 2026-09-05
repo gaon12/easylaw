@@ -41,7 +41,12 @@ function firstNodeLabel(raw: string): string {
  * 그러면 렌더가 막힌다.
  */
 const sentenceSchema = z.object({
-  role: z.enum(["heading", "body"]),
+  /**
+   * `gloss`는 **판결문이 아니라 사전에서 온 문장**이다(낱말 뜻). 근거를 판결문에서 댈 수
+   * 없으므로 `from`을 요구하지 않고, 함의 검사도 하지 않는다 — 예전에는 이것도 `body`라
+   * 검사가 전부 "확인 필요"로 깎았다. 우리가 시켜서 쓴 문장을 우리가 깎은 셈이다.
+   */
+  role: z.enum(["heading", "body", "gloss"]),
   text: z.string().min(1),
   /**
    * 이 문장이 나온 구조 노드.

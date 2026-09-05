@@ -25,7 +25,7 @@ type PlaceholderState =
 /** 화면에 그릴 문장 하나. 저장소 행에서 필요한 것만 추린 모양이다. */
 interface Sentence {
   readonly id: string;
-  readonly role: "heading" | "body";
+  readonly role: "heading" | "body" | "gloss";
   readonly text: string;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
   readonly checkReason: string | null;

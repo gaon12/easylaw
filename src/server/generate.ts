@@ -13,6 +13,7 @@ import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
 import { viewer } from "@/lib/strings";
 import { HEARTBEAT_MS } from "@/lib/timing";
+import { glossesInText } from "@/server/glossary";
 import type { PipelineStore, StoreLevel, StoreStage } from "@/server/pipeline-store";
 import {
   DEFAULT_GENERATION_IP_LIMIT,
@@ -248,8 +249,22 @@ async function attemptOnce(input: {
 }) {
   const { client, level, nodes, spanText, store, jobId, signal } = input;
 
+  /*
+   * **낱말 뜻은 찾아서 준다. 모델이 지어내게 두지 않는다.**
+   *
+   * "과태료는 규칙을 어겼을 때 내는 돈이에요" 같은 풀이를 모델이 만들면 틀려도 그럴듯해서
+   * 아무도 못 잡는다. 공식 정의를 먼저 찾아 지시문에 실어 보내고, 모델은 그 뜻을 이
+   * 단계의 말투로 옮기기만 한다(`server/glossary.ts`).
+   *
+   * 쉬운 단계에서만 한다. 법조계·일반 성인 단계는 낱말 뜻을 달지 않는다.
+   */
+  const glosses =
+    level === "L3" || level === "L4"
+      ? glossesInText(nodes.map((node) => JSON.stringify(node.payload)).join(" "))
+      : [];
+
   const rendered = await whileAlive(store, jobId, "render", () =>
-    renderLevel(client, level, nodes, signal),
+    renderLevel(client, level, nodes, { glosses, signal }),
   );
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
@@ -261,17 +276,20 @@ async function attemptOnce(input: {
   const sentences = rendered.lines.map((line) => {
     const check = byOrder.get(line.orderIdx);
     /*
-     * 제목은 함의 검사를 하지 않는다(근거가 없는 것이 정상이다). 렌더 단계가 이미
-     * grounded로 뒀으므로 그대로 둔다.
+     * 제목과 낱말 뜻은 함의 검사를 하지 않는다 — 판결문에 근거가 없는 것이 **정상이다.**
+     * 제목은 우리가 정한 이름이고, 낱말 뜻은 사전에서 왔다(출처를 함께 적는다).
+     * 예전에는 낱말 뜻도 검사에 걸려 전부 "확인 필요"가 됐다. 우리가 시켜서 쓴 문장을
+     * 우리가 깎은 셈이고, 가장 쉬워야 할 L4에 경고가 제일 많이 붙는 이유였다.
      */
     const confidence =
-      line.role === "heading" ? line.confidence : toConfidence(check?.verdict ?? "unsupported");
+      line.role === "body" ? toConfidence(check?.verdict ?? "unsupported") : line.confidence;
 
     return {
       orderIdx: line.orderIdx,
       role: line.role,
       text: line.text,
       structureNodeId: line.structureNodeId,
+      source: line.source,
       confidence,
       checkReason: check?.reason ?? null,
     };

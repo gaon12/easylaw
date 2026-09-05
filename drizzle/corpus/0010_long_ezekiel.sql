@@ -1,0 +1,1 @@
+ALTER TABLE `rendition_sentence` ADD `source` text;

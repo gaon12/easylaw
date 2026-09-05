@@ -1,0 +1,1 @@
+ALTER TABLE `upload_rendition_sentence` ADD `source` text;

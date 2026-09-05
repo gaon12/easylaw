@@ -103,7 +103,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v7");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v8");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {
@@ -135,12 +135,9 @@ describe("프롬프트", () => {
 
     expect(l3).toContain("초등 고학년~중학생이 아는 일상 낱말");
     expect(l3).toContain("시간 순서와 인물의 흐름");
-    expect(l3).toContain("그 용어의 문맥상 뜻만");
     expect(l3).not.toContain("한 문장에 한 가지 정보만");
 
     expect(l4).toContain("한 문장에 한 가지 정보만");
-    expect(l4).toContain("바로 다음 별도 문장");
-    expect(l4).toContain("그 용어의 문맥상 뜻만");
     expect(l4).toContain("마지막에는 이해 확인 질문");
     expect(l4).not.toContain("시간 순서와 인물의 흐름");
   });
@@ -336,5 +333,72 @@ describe("출력 예시", () => {
 
   it("필수 제목이 없으면 그 단계의 권장 흐름 첫 제목을 쓴다", () => {
     expect(renderInstruction("L1")).toContain('{"role": "heading", "text": "판결 요지"}');
+  });
+});
+
+/*
+ * 낱말 풀이를 **지어내게 두지 않는다.** 예전에는 "그 용어의 문맥상 뜻만 풀이합니다"라고만
+ * 시켰고, 그 결과 모델이 만든 정의가 화면에 나갔다. 틀려도 그럴듯해서 아무도 못 잡는다.
+ */
+describe("낱말 뜻", () => {
+  const glosses = [
+    { term: "과태료", definition: "의무 이행을 태만히 한 사람에게 벌로 물게 하는 돈." },
+  ];
+
+  it("찾아 준 뜻을 지시문에 그대로 싣는다", () => {
+    const instruction = renderInstruction("L4", glosses);
+
+    expect(instruction).toContain("의무 이행을 태만히 한 사람에게 벌로 물게 하는 돈.");
+    expect(instruction).toContain('"role": "gloss"');
+  });
+
+  it("목록에 없는 낱말은 풀이하지 말라고 한다", () => {
+    expect(renderInstruction("L3", glosses)).toContain("여기 적힌 뜻만 씁니다");
+  });
+
+  /* 줄 것이 없을 때 "필요하면 풀이하라"고만 두면 모델은 옛 행동으로 돌아간다. */
+  it("줄 뜻이 없으면 아예 풀이하지 말라고 한다", () => {
+    expect(renderInstruction("L4")).toContain("낱말 뜻은 풀이하지 않습니다");
+  });
+
+  it("법조계·일반 성인 단계에는 낱말 뜻을 붙이지 않는다", () => {
+    expect(renderInstruction("L1", glosses)).not.toContain("낱말 뜻");
+    expect(renderInstruction("L2", glosses)).not.toContain("낱말 뜻");
+  });
+});
+
+/*
+ * 풀이 문장에는 그 낱말이 없다 — 지시문이 "낱말을 쓴 바로 다음 문장에서 뜻을 풀라"고
+ * 시키므로 낱말은 앞 문장에 있다. 풀이 문장에서만 찾았더니 출처를 하나도 못 붙였다.
+ */
+describe("낱말 뜻의 출처", () => {
+  it("앞 문장에 나온 낱말을 보고 출처를 붙인다", async () => {
+    const client = fakeClient({
+      sentences: [
+        { role: "body", text: "등기를 해태했는지 확인했어요.", from: "n0" },
+        { role: "gloss", text: "할 일을 이유 없이 넘기는 일이에요." },
+      ],
+    });
+
+    const result = await renderLevel(
+      client,
+      "L4",
+      [{ id: "n", kind: "holding", payload: { text: "해태" } }],
+      { glosses: [{ term: "해태", definition: "…", source: "표준국어대사전" }] },
+    );
+
+    expect(result.lines[1]?.source).toBe("표준국어대사전");
+    // 본문에는 붙이지 않는다. 본문의 근거는 원문 span이지 사전이 아니다.
+    expect(result.lines[0]?.source).toBeNull();
+  });
+
+  it("낱말 뜻은 근거 노드를 요구하지 않는다 — 판결문에 근거가 없는 것이 정상이다", async () => {
+    const client = fakeClient({ sentences: [{ role: "gloss", text: "뜻이에요." }] });
+
+    const result = await renderLevel(client, "L4", [
+      { id: "n", kind: "holding", payload: { text: "판단" } },
+    ]);
+
+    expect(result.lines[0]?.confidence).toBe("grounded");
   });
 });

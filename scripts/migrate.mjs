@@ -28,6 +28,11 @@ const DATABASES = [
     path: process.env.APP_DB_PATH ?? "data/app.sqlite",
     migrations: "drizzle/app",
   },
+  {
+    name: "dict",
+    path: process.env.DICT_DB_PATH ?? "data/dict.sqlite",
+    migrations: "drizzle/dict",
+  },
 ];
 
 for (const target of DATABASES) {
