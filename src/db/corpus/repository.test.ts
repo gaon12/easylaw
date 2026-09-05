@@ -16,6 +16,7 @@ import {
   finishGenerationJob,
   heartbeatGenerationJob,
   listLawArticles,
+  listRecentGenerationFailures,
   listSentences,
   listSpans,
   listStructureNodes,
@@ -250,10 +251,38 @@ describe("claimGenerationJob", () => {
     expect(claimGenerationJob(db, { ...base, judgmentId, workerId: "w2" }).kind).toBe("done");
   });
 
+  /*
+   * 실패 이유가 하나였을 때, 그 하나를 판결문 페이지가 읽었다. 그래서 AI API 주소와
+   * 제공자 오류 본문이 아무나 여는 화면에 찍혔다. 이제 화면이 읽는 것과 관리자가 읽는
+   * 것이 다른 열이다.
+   */
+  it("공개 화면이 읽는 값에는 운영자용 원인이 섞이지 않는다", () => {
+    const judgmentId = seedJudgment();
+    const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1" });
+    finishGenerationJob(db, claim.jobId, {
+      ok: false,
+      reason: "지금은 AI 서버가 답하지 않아요.",
+      detail: "AI 서버 응답이 401입니다. Incorrect API key provided: sk-live-9f2c",
+    });
+
+    const progress = findGenerationProgress(db, { ...base, judgmentId });
+    expect(progress?.error).toBe("지금은 AI 서버가 답하지 않아요.");
+    expect(progress?.error).not.toContain("sk-live-9f2c");
+
+    // 관리자 화면은 둘 다 본다 — 무엇을 보여 줬고 실은 무엇이었는지.
+    const [failure] = listRecentGenerationFailures(db, 10);
+    expect(failure?.shown).toBe("지금은 AI 서버가 답하지 않아요.");
+    expect(failure?.detail).toContain("sk-live-9f2c");
+  });
+
   it("실패한 작업은 다시 선점할 수 있다", () => {
     const judgmentId = seedJudgment();
     const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1" });
-    finishGenerationJob(db, claim.jobId, { ok: false, error: "모델 응답 없음" });
+    finishGenerationJob(db, claim.jobId, {
+      ok: false,
+      reason: "모델 응답 없음",
+      detail: "운영자용 자세한 원인",
+    });
 
     const retry = claimGenerationJob(db, { ...base, judgmentId, workerId: "w2" });
     expect(retry.kind).toBe("claimed");
@@ -746,7 +775,11 @@ describe("생성 진행 상태", () => {
   it("실패한 까닭을 남긴다", () => {
     const judgmentId = seedJudgment();
     const claim = claimGenerationJob(db, { ...base, judgmentId, workerId: "w1" });
-    finishGenerationJob(db, claim.jobId, { ok: false, error: "AI 서버에 연결하지 못했습니다" });
+    finishGenerationJob(db, claim.jobId, {
+      ok: false,
+      reason: "AI 서버에 연결하지 못했습니다",
+      detail: "운영자용 자세한 원인",
+    });
 
     expect(findGenerationProgress(db, { ...base, judgmentId })).toMatchObject({
       status: "failed",

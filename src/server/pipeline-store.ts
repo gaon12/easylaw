@@ -1,3 +1,4 @@
+import type { JobOutcome } from "@/lib/job-outcome";
 import "server-only";
 import {
   claimUploadJob,
@@ -108,7 +109,7 @@ interface PipelineStore {
 
   claimJob(input: { level: StoreLevel; promptVersion: string; workerId: string }): StoreClaim;
   setStage(jobId: string, stage: StoreStage): void;
-  finishJob(jobId: string, result: { ok: true } | { ok: false; error: string }): void;
+  finishJob(jobId: string, result: JobOutcome): void;
   findProgress(level: StoreLevel, promptVersion: string): StoreProgress | undefined;
 
   saveRendition(input: {

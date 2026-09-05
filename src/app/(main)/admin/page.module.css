@@ -222,3 +222,22 @@
   opacity: 0.5;
   pointer-events: none;
 }
+
+/* 최근 실패 목록. 한 건씩 끊어 보이게 선으로만 나눈다 — 카드 안의 카드는 만들지 않는다. */
+.failures {
+  display: grid;
+  gap: var(--el-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.failure {
+  padding-top: var(--el-space-4);
+  border-top: 1px solid var(--el-border-subtle, var(--el-border-default));
+}
+
+.failure:first-child {
+  padding-top: 0;
+  border-top: 0;
+}

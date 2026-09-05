@@ -6,6 +6,7 @@
  */
 
 import { and, asc, desc, eq, inArray, like, lt, lte, or, sql } from "drizzle-orm";
+import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
 import {
@@ -383,10 +384,51 @@ function findGenerationProgress(
   };
 }
 
+interface GenerationFailure {
+  readonly caseNo: string;
+  readonly level: Level;
+  readonly at: Date | null;
+  /** 화면 앞의 사람이 본 말. */
+  readonly shown: string | null;
+  /** 관리자만 보는 진짜 원인. */
+  readonly detail: string | null;
+}
+
+/**
+ * 최근에 실패한 생성. **관리자 화면이 읽는다.**
+ *
+ * 이 통로가 없던 동안 운영자가 원인을 아는 방법은 터미널에서 스크립트를 돌리는 것뿐이었다.
+ * 그래서 실패 이유를 이용자 화면에 적었고, 그것이 운영 설정을 공개하는 결과가 됐다.
+ * 볼 사람이 볼 곳을 만들면 그럴 이유가 없다.
+ */
+function listRecentGenerationFailures(db: CorpusDb, limit: number): GenerationFailure[] {
+  return db
+    .select({
+      caseNo: judgment.caseNoDisplay,
+      level: generationJob.level,
+      at: generationJob.finishedAt,
+      shown: generationJob.error,
+      detail: generationJob.detail,
+    })
+    .from(generationJob)
+    .innerJoin(judgment, eq(judgment.id, generationJob.judgmentId))
+    .where(eq(generationJob.status, "failed"))
+    .orderBy(desc(generationJob.finishedAt))
+    .limit(limit)
+    .all();
+}
+
+/**
+ * 작업을 닫는다.
+ *
+ * **실패는 두 얼굴로 적는다.** `reason`은 화면 앞의 이용자가 읽고, `detail`은 관리자만
+ * 본다. 예전에는 하나였고 그 하나가 공개 화면에 그대로 나갔다 — AI API 주소와 제공자의
+ * 오류 본문이 판결문 페이지에 찍혔고, 정작 그것으로 고칠 수 있는 관리자는 보지 못했다.
+ */
 function finishGenerationJob(
   db: CorpusDb,
   jobId: string,
-  result: { ok: true } | { ok: false; error: string },
+  result: JobOutcome,
   now: Date = new Date(),
 ): void {
   db.update(generationJob)
@@ -394,7 +436,8 @@ function finishGenerationJob(
       status: result.ok ? "done" : "failed",
       // 끝난 작업에 단계가 남아 있으면 화면이 "아직 만드는 중"으로 읽는다.
       stage: null,
-      error: result.ok ? null : result.error,
+      error: result.ok ? null : result.reason,
+      detail: result.ok ? null : result.detail,
       finishedAt: now,
       heartbeatAt: now,
     })
@@ -1000,6 +1043,7 @@ export {
   listLawSections,
   listSentences,
   listSpans,
+  listRecentGenerationFailures,
   listStructureNodes,
   recordLookupMiss,
   reserveGenerationSlot,
@@ -1013,6 +1057,7 @@ export {
   upsertLawVersions,
 };
 export type {
+  GenerationFailure,
   ClaimResult,
   Confidence,
   JobProgress,

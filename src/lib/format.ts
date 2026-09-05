@@ -39,6 +39,30 @@ function formatDate(value: Date, timeZone: string = DEFAULT_TIME_ZONE): string {
   return formatterFor(timeZone).format(value);
 }
 
+const timeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * 날짜에 시각까지. **운영 기록을 볼 때만 쓴다.**
+ *
+ * 이용자 화면에는 날짜면 충분하다 — 판결 선고일에 분 단위가 붙으면 정확해 보이지만 아무
+ * 뜻도 없다. 반대로 "최근에 무엇이 실패했나"는 같은 날 안에서 순서를 봐야 해서 시각이 없으면
+ * 목록이 전부 같은 줄로 보인다.
+ */
+function formatDateTime(value: Date, timeZone: string = DEFAULT_TIME_ZONE): string {
+  const cached = timeFormatters.get(timeZone);
+  const formatter =
+    cached ??
+    new Intl.DateTimeFormat("ko-KR", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone,
+    });
+  if (cached === undefined) {
+    timeFormatters.set(timeZone, formatter);
+  }
+  return formatter.format(value);
+}
+
 /** 하루를 밀리초로. 24 × 60 × 60 × 1000. */
 const DAY_MS = 86_400_000;
 
@@ -84,4 +108,4 @@ function daysUntil(
   return Math.round((startOfDay(target, timeZone) - startOfDay(now, timeZone)) / DAY_MS);
 }
 
-export { DAY_MS, dayKey, daysUntil, DEFAULT_TIME_ZONE, formatDate };
+export { DAY_MS, dayKey, daysUntil, DEFAULT_TIME_ZONE, formatDate, formatDateTime };

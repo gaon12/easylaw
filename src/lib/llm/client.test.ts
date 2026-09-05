@@ -409,3 +409,63 @@ describe("주소를 잘못 넣은 경우를 알아본다", () => {
     expect(failure.message).not.toContain("까지만 넣으세요");
   });
 });
+
+/*
+ * 이 오류 문구는 **판결문 페이지에 그대로 찍혔었다.** 작업 표의 실패 이유가 하나뿐이었고,
+ * 그 하나를 아무나 여는 화면이 읽었기 때문이다. 그래서 AI API 주소와 제공자가 보낸
+ * 오류 본문이 공개됐다.
+ */
+describe("읽는 사람을 나눈다", () => {
+  it("이용자에게 보여 줄 문장에는 우리 주소도 제공자 응답도 담지 않는다", async () => {
+    stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            error: { message: "Incorrect API key provided: sk-live-9f2c****. Org org-easylaw." },
+          }),
+          { status: 401, headers: { "content-type": "application/json" } },
+        ),
+    );
+
+    const error = await createLlmClient(CONFIG)
+      .complete({ instruction: "요약해 주세요." })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(LlmError);
+    const llmError = error as LlmError;
+
+    // 관리자용에는 남는다 — 고치려면 무엇이 왔는지 알아야 한다.
+    expect(llmError.message).toContain("sk-live-9f2c");
+
+    // 이용자용에는 하나도 남지 않는다.
+    expect(llmError.publicMessage).not.toContain("sk-live-9f2c");
+    expect(llmError.publicMessage).not.toContain("org-easylaw");
+    expect(llmError.publicMessage).not.toContain(CONFIG.baseUrl);
+    expect(llmError.publicMessage).not.toContain("401");
+  });
+
+  it("404에도 주소를 흘리지 않는다 — 진단 문구가 주소를 담고 있다", async () => {
+    stubFetch(() => new Response("{}", { status: 404 }));
+
+    const error = (await createLlmClient(CONFIG)
+      .complete({ instruction: "요약해 주세요." })
+      .catch((thrown: unknown) => thrown)) as LlmError;
+
+    expect(error.message).toContain(CONFIG.baseUrl);
+    expect(error.publicMessage).not.toContain(CONFIG.baseUrl);
+  });
+
+  it("다시 걸면 될 것과 설정이 틀린 것을 다르게 말한다", async () => {
+    stubFetch(() => new Response("{}", { status: 503 }));
+    const busy = (await createLlmClient(CONFIG)
+      .complete({ instruction: "…" })
+      .catch((thrown: unknown) => thrown)) as LlmError;
+
+    stubFetch(() => new Response("{}", { status: 403 }));
+    const wrong = (await createLlmClient(CONFIG)
+      .complete({ instruction: "…" })
+      .catch((thrown: unknown) => thrown)) as LlmError;
+
+    expect(busy.publicMessage).not.toBe(wrong.publicMessage);
+  });
+});
