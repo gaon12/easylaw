@@ -33,6 +33,7 @@ function fakeLlm(overrides: Partial<LlmClient>): LlmClient {
         finishReason: "stop" as const,
         promptTokens: undefined,
         completionTokens: undefined,
+        reasoningTokens: undefined,
       }),
     completeJson: () => Promise.reject(new Error("쓰지 않는다")),
     ...overrides,
@@ -102,6 +103,7 @@ describe("probeLlm", () => {
             finishReason: "stop" as const,
             promptTokens: undefined,
             completionTokens: undefined,
+            reasoningTokens: undefined,
           });
         },
       }),
@@ -119,6 +121,7 @@ describe("probeLlm", () => {
             finishReason: "stop" as const,
             promptTokens: undefined,
             completionTokens: undefined,
+            reasoningTokens: undefined,
           }),
       }),
     );
