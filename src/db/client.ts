@@ -7,12 +7,16 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { env } from "@/lib/env";
 import { appSchema } from "./app/schema";
 import { corpusSchema } from "./corpus/schema";
+import { dictSchema } from "./dict/schema";
 
 /**
  * 데이터베이스 연결. `.dev/CONVENTIONS.md` §10
  *
  * `corpus`(공개 판례)와 `app`(사용자 문서)은 **파일이 다르다**. 서로 조인하지 않는다.
  * 두 저장소를 잇는 코드는 애플리케이션 레이어에만 둔다.
+ *
+ * `dict`(사전)는 세 번째 파일이다. 밖에서 받아 오는 자료만 담기고, 지우고 다시 받아도
+ * 앞의 둘은 다치지 않는다.
  */
 
 function openDatabase(path: string): Database.Database {
@@ -60,5 +64,24 @@ function appDb(): AppDb {
   return cachedApp;
 }
 
-export { appDb, corpusDb, createAppDb, createCorpusDb, openDatabase };
-export type { AppDb, CorpusDb };
+type DictDb = ReturnType<typeof createDictDb>;
+
+function createDictDb(path: string = env().DICT_DB_PATH) {
+  return drizzle(openDatabase(path), { schema: dictSchema });
+}
+
+let cachedDict: DictDb | undefined;
+
+/**
+ * 사전 DB. 표준국어대사전과 법령용어가 들어 있다.
+ *
+ * **읽기 전용에 가깝다.** 쓰는 것은 가져오기 스크립트뿐이고(`scripts/sync-dict.ts`),
+ * 서비스는 낱말을 찾기만 한다. 그래서 다른 둘과 달리 사용자 요청이 이 파일에 쓰지 않는다.
+ */
+function dictDb(): DictDb {
+  cachedDict ??= createDictDb();
+  return cachedDict;
+}
+
+export { appDb, corpusDb, createAppDb, createCorpusDb, createDictDb, dictDb, openDatabase };
+export type { AppDb, CorpusDb, DictDb };

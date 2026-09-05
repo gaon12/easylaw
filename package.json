@@ -12,12 +12,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate --config drizzle.corpus.config.ts && drizzle-kit generate --config drizzle.app.config.ts",
+    "db:generate": "drizzle-kit generate --config drizzle.corpus.config.ts && drizzle-kit generate --config drizzle.app.config.ts && drizzle-kit generate --config drizzle.dict.config.ts",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "tsx scripts/seed.ts",
     "law:sync": "tsx scripts/sync-laws.ts",
     "llm:mock": "tsx scripts/mock-llm.ts",
-    "gen:try": "tsx --conditions=react-server scripts/generate-once.ts"
+    "gen:try": "tsx --conditions=react-server scripts/generate-once.ts",
+    "dict:sync": "tsx scripts/sync-dict.ts"
   },
   "dependencies": {
     "@dicebear/core": "9.4.3",
