@@ -91,48 +91,130 @@ function parseCompletion(payload: unknown): Completion {
 const CODE_FENCE = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/u;
 
 /**
- * 모델이 뱉은 텍스트에서 JSON 객체를 꺼낸다.
+ * 글 안에서 **중괄호가 맞아떨어지는 덩어리**를 전부 찾는다. 문자열 안의 중괄호는 세지
+ * 않는다 — 판결문 인용에 `{`가 섞여 들어오면 엉뚱한 자리에서 끊긴다.
  *
- * `response_format`을 줘도 순수 JSON만 오지는 않는다. 코드 울타리를 씌우거나
- * "다음과 같습니다:" 같은 머리말을 붙이는 모델이 흔하다. 세 단계로 시도한다.
- *
- * 1. 그대로 파싱
- * 2. 코드 울타리를 벗기고 파싱
- * 3. 첫 `{`부터 마지막 `}`까지 잘라서 파싱
- *
- * 3번은 거칠다 — 본문에 중괄호가 섞인 산문이 앞뒤로 붙으면 틀린 조각을 자를 수 있다.
- * 그래도 여기서 잘라 낸 결과는 **반드시 zod 스키마를 다시 통과해야** 쓰이므로,
- * 잘못 자른 조각은 다음 단계에서 걸린다. 이 함수는 관대해도 되고 스키마는 그러면 안 된다.
+ * 예전에는 첫 `{`부터 마지막 `}`까지 한 번에 잘랐다. 그러면 모델이 **답을 두 번 쓴**
+ * 경우에 두 덩어리를 통째로 삼켜 아무것도 파싱되지 않는다. Gemma가 실제로 그랬다 —
+ * 초안 JSON을 쓰고, 그것을 스스로 점검하는 글을 쓰고, 고친 JSON을 다시 썼다.
  */
-function extractJson(text: string): unknown {
+interface ScanState {
+  depth: number;
+  start: number;
+  inString: boolean;
+  escaped: boolean;
+}
+
+/** 문자열 안이다. 여기서는 중괄호를 세지 않는다. 끝났으면 그렇다고 알린다. */
+function stepInString(state: ScanState, char: string | undefined): void {
+  if (state.escaped) {
+    state.escaped = false;
+  } else if (char === "\\") {
+    state.escaped = true;
+  } else if (char === '"') {
+    state.inString = false;
+  }
+}
+
+/**
+ * 문자열 밖이다. 중괄호를 세고, 하나가 닫혀 완성됐으면 그 자리를 돌려준다.
+ * `undefined`는 "아직 덩어리가 끝나지 않았다"는 뜻이다.
+ */
+function stepOutsideString(state: ScanState, char: string | undefined, index: number): number {
+  if (char === '"') {
+    state.inString = true;
+    return -1;
+  }
+
+  if (char === "{") {
+    if (state.depth === 0) {
+      state.start = index;
+    }
+    state.depth += 1;
+    return -1;
+  }
+
+  if (char !== "}" || state.depth === 0) {
+    return -1;
+  }
+
+  state.depth -= 1;
+  return state.depth === 0 ? state.start : -1;
+}
+
+function braceRegions(text: string): string[] {
+  const regions: string[] = [];
+  const state: ScanState = { depth: 0, start: -1, inString: false, escaped: false };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (state.inString) {
+      stepInString(state, char);
+      continue;
+    }
+
+    const closed = stepOutsideString(state, char, index);
+    if (closed !== -1) {
+      regions.push(text.slice(closed, index + 1));
+    }
+  }
+
+  return regions;
+}
+
+/**
+ * 모델이 뱉은 텍스트에서 JSON일 법한 것을 **전부** 꺼낸다. 그럴듯한 순서로 준다.
+ *
+ * `response_format`을 줘도 순수 JSON만 오지는 않는다. 코드 울타리를 씌우거나, 머리말을
+ * 붙이거나, 생각을 적은 뒤에 답을 쓰거나, **답을 쓰고 고쳐서 다시 쓴다.**
+ *
+ * 그래서 **나중에 쓴 것을 먼저** 준다. 모델이 두 번 썼다면 뒤엣것이 고친 것이다.
+ *
+ * 여기서 고른 조각은 **반드시 zod 스키마를 다시 통과해야** 쓰이므로(`completeJson`이
+ * 후보를 차례로 검증한다), 잘못 고른 조각은 다음 단계에서 걸린다. 이 함수는 관대해도
+ * 되고 스키마는 그러면 안 된다.
+ */
+function jsonCandidates(text: string): unknown[] {
   const trimmed = text.trim();
   if (trimmed.length === 0) {
     throw new Error("모델이 빈 응답을 보냈습니다.");
   }
 
-  const candidates = [trimmed];
+  const sources = [trimmed];
 
   const fenced = CODE_FENCE.exec(trimmed)?.[1];
   if (fenced !== undefined) {
-    candidates.push(fenced.trim());
+    sources.push(fenced.trim());
   }
 
-  const first = trimmed.indexOf("{");
-  const last = trimmed.lastIndexOf("}");
-  if (first !== -1 && last > first) {
-    candidates.push(trimmed.slice(first, last + 1));
-  }
+  sources.push(...braceRegions(trimmed).reverse());
 
-  for (const candidate of candidates) {
+  const parsed: unknown[] = [];
+  const seen = new Set<string>();
+  for (const source of sources) {
+    if (seen.has(source)) {
+      continue;
+    }
+    seen.add(source);
     try {
-      return JSON.parse(candidate) as unknown;
+      parsed.push(JSON.parse(source) as unknown);
     } catch {
-      // 다음 후보로 넘어간다. 전부 실패하면 아래에서 던진다.
+      // 다음 후보로 넘어간다. 하나도 못 읽으면 부르는 쪽이 빈 목록을 본다.
     }
   }
 
-  throw new Error("모델 응답에서 JSON을 찾지 못했습니다.");
+  return parsed;
 }
 
-export { extractJson, parseCompletion };
+/** 후보 중 첫 번째. 읽을 것이 하나도 없으면 던진다. */
+function extractJson(text: string): unknown {
+  const candidates = jsonCandidates(text);
+  if (candidates.length === 0) {
+    throw new Error("모델 응답에서 JSON을 찾지 못했습니다.");
+  }
+  return candidates[0];
+}
+
+export { extractJson, jsonCandidates, parseCompletion };
 export type { Completion, FinishReason };
