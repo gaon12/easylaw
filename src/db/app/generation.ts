@@ -90,6 +90,7 @@ type AppTx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
 function insertStructure(
   tx: AppTx,
   uploadId: string,
+  promptVersion: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
   const ids = nodes.map(() => newId());
@@ -99,6 +100,7 @@ function insertStructure(
       nodes.map((node, index) => ({
         id: ids[index] as string,
         uploadId,
+        promptVersion,
         kind: node.kind,
         payload: node.payload,
         occurredOn: node.occurredOn ?? null,
@@ -140,6 +142,7 @@ function assertNodesGrounded(nodes: readonly StructureNodeInput[], valid: Readon
 function saveUploadStructure(
   db: AppDb,
   uploadId: string,
+  promptVersion: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
   assertNodesGrounded(
@@ -159,7 +162,12 @@ function saveUploadStructure(
       const existing = tx
         .select({ id: uploadStructureNode.id })
         .from(uploadStructureNode)
-        .where(eq(uploadStructureNode.uploadId, uploadId))
+        .where(
+          and(
+            eq(uploadStructureNode.uploadId, uploadId),
+            eq(uploadStructureNode.promptVersion, promptVersion),
+          ),
+        )
         .orderBy(uploadStructureNode.orderIdx)
         .all()
         .map((row) => row.id);
@@ -170,18 +178,27 @@ function saveUploadStructure(
         return [];
       }
 
-      return insertStructure(tx, uploadId, nodes);
+      return insertStructure(tx, uploadId, promptVersion, nodes);
     },
     { behavior: "immediate" },
   );
 }
 
 /** 구조 노드를 근거 span과 함께 읽는다. 노드마다 따로 조회하지 않는다(§10.2 N+1 금지). */
-function listUploadStructureNodes(db: AppDb, uploadId: string): StructureNodeRow[] {
+function listUploadStructureNodes(
+  db: AppDb,
+  uploadId: string,
+  promptVersion: string,
+): StructureNodeRow[] {
   const nodes = db
     .select()
     .from(uploadStructureNode)
-    .where(eq(uploadStructureNode.uploadId, uploadId))
+    .where(
+      and(
+        eq(uploadStructureNode.uploadId, uploadId),
+        eq(uploadStructureNode.promptVersion, promptVersion),
+      ),
+    )
     .orderBy(uploadStructureNode.orderIdx)
     .all();
 

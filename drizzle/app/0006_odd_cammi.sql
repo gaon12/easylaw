@@ -1,0 +1,2 @@
+ALTER TABLE `upload_structure_node` ADD `prompt_version` text DEFAULT 'legacy' NOT NULL;--> statement-breakpoint
+CREATE INDEX `upload_structure_node_version_idx` ON `upload_structure_node` (`upload_id`,`prompt_version`);

@@ -96,8 +96,15 @@ interface PipelineStore {
   readonly documentId: string;
 
   listSpans(): readonly StoreSpan[];
-  listNodes(): readonly StoreNode[];
-  saveNodes(nodes: readonly StoreNodeInput[]): void;
+  /**
+   * 이 추출 프롬프트 판이 뽑은 구조만 읽는다.
+   *
+   * 판을 받는 이유는 **지시문을 고치면 옛 구조가 그대로 쓰이는 것을 막기** 위해서다.
+   * 옛 노드는 지우지 않고 남겨 둔다 — 그 id로 만들어진 옛 설명의 근거 링크가 살아 있어야
+   * 한다(§6.4). 판이 다르면 나란히 두고, 읽는 쪽이 자기 판만 고른다.
+   */
+  listNodes(extractVersion: string): readonly StoreNode[];
+  saveNodes(extractVersion: string, nodes: readonly StoreNodeInput[]): void;
 
   claimJob(input: { level: StoreLevel; promptVersion: string; workerId: string }): StoreClaim;
   setStage(jobId: string, stage: StoreStage): void;
@@ -122,13 +129,14 @@ function caseStore(judgmentId: string): PipelineStore {
     documentId: judgmentId,
 
     listSpans: () => listSpans(db, judgmentId),
-    listNodes: () => listStructureNodes(db, judgmentId),
-    saveNodes: (nodes) => {
+    listNodes: (extractVersion) => listStructureNodes(db, judgmentId, extractVersion),
+    saveNodes: (extractVersion, nodes) => {
       saveStructure(
         db,
         judgmentId,
+        extractVersion,
         nodes.map((node) => ({
-          kind: node.kind as Parameters<typeof saveStructure>[2][number]["kind"],
+          kind: node.kind as Parameters<typeof saveStructure>[3][number]["kind"],
           payload: node.payload,
           occurredOn: node.occurredOn ?? null,
           orderIdx: node.orderIdx,
@@ -162,13 +170,14 @@ function docStore(uploadId: string): PipelineStore {
     documentId: uploadId,
 
     listSpans: () => listUploadSpans(db, uploadId),
-    listNodes: () => listUploadStructureNodes(db, uploadId),
-    saveNodes: (nodes) => {
+    listNodes: (extractVersion) => listUploadStructureNodes(db, uploadId, extractVersion),
+    saveNodes: (extractVersion, nodes) => {
       saveUploadStructure(
         db,
         uploadId,
+        extractVersion,
         nodes.map((node) => ({
-          kind: node.kind as Parameters<typeof saveUploadStructure>[2][number]["kind"],
+          kind: node.kind as Parameters<typeof saveUploadStructure>[3][number]["kind"],
           payload: node.payload,
           occurredOn: node.occurredOn ?? null,
           orderIdx: node.orderIdx,
