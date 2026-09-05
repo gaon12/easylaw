@@ -93,7 +93,12 @@ function buildClaimDocument(claims: readonly Claim[]): string {
     .join("\n\n");
 }
 
-const MAX_OUTPUT_TOKENS = 4096;
+/**
+ * 넉넉하게 잡는다. 판정할 문장이 수십 개면 답도 그만큼 길어지고, **답 앞에 설명을 길게
+ * 적는 모델**은 그 전에 한도를 태운다 — Gemma가 L4에서 실제로 4096에 걸려 잘렸다.
+ * 다른 단계(`extract`·`render`)와 같은 값이다. 남는 몫에 값이 붙지는 않는다.
+ */
+const MAX_OUTPUT_TOKENS = 16_384;
 
 /**
  * 문장들이 근거에서 도출되는지 판정한다.
