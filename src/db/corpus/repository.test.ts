@@ -29,7 +29,7 @@ import {
   upsertJudgment,
   upsertLawVersions,
 } from "./repository";
-import { lookupMiss, rendition } from "./schema";
+import { lookupMiss, rendition, structureNode } from "./schema";
 
 let db: CorpusDb;
 let close: () => void;
@@ -413,12 +413,36 @@ describe("saveStructure", () => {
     expect(listStructureNodes(db, judgmentId)[0]?.spanIds).toEqual([spanId]);
   });
 
-  it("다시 추출하면 옛 구조를 남기지 않는다", () => {
+  /*
+   * 레벨 둘을 함께 돌리면 둘 다 "구조가 없다"를 보고 각자 추출한다. 나중에 저장한 쪽이
+   * 앞선 쪽의 노드를 지우면, 그 id로 문장을 넣던 작업이 `FOREIGN KEY constraint failed`로
+   * 끝난다 — 실제로 L2·L4를 함께 돌려 재현했다.
+   */
+  it("이미 구조가 있으면 덮어쓰지 않는다 — 그 id로 문장을 만드는 작업이 있을 수 있다", () => {
+    const { judgmentId, spanIds } = seedWithSpans();
+
+    const first = saveStructure(db, judgmentId, [
+      { kind: "issue", payload: { text: "먼저 것" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
+    ]);
+    const second = saveStructure(db, judgmentId, [
+      { kind: "issue", payload: { text: "나중 것" }, orderIdx: 0, spanIds: [spanIds[1] as string] },
+    ]);
+
+    // 뒤에 온 쪽도 **쓸 수 있는 id**를 받는다. 빈 배열이나 없는 id를 주면 거기서 깨진다.
+    expect(second).toEqual(first);
+
+    const nodes = listStructureNodes(db, judgmentId);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.payload).toEqual({ text: "먼저 것" });
+  });
+
+  it("구조를 지우고 다시 부르면 새로 넣는다 — 다시 뽑기는 명시적인 일이다", () => {
     const { judgmentId, spanIds } = seedWithSpans();
 
     saveStructure(db, judgmentId, [
       { kind: "issue", payload: { text: "옛 것" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
     ]);
+    db.delete(structureNode).where(eq(structureNode.judgmentId, judgmentId)).run();
     saveStructure(db, judgmentId, [
       { kind: "issue", payload: { text: "새 것" }, orderIdx: 0, spanIds: [spanIds[1] as string] },
     ]);
