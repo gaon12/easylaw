@@ -32,8 +32,17 @@ type JobStatus = (typeof uploadGenerationJob.status.enumValues)[number];
 
 const newId = (): string => crypto.randomUUID();
 
-/** 이 시간 동안 heartbeat가 없으면 죽은 작업으로 보고 회수한다. `corpus` 쪽과 같은 값이다. */
-const STALE_AFTER_MS = 90_000;
+/**
+ * 이 시간 동안 heartbeat가 없으면 죽은 작업으로 보고 회수한다.
+ *
+ * **한 번의 AI 호출보다 넉넉해야 한다.** heartbeat는 시도 사이에 찍히므로, 두 heartbeat
+ * 사이의 간격이 곧 호출 하나의 길이다(`LLM 요청 타임아웃` 240초). 이 값이 그보다 짧으면
+ * 정상적으로 답을 기다리는 작업을 좀비로 보고 회수해, 같은 판결문에 두 번 지출한다.
+ * 예전의 90초는 타임아웃 120초보다도 짧았다. `corpus` 쪽과 같은 값이다.
+ *
+ * 반대로 너무 길면 정말 죽은 작업이 그 시간만큼 그 판결문을 막는다. 240초 + 여유로 잡는다.
+ */
+const STALE_AFTER_MS = 300_000;
 
 interface StructureNodeInput {
   kind: StructureKind;
@@ -68,21 +77,52 @@ interface SentenceInput {
  * **근거 없는 노드를 받지 않고, 남의 문서 span도 받지 않는다.** 외래 키는 span이
  * 존재한다는 것만 보장하고 어느 문서의 span인지는 보지 않는다 — 공개 판례 쪽과 같은
  * 이유이고, 여기서는 **다른 사람의 문서**를 가리킬 수 있어 더 나쁘다.
+ *
+ * **이미 구조가 있으면 그것을 남긴다.** 공개 판례 쪽(`saveStructure`)과 같은 이유다 —
+ * 레벨 둘을 함께 돌리면 둘 다 구조가 없는 것을 보고 각자 추출하는데, 나중에 저장한 쪽이
+ * 앞선 쪽의 노드를 지우면 그 id로 문장을 넣던 작업이 `FOREIGN KEY constraint failed`로
+ * 끝난다. 확인과 저장을 한 트랜잭션에 묶고 `immediate`로 연다.
  */
-function saveUploadStructure(
-  db: AppDb,
+/** 트랜잭션 안의 db 손잡이. 드리즐이 넘겨 주는 것과 같은 타입이다. */
+type AppTx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
+/** 노드와 근거 연결을 넣는다. 부르는 쪽이 이미 "넣어도 되는가"를 판단했다. */
+function insertStructure(
+  tx: AppTx,
   uploadId: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
-  const valid = new Set(
-    db
-      .select({ id: uploadSpan.id })
-      .from(uploadSpan)
-      .where(eq(uploadSpan.uploadId, uploadId))
-      .all()
-      .map((row) => row.id),
-  );
+  const ids = nodes.map(() => newId());
 
+  tx.insert(uploadStructureNode)
+    .values(
+      nodes.map((node, index) => ({
+        id: ids[index] as string,
+        uploadId,
+        kind: node.kind,
+        payload: node.payload,
+        occurredOn: node.occurredOn ?? null,
+        orderIdx: node.orderIdx,
+      })),
+    )
+    .run();
+
+  tx.insert(uploadNodeSpan)
+    .values(
+      nodes.flatMap((node, index) =>
+        // 같은 span을 두 번 적어 오는 모델이 있다. 복합 기본키가 터지기 전에 줄인다.
+        [...new Set(node.spanIds)].map((spanId) => ({
+          structureNodeId: ids[index] as string,
+          spanId,
+        })),
+      ),
+    )
+    .run();
+
+  return ids;
+}
+
+function assertNodesGrounded(nodes: readonly StructureNodeInput[], valid: ReadonlySet<string>) {
   for (const node of nodes) {
     if (node.spanIds.length === 0) {
       throw new Error(
@@ -95,42 +135,45 @@ function saveUploadStructure(
       }
     }
   }
+}
 
-  return db.transaction((tx) => {
-    // 다시 추출하면 옛 구조를 남기지 않는다. upload_node_span은 cascade로 함께 지워진다.
-    tx.delete(uploadStructureNode).where(eq(uploadStructureNode.uploadId, uploadId)).run();
-    if (nodes.length === 0) {
-      return [];
-    }
+function saveUploadStructure(
+  db: AppDb,
+  uploadId: string,
+  nodes: readonly StructureNodeInput[],
+): string[] {
+  assertNodesGrounded(
+    nodes,
+    new Set(
+      db
+        .select({ id: uploadSpan.id })
+        .from(uploadSpan)
+        .where(eq(uploadSpan.uploadId, uploadId))
+        .all()
+        .map((row) => row.id),
+    ),
+  );
 
-    const ids = nodes.map(() => newId());
-    tx.insert(uploadStructureNode)
-      .values(
-        nodes.map((node, index) => ({
-          id: ids[index] as string,
-          uploadId,
-          kind: node.kind,
-          payload: node.payload,
-          occurredOn: node.occurredOn ?? null,
-          orderIdx: node.orderIdx,
-        })),
-      )
-      .run();
+  return db.transaction(
+    (tx) => {
+      const existing = tx
+        .select({ id: uploadStructureNode.id })
+        .from(uploadStructureNode)
+        .where(eq(uploadStructureNode.uploadId, uploadId))
+        .orderBy(uploadStructureNode.orderIdx)
+        .all()
+        .map((row) => row.id);
+      if (existing.length > 0) {
+        return existing;
+      }
+      if (nodes.length === 0) {
+        return [];
+      }
 
-    tx.insert(uploadNodeSpan)
-      .values(
-        nodes.flatMap((node, index) =>
-          // 같은 span을 두 번 적어 오는 모델이 있다. 복합 기본키가 터지기 전에 줄인다.
-          [...new Set(node.spanIds)].map((spanId) => ({
-            structureNodeId: ids[index] as string,
-            spanId,
-          })),
-        ),
-      )
-      .run();
-
-    return ids;
-  });
+      return insertStructure(tx, uploadId, nodes);
+    },
+    { behavior: "immediate" },
+  );
 }
 
 /** 구조 노드를 근거 span과 함께 읽는다. 노드마다 따로 조회하지 않는다(§10.2 N+1 금지). */

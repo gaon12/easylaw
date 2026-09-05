@@ -70,8 +70,13 @@ interface CompletionRequest {
 /**
  * 생성은 수십 초가 걸린다(§5.1). 법제처 조회의 10초 타임아웃을 그대로 쓰면 정상 응답을
  * 실패로 만든다. 그렇다고 무한정 기다리면 좀비 작업이 캐시를 영구히 막는다(§5.3).
+ *
+ * **120초로는 모자랐다(2026-09-05).** 생각을 글로 길게 쓰는 모델이 있다 — Gemma는
+ * 15문장짜리 판결문 하나에 96초, 60문장짜리에 210초를 썼고, 그 사이 호출 하나가 120초를
+ * 넘으면 정상 응답이 실패가 됐다. 좀비 회수 시간(`STALE_AFTER_MS`)은 이 값보다 길어야
+ * 한다 — 짧으면 답을 기다리는 작업을 죽은 것으로 보고 같은 판결문에 두 번 지출한다.
  */
-const REQUEST_TIMEOUT_SECONDS = 120;
+const REQUEST_TIMEOUT_SECONDS = 240;
 const MS_PER_SECOND = 1000;
 const REQUEST_TIMEOUT_MS = REQUEST_TIMEOUT_SECONDS * MS_PER_SECOND;
 
@@ -430,7 +435,10 @@ function createLlmClient(config: LlmConfig): LlmClient {
          * 잘린 JSON은 망가진 JSON과 고치는 방법이 다르다 — 프롬프트가 아니라 출력 한도가
          * 문제다. 아래 파싱으로 흘려보내면 "JSON을 찾지 못했습니다"가 되어 원인이 지워진다.
          */
-        throw new LlmError(truncationMessage(completion), { retryable: true });
+        throw new LlmError(
+          truncationMessage(completion, request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS),
+          { retryable: true },
+        );
       }
 
       /*
@@ -469,13 +477,20 @@ function createLlmClient(config: LlmConfig): LlmClient {
 const REASONING_SHARE_LIMIT = 0.5;
 
 /**
- * 왜 잘렸는지. **한도가 작은 것과 모델이 그 한도를 생각으로 태운 것은 다른 문제다.**
+ * 왜 잘렸는지. **한도가 작은 것과 모델이 그 한도를 딴 데 쓴 것은 다른 문제다.**
  *
- * GLM-4.7이나 o-시리즈 같은 생각하는 모델은 답을 쓰기 전에 출력 한도를 먼저 쓴다.
- * 실제로 글 두 문장을 얻는 데 943토큰 중 860을 생각에 쓴 응답을 봤다. 그때 "한도에 걸려
- * 잘렸습니다"라고만 하면 운영자는 한도를 올리며 돈만 쓰게 된다 — 무엇이 태웠는지 말한다.
+ * 한도를 태우는 방법이 두 가지다.
+ *
+ * - **생각(reasoning)으로.** GLM-4.7이나 o-시리즈가 그렇다. 응답의 `usage`에 몇 토큰을
+ *   썼는지 적혀 오므로 그대로 말해 준다 — 글 두 문장에 943토큰 중 860을 쓴 응답을 봤다.
+ * - **글로.** Gemma는 답 앞에 `<thought>…`를 길게 적는다. 그것은 본문으로 오므로 `usage`가
+ *   따로 세어 주지 않고, 우리는 "많이 썼다"는 사실만 안다.
+ *
+ * 어느 쪽이든 "한도에 걸려 잘렸습니다"라고만 하면 운영자는 한도를 올리며 돈만 쓴다.
+ * 무엇이 태웠는지, 그리고 **한도 말고 다른 손잡이가 있다**는 것을 함께 말한다.
  */
-function truncationMessage(completion: Completion): string {
+function truncationMessage(completion: Completion, limit: number): string {
+  const head = `출력 한도(${limit}토큰)에 걸려 응답이 잘렸습니다.`;
   const total = completion.completionTokens;
   const reasoning = completion.reasoningTokens;
 
@@ -485,10 +500,10 @@ function truncationMessage(completion: Completion): string {
     total > 0 &&
     reasoning / total > REASONING_SHARE_LIMIT
   ) {
-    return `출력 한도에 걸려 응답이 잘렸습니다. 이 모델은 답을 쓰기 전에 "생각"에 한도를 먼저 씁니다(${total}토큰 중 ${reasoning}토큰). 생각을 하지 않는 모델을 쓰거나 출력 한도를 올리세요.`;
+    return `${head} 이 모델은 답을 쓰기 전에 "생각"에 한도를 먼저 씁니다(${total}토큰 중 ${reasoning}토큰). 생각을 하지 않는 모델을 쓰거나 한도를 올리세요.`;
   }
 
-  return "출력 한도에 걸려 응답이 잘렸습니다.";
+  return `${head} 답 앞에 설명을 길게 적는 모델이면 이렇게 됩니다. 한도를 올리거나, JSON만 쓰는 모델로 바꾸세요.`;
 }
 
 /**

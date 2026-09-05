@@ -14,7 +14,8 @@
 
 /* 문서 한 장. 흰 종이 + 1px 테두리. 나무위키·위키백과가 쓰는 그 모양이다. */
 .sheet {
-  max-width: var(--el-container-viewer);
+  /* 위키 문서는 넓은 화면에서 목차·본문·정보 틀이 함께 폭을 쓴다. */
+  max-width: var(--el-container-wide);
   margin: 0 auto;
   padding: var(--el-space-6) var(--el-space-6) var(--el-space-8);
   background: var(--el-bg-canvas);

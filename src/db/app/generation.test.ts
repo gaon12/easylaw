@@ -96,13 +96,13 @@ describe("saveUploadStructure", () => {
     ).toThrow(/이 문서의 span이 아닙니다/u);
   });
 
-  it("다시 추출하면 옛 구조를 남기지 않는다", () => {
+  /* 공개 판례 쪽과 같은 이유다 — 앞선 작업이 그 id로 문장을 넣고 있을 수 있다. */
+  it("이미 구조가 있으면 덮어쓰지 않고, 쓸 수 있는 id를 돌려준다", () => {
     const { uploadId, spanIds } = seedUpload();
-    const first: Parameters<typeof saveUploadStructure>[2] = [
+    const first = saveUploadStructure(db, uploadId, [
       { kind: "issue", payload: { text: "옛 쟁점" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
-    ];
-    saveUploadStructure(db, uploadId, first);
-    saveUploadStructure(db, uploadId, [
+    ]);
+    const second = saveUploadStructure(db, uploadId, [
       {
         kind: "holding",
         payload: { text: "새 판단" },
@@ -111,9 +111,11 @@ describe("saveUploadStructure", () => {
       },
     ]);
 
+    expect(second).toEqual(first);
+
     const nodes = listUploadStructureNodes(db, uploadId);
     expect(nodes).toHaveLength(1);
-    expect(nodes[0]?.kind).toBe("holding");
+    expect(nodes[0]?.kind).toBe("issue");
   });
 
   it("같은 span을 두 번 적어 와도 한 번만 잇는다", () => {

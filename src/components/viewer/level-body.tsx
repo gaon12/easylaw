@@ -9,7 +9,8 @@ import type { ViewLevel } from "./levels";
  *
  * | 레벨 | 최대 줄 길이 | 문단 간격 |
  * |---|---|---|
- * | L0·L1·L2 | 76ch | space-4 |
+ * | L0·L1 | 현재 문서 열 | space-4 |
+ * | L2 | 76ch | space-4 |
  * | L3 | 60ch | space-5 |
  * | L4 | 46ch | space-6 |
  *

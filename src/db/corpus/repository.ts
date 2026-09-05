@@ -229,8 +229,17 @@ type ClaimResult =
   /** 이미 끝났다. 변환본을 읽으면 된다. */
   | { readonly kind: "done"; readonly jobId: string };
 
-/** 이 시간 동안 heartbeat가 없으면 죽은 작업으로 보고 회수한다. */
-const STALE_AFTER_MS = 90_000;
+/**
+ * 이 시간 동안 heartbeat가 없으면 죽은 작업으로 보고 회수한다.
+ *
+ * **한 번의 AI 호출보다 넉넉해야 한다.** heartbeat는 시도 사이에 찍히므로, 두 heartbeat
+ * 사이의 간격이 곧 호출 하나의 길이다(`LLM 요청 타임아웃` 240초). 이 값이 그보다 짧으면
+ * 정상적으로 답을 기다리는 작업을 좀비로 보고 회수해, 같은 판결문에 두 번 지출한다.
+ * 예전의 90초는 타임아웃 120초보다도 짧았다.
+ *
+ * 반대로 너무 길면 정말 죽은 작업이 그 시간만큼 그 판결문을 막는다. 240초 + 여유로 잡는다.
+ */
+const STALE_AFTER_MS = 300_000;
 
 /** 새 작업을 만들어 선점을 시도한다. 이미 있으면 아무 일도 하지 않고 undefined를 낸다. */
 function insertClaim(
@@ -466,22 +475,59 @@ interface StructureNodeRow {
  * 근거 하이라이트가 남의 판결문을 가리키게 된다. 여기가 그것을 막을 마지막 자리다.
  *
  * 노드와 근거 연결을 한 트랜잭션으로 묶는다(§10.2) — 중간에 끊기면 근거가 반쯤 붙은
- * 구조가 남고, 그것은 근거가 없는 것보다 나쁘다.
+ * 구조가 남고, 그것은 근거가 없는 것보다 나쁘다. *
+ * **이미 구조가 있으면 그것을 남긴다.** 예전에는 부를 때마다 옛 구조를 지우고 새 id로
+ * 다시 넣었는데, 그 사이에 **다른 레벨이 그 id로 문장을 만들고 있을 수 있다.** 실제로
+ * L2와 L4를 함께 돌리면 둘 다 구조가 없는 것을 보고 각자 추출하고, 나중에 저장한 쪽이
+ * 앞선 쪽의 노드를 지워서 `FOREIGN KEY constraint failed`로 끝났다.
+ *
+ * 뒤에 온 쪽이 뽑은 구조를 버리는 셈이지만, 같은 판결문에서 같은 프롬프트로 뽑은
+ * 구조라 어느 쪽을 써도 된다. 반대로 **id가 바뀌면 그 순간 남의 작업이 깨진다.**
+ * 다시 뽑고 싶으면 구조를 지우고 부른다 — 지우는 것은 명시적인 일이어야 한다.
+ *
+ * 확인과 저장을 한 트랜잭션에 묶고 `immediate`로 연다. 둘이 동시에 "비어 있다"를 보고
+ * 각자 넣는 일을 막는다 — deferred로 열면 읽는 동안에는 쓰기 잠금을 잡지 않는다.
  */
-function saveStructure(
-  db: CorpusDb,
+/** 트랜잭션 안의 db 손잡이. 드리즐이 넘겨 주는 것과 같은 타입이다. */
+type CorpusTx = Parameters<Parameters<CorpusDb["transaction"]>[0]>[0];
+
+/** 노드와 근거 연결을 넣는다. 부르는 쪽이 이미 "넣어도 되는가"를 판단했다. */
+function insertStructure(
+  tx: CorpusTx,
   judgmentId: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
-  const valid = new Set(
-    db
-      .select({ id: judgmentSpan.id })
-      .from(judgmentSpan)
-      .where(eq(judgmentSpan.judgmentId, judgmentId))
-      .all()
-      .map((row) => row.id),
-  );
+  const ids = nodes.map(() => newId());
 
+  tx.insert(structureNode)
+    .values(
+      nodes.map((node, index) => ({
+        id: ids[index] as string,
+        judgmentId,
+        kind: node.kind,
+        payload: node.payload,
+        occurredOn: node.occurredOn ?? null,
+        orderIdx: node.orderIdx,
+      })),
+    )
+    .run();
+
+  tx.insert(nodeSpan)
+    .values(
+      nodes.flatMap((node, index) =>
+        // 같은 span을 두 번 적어 오는 모델이 있다. 복합 기본키가 터지기 전에 여기서 줄인다.
+        [...new Set(node.spanIds)].map((spanId) => ({
+          structureNodeId: ids[index] as string,
+          spanId,
+        })),
+      ),
+    )
+    .run();
+
+  return ids;
+}
+
+function assertNodesGrounded(nodes: readonly StructureNodeInput[], valid: ReadonlySet<string>) {
   for (const node of nodes) {
     if (node.spanIds.length === 0) {
       throw new Error(
@@ -494,42 +540,45 @@ function saveStructure(
       }
     }
   }
+}
 
-  return db.transaction((tx) => {
-    // 다시 추출하면 옛 구조를 남기지 않는다. node_span은 cascade로 함께 지워진다.
-    tx.delete(structureNode).where(eq(structureNode.judgmentId, judgmentId)).run();
-    if (nodes.length === 0) {
-      return [];
-    }
+function saveStructure(
+  db: CorpusDb,
+  judgmentId: string,
+  nodes: readonly StructureNodeInput[],
+): string[] {
+  assertNodesGrounded(
+    nodes,
+    new Set(
+      db
+        .select({ id: judgmentSpan.id })
+        .from(judgmentSpan)
+        .where(eq(judgmentSpan.judgmentId, judgmentId))
+        .all()
+        .map((row) => row.id),
+    ),
+  );
 
-    const ids = nodes.map(() => newId());
-    tx.insert(structureNode)
-      .values(
-        nodes.map((node, index) => ({
-          id: ids[index] as string,
-          judgmentId,
-          kind: node.kind,
-          payload: node.payload,
-          occurredOn: node.occurredOn ?? null,
-          orderIdx: node.orderIdx,
-        })),
-      )
-      .run();
+  return db.transaction(
+    (tx) => {
+      const existing = tx
+        .select({ id: structureNode.id })
+        .from(structureNode)
+        .where(eq(structureNode.judgmentId, judgmentId))
+        .orderBy(structureNode.orderIdx)
+        .all()
+        .map((row) => row.id);
+      if (existing.length > 0) {
+        return existing;
+      }
+      if (nodes.length === 0) {
+        return [];
+      }
 
-    tx.insert(nodeSpan)
-      .values(
-        nodes.flatMap((node, index) =>
-          // 같은 span을 두 번 적어 오는 모델이 있다. 복합 기본키가 터지기 전에 여기서 줄인다.
-          [...new Set(node.spanIds)].map((spanId) => ({
-            structureNodeId: ids[index] as string,
-            spanId,
-          })),
-        ),
-      )
-      .run();
-
-    return ids;
-  });
+      return insertStructure(tx, judgmentId, nodes);
+    },
+    { behavior: "immediate" },
+  );
 }
 
 /**

@@ -11,9 +11,16 @@
   width: 100%;
 }
 
-/* L0·L1·L2 — 기본 본문 17px / 1.55, 76ch. */
+/* 원문·법조 — 위키의 긴 법률 문서라 현재 열을 모두 쓴다. */
 .L0,
-.L1,
+.L1 {
+  max-width: 100%;
+  gap: var(--el-space-4);
+  font-size: var(--el-text-body-m);
+  line-height: var(--el-leading-body);
+}
+
+/* 일반 설명 — 긴 글줄을 피하되, 어린이·쉬운말보다는 정보 밀도를 유지한다. */
 .L2 {
   max-width: 76ch;
   gap: var(--el-space-4);
