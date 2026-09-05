@@ -495,6 +495,7 @@ type CorpusTx = Parameters<Parameters<CorpusDb["transaction"]>[0]>[0];
 function insertStructure(
   tx: CorpusTx,
   judgmentId: string,
+  promptVersion: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
   const ids = nodes.map(() => newId());
@@ -504,6 +505,7 @@ function insertStructure(
       nodes.map((node, index) => ({
         id: ids[index] as string,
         judgmentId,
+        promptVersion,
         kind: node.kind,
         payload: node.payload,
         occurredOn: node.occurredOn ?? null,
@@ -545,6 +547,7 @@ function assertNodesGrounded(nodes: readonly StructureNodeInput[], valid: Readon
 function saveStructure(
   db: CorpusDb,
   judgmentId: string,
+  promptVersion: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
   assertNodesGrounded(
@@ -564,7 +567,12 @@ function saveStructure(
       const existing = tx
         .select({ id: structureNode.id })
         .from(structureNode)
-        .where(eq(structureNode.judgmentId, judgmentId))
+        .where(
+          and(
+            eq(structureNode.judgmentId, judgmentId),
+            eq(structureNode.promptVersion, promptVersion),
+          ),
+        )
         .orderBy(structureNode.orderIdx)
         .all()
         .map((row) => row.id);
@@ -575,7 +583,7 @@ function saveStructure(
         return [];
       }
 
-      return insertStructure(tx, judgmentId, nodes);
+      return insertStructure(tx, judgmentId, promptVersion, nodes);
     },
     { behavior: "immediate" },
   );
@@ -587,11 +595,17 @@ function saveStructure(
  * 노드마다 span을 따로 조회하지 않는다(§10.2 N+1 금지) — 판결문 하나에 노드가 수십 개고,
  * 레벨 렌더링은 그 전부를 한 번에 본다.
  */
-function listStructureNodes(db: CorpusDb, judgmentId: string): StructureNodeRow[] {
+function listStructureNodes(
+  db: CorpusDb,
+  judgmentId: string,
+  promptVersion: string,
+): StructureNodeRow[] {
   const nodes = db
     .select()
     .from(structureNode)
-    .where(eq(structureNode.judgmentId, judgmentId))
+    .where(
+      and(eq(structureNode.judgmentId, judgmentId), eq(structureNode.promptVersion, promptVersion)),
+    )
     .orderBy(structureNode.orderIdx)
     .all();
 

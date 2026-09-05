@@ -59,14 +59,17 @@ function seedUpload(): { uploadId: string; spanIds: string[] } {
   };
 }
 
+/** 시험에서 쓰는 추출 프롬프트 판. 값이 무엇인지는 중요하지 않고, **같은 판인가**만 본다. */
+const PROMPT = "extract-test";
+
 describe("saveUploadStructure", () => {
   it("노드와 근거 연결을 함께 저장한다", () => {
     const { uploadId, spanIds } = seedUpload();
-    saveUploadStructure(db, uploadId, [
+    saveUploadStructure(db, uploadId, PROMPT, [
       { kind: "holding", payload: { text: "판단" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
     ]);
 
-    const nodes = listUploadStructureNodes(db, uploadId);
+    const nodes = listUploadStructureNodes(db, uploadId, PROMPT);
     expect(nodes).toHaveLength(1);
     expect(nodes[0]?.spanIds).toEqual([spanIds[0]]);
   });
@@ -74,7 +77,7 @@ describe("saveUploadStructure", () => {
   it("근거 span이 없는 노드는 받지 않는다", () => {
     const { uploadId } = seedUpload();
     expect(() =>
-      saveUploadStructure(db, uploadId, [
+      saveUploadStructure(db, uploadId, PROMPT, [
         { kind: "issue", payload: { text: "쟁점" }, orderIdx: 0, spanIds: [] },
       ]),
     ).toThrow(/근거 span이 없는/u);
@@ -85,7 +88,7 @@ describe("saveUploadStructure", () => {
     const other = seedUpload();
 
     expect(() =>
-      saveUploadStructure(db, mine.uploadId, [
+      saveUploadStructure(db, mine.uploadId, PROMPT, [
         {
           kind: "holding",
           payload: { text: "판단" },
@@ -99,10 +102,10 @@ describe("saveUploadStructure", () => {
   /* 공개 판례 쪽과 같은 이유다 — 앞선 작업이 그 id로 문장을 넣고 있을 수 있다. */
   it("이미 구조가 있으면 덮어쓰지 않고, 쓸 수 있는 id를 돌려준다", () => {
     const { uploadId, spanIds } = seedUpload();
-    const first = saveUploadStructure(db, uploadId, [
+    const first = saveUploadStructure(db, uploadId, PROMPT, [
       { kind: "issue", payload: { text: "옛 쟁점" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
     ]);
-    const second = saveUploadStructure(db, uploadId, [
+    const second = saveUploadStructure(db, uploadId, PROMPT, [
       {
         kind: "holding",
         payload: { text: "새 판단" },
@@ -113,14 +116,37 @@ describe("saveUploadStructure", () => {
 
     expect(second).toEqual(first);
 
-    const nodes = listUploadStructureNodes(db, uploadId);
+    const nodes = listUploadStructureNodes(db, uploadId, PROMPT);
     expect(nodes).toHaveLength(1);
     expect(nodes[0]?.kind).toBe("issue");
   });
 
+  it("추출 프롬프트 판이 다르면 따로 뽑고, 옛 것을 지우지 않는다", () => {
+    const { uploadId, spanIds } = seedUpload();
+    const old = saveUploadStructure(db, uploadId, "extract-v1", [
+      { kind: "issue", payload: { text: "옛 판" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
+    ]);
+    const fresh = saveUploadStructure(db, uploadId, "extract-v2", [
+      {
+        kind: "holding",
+        payload: { text: "새 판" },
+        orderIdx: 0,
+        spanIds: [spanIds[1] as string],
+      },
+    ]);
+
+    expect(fresh).not.toEqual(old);
+    expect(listUploadStructureNodes(db, uploadId, "extract-v1")[0]?.payload).toEqual({
+      text: "옛 판",
+    });
+    expect(listUploadStructureNodes(db, uploadId, "extract-v2")[0]?.payload).toEqual({
+      text: "새 판",
+    });
+  });
+
   it("같은 span을 두 번 적어 와도 한 번만 잇는다", () => {
     const { uploadId, spanIds } = seedUpload();
-    saveUploadStructure(db, uploadId, [
+    saveUploadStructure(db, uploadId, PROMPT, [
       {
         kind: "holding",
         payload: { text: "판단" },
@@ -129,14 +155,14 @@ describe("saveUploadStructure", () => {
       },
     ]);
 
-    expect(listUploadStructureNodes(db, uploadId)[0]?.spanIds).toEqual([spanIds[0]]);
+    expect(listUploadStructureNodes(db, uploadId, PROMPT)[0]?.spanIds).toEqual([spanIds[0]]);
   });
 });
 
 describe("saveUploadRendition", () => {
   it("변환본과 문장을 저장하고 순서대로 읽는다", () => {
     const { uploadId, spanIds } = seedUpload();
-    const [nodeId] = saveUploadStructure(db, uploadId, [
+    const [nodeId] = saveUploadStructure(db, uploadId, PROMPT, [
       { kind: "holding", payload: { text: "판단" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
     ]);
 

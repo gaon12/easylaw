@@ -126,8 +126,25 @@ const structureNode = sqliteTable(
     /** 사실 이벤트의 발생 시점. 알 수 없으면 null이고 화면에 "시점 불명"으로 표시한다. */
     occurredOn: integer("occurred_on", { mode: "timestamp_ms" }),
     orderIdx: integer("order_idx").notNull(),
+    /**
+     * 어느 추출 프롬프트가 뽑은 구조인가.
+     *
+     * **프롬프트를 고치면 옛 구조가 그대로 쓰이는 것을 막는다.** 지시문을 고치는 이유는
+     * 앞선 판이 잘못 뽑았기 때문인데, 이 열이 없으면 이미 처리한 판결문은 영영 옛 결과를
+     * 쓴다 — 고친 보람이 없다.
+     *
+     * **옛 노드를 지우지 않는다.** 그 id로 만들어진 옛 설명이 남아 있고(§6.4 — 기존
+     * 변환본은 지우지 않는다), 지우면 그 설명의 근거 링크가 끊긴다. 판이 다르면 나란히
+     * 둔다. 읽는 쪽이 자기 판만 골라 본다.
+     *
+     * 기존 행은 `legacy`다 — 어느 판이었는지 알 수 없으므로 "지금 판이 아니다"로만 둔다.
+     */
+    promptVersion: text("prompt_version").notNull().default("legacy"),
   },
-  (table) => [index("structure_node_judgment_idx").on(table.judgmentId, table.orderIdx)],
+  (table) => [
+    index("structure_node_judgment_idx").on(table.judgmentId, table.orderIdx),
+    index("structure_node_version_idx").on(table.judgmentId, table.promptVersion),
+  ],
 );
 
 /** 구조 노드 ↔ 원문 span (N:M). 근거 연결의 실체다. */

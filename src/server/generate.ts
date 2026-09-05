@@ -120,7 +120,11 @@ async function ensureStructure(
   store: PipelineStore,
   signal?: AbortSignal,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  if (store.listNodes().length > 0) {
+  /*
+   * **이 추출 프롬프트 판이 뽑은 구조**만 본다. 지시문을 고치는 이유는 앞선 판이 잘못
+   * 뽑았기 때문인데, 판을 보지 않으면 이미 처리한 판결문은 영영 옛 결과를 쓴다.
+   */
+  if (store.listNodes(EXTRACT_VERSION).length > 0) {
     return { ok: true };
   }
 
@@ -139,7 +143,7 @@ async function ensureStructure(
     return { ok: false, reason: "구조를 하나도 뽑지 못했습니다." };
   }
 
-  store.saveNodes(extracted.nodes);
+  store.saveNodes(EXTRACT_VERSION, extracted.nodes);
   return { ok: true };
 }
 
@@ -184,7 +188,7 @@ async function tryUntilGrounded(input: {
   | { ok: true; sentences: Awaited<ReturnType<typeof attemptOnce>>["sentences"] }
   | { ok: false; reason: string }
 > {
-  const nodes = input.store.listNodes();
+  const nodes = input.store.listNodes(EXTRACT_VERSION);
   const spanText = new Map(input.store.listSpans().map((span) => [span.id, span.text]));
 
   let lastReason = "근거 있는 설명을 만들지 못했습니다.";

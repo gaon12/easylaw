@@ -1,0 +1,2 @@
+ALTER TABLE `structure_node` ADD `prompt_version` text DEFAULT 'legacy' NOT NULL;--> statement-breakpoint
+CREATE INDEX `structure_node_version_idx` ON `structure_node` (`judgment_id`,`prompt_version`);

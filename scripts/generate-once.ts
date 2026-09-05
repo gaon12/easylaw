@@ -28,6 +28,7 @@ import {
 } from "@/db/corpus/repository";
 import { generationJob, rendition } from "@/db/corpus/schema";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
+import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
 import { generateRendition, generationBudget, PIPELINE_VERSION } from "@/server/generate";
 import { caseStore } from "@/server/pipeline-store";
 import { llmConfig } from "@/server/settings";
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
 
   out("");
   out(`결과    ${JSON.stringify(result)}  (${seconds}초)`);
-  out(`구조    ${listStructureNodes(db, judgment.id).length}개 노드`);
+  out(`구조    ${listStructureNodes(db, judgment.id, EXTRACT_VERSION).length}개 노드`);
 
   const made = findRendition(db, judgment.id, level, PIPELINE_VERSION);
   if (made === undefined) {
