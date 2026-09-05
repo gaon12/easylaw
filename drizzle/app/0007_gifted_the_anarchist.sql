@@ -1,0 +1,1 @@
+ALTER TABLE `upload_generation_job` ADD `detail` text;

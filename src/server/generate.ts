@@ -4,12 +4,14 @@ import { appDb, corpusDb } from "@/db/client";
 import { countGenerationsOn, reserveGenerationSlot } from "@/db/corpus/repository";
 import { dayKey } from "@/lib/format";
 import { type GenerationIdentity, GenerationLimiter } from "@/lib/generation-limit";
-import { llm } from "@/lib/llm/client";
+import type { JobFailure } from "@/lib/job-outcome";
+import { LlmError, llm } from "@/lib/llm/client";
 import { type Claim, checkEntailment, toConfidence } from "@/lib/pipeline/entail";
 import { extractStructure } from "@/lib/pipeline/extract";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
 import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
+import { viewer } from "@/lib/strings";
 import { HEARTBEAT_MS } from "@/lib/timing";
 import type { PipelineStore, StoreLevel, StoreStage } from "@/server/pipeline-store";
 import {
@@ -120,7 +122,7 @@ type GenerateResult =
 async function ensureStructure(
   store: PipelineStore,
   signal?: AbortSignal,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+): Promise<{ ok: true } | JobFailure> {
   /*
    * **이 추출 프롬프트 판이 뽑은 구조**만 본다. 지시문을 고치는 이유는 앞선 판이 잘못
    * 뽑았기 때문인데, 판을 보지 않으면 이미 처리한 판결문은 영영 옛 결과를 쓴다.
@@ -131,17 +133,25 @@ async function ensureStructure(
 
   const client = llm();
   if (client === undefined) {
-    return { ok: false, reason: "AI 연결이 설정되지 않았습니다." };
+    return {
+      ok: false,
+      reason: viewer.failedReasons.notConfigured,
+      detail: "AI 연결이 설정되지 않았습니다.",
+    };
   }
 
   const spans = store.listSpans();
   if (spans.length === 0) {
-    return { ok: false, reason: "원문이 없습니다." };
+    return { ok: false, reason: viewer.failedReasons.noOriginal, detail: "원문이 없습니다." };
   }
 
   const extracted = await extractStructure(client, spans, signal);
   if (extracted.nodes.length === 0) {
-    return { ok: false, reason: "구조를 하나도 뽑지 못했습니다." };
+    return {
+      ok: false,
+      reason: viewer.failedReasons.noStructure,
+      detail: "구조를 하나도 뽑지 못했습니다.",
+    };
   }
 
   store.saveNodes(EXTRACT_VERSION, extracted.nodes);
@@ -186,8 +196,7 @@ async function tryUntilGrounded(input: {
   jobId: string;
   signal?: AbortSignal | undefined;
 }): Promise<
-  | { ok: true; sentences: Awaited<ReturnType<typeof attemptOnce>>["sentences"] }
-  | { ok: false; reason: string }
+  { ok: true; sentences: Awaited<ReturnType<typeof attemptOnce>>["sentences"] } | JobFailure
 > {
   const nodes = input.store.listNodes(EXTRACT_VERSION);
   const spanText = new Map(input.store.listSpans().map((span) => [span.id, span.text]));
@@ -211,7 +220,11 @@ async function tryUntilGrounded(input: {
     lastReason = tried.reason;
   }
 
-  return { ok: false, reason: lastReason };
+  /*
+   * 여기까지 온 실패는 전부 **근거를 못 붙였거나 규칙을 못 지킨 것**이다(P2). 이용자에게는
+   * 그 구분이 의미 없다 — 할 수 있는 일이 같다. 어느 규칙이 걸렸는지는 관리자가 본다.
+   */
+  return { ok: false, reason: viewer.failedReasons.ungrounded, detail: lastReason };
 }
 
 /**
@@ -309,7 +322,11 @@ function beginGeneration(
   // 캐시·동시 실행은 위에서 끝났으므로 실제 모델 호출 후보만 요청자 몫을 쓴다.
   const limiter = identity === undefined ? undefined : configuredRequestLimiter();
   if (identity !== undefined && limiter !== undefined && !limiter.claim(identity).allowed) {
-    store.finishJob(claim.jobId, { ok: false, error: REQUEST_LIMIT_REASON });
+    store.finishJob(claim.jobId, {
+      ok: false,
+      reason: REQUEST_LIMIT_REASON,
+      detail: "요청자별 상한에 걸렸습니다.",
+    });
     return { kind: "limited" };
   }
 
@@ -323,7 +340,11 @@ function beginGeneration(
     if (identity !== undefined) {
       limiter?.release(identity);
     }
-    store.finishJob(claim.jobId, { ok: false, error: LIMIT_REASON });
+    store.finishJob(claim.jobId, {
+      ok: false,
+      reason: LIMIT_REASON,
+      detail: "하루 상한을 다 썼습니다.",
+    });
     return { kind: "limited" };
   }
 
@@ -376,7 +397,11 @@ async function runGeneration(
 ): Promise<GenerateResult> {
   const client = llm();
   if (client === undefined) {
-    store.finishJob(jobId, { ok: false, error: "AI 연결이 설정되지 않았습니다." });
+    store.finishJob(jobId, {
+      ok: false,
+      reason: viewer.failedReasons.notConfigured,
+      detail: "AI 연결이 설정되지 않았습니다.",
+    });
     return { kind: "unavailable" };
   }
 
@@ -385,14 +410,14 @@ async function runGeneration(
       ensureStructure(store, signal),
     );
     if (!structure.ok) {
-      store.finishJob(jobId, { ok: false, error: structure.reason });
-      return { kind: "failed", reason: structure.reason };
+      store.finishJob(jobId, structure);
+      return { kind: "failed", reason: structure.detail };
     }
 
     const tried = await tryUntilGrounded({ client, level, store, jobId, signal });
     if (!tried.ok) {
-      store.finishJob(jobId, { ok: false, error: tried.reason });
-      return { kind: "failed", reason: tried.reason };
+      store.finishJob(jobId, tried);
+      return { kind: "failed", reason: tried.detail };
     }
 
     store.setStage(jobId, "save");
@@ -411,13 +436,20 @@ async function runGeneration(
         .length,
     };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "설명을 만들지 못했습니다.";
+    /*
+     * **여기가 운영자 진단과 이용자 안내가 갈리는 자리다.** `LlmError.message`에는 상태
+     * 코드·제공자 문구·우리가 설정한 주소가 들어 있다. 그것을 그대로 화면에 내보내면
+     * 아무나 여는 판결문 페이지에 운영 설정이 찍힌다.
+     */
+    const detail = error instanceof Error ? error.message : "알 수 없는 오류입니다.";
+    const reason = error instanceof LlmError ? error.publicMessage : viewer.failedReasons.unknown;
+
     /*
      * 작업을 실패로 닫아야 한다. 선점만 하고 끝나면 그 좀비 작업이 캐시를 영구히 막는다
-     * (§5.3이 이 구조의 최악으로 꼽은 상황이다). 회수 주기가 있지만 90초를 기다릴 이유가 없다.
+     * (§5.3이 이 구조의 최악으로 꼽은 상황이다). 회수 주기가 있지만 기다릴 이유가 없다.
      */
-    store.finishJob(jobId, { ok: false, error: reason });
-    return { kind: "failed", reason };
+    store.finishJob(jobId, { ok: false, reason, detail });
+    return { kind: "failed", reason: detail };
   }
 }
 

@@ -261,7 +261,21 @@ const generationJob = sqliteTable(
     claimedBy: text("claimed_by"),
     heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
     attempts: integer("attempts").notNull().default(0),
+    /**
+     * 왜 실패했나. **읽는 사람이 화면 앞의 이용자다.**
+     *
+     * 그래서 우리 설정도, 제공자가 보낸 응답 본문도 여기 담지 않는다. 담았더니
+     * 판결문 페이지에 AI API 주소와 제공자의 401 본문이 그대로 찍혔다 — 그것을 보고
+     * 고칠 수 있는 사람은 관리자인데, 정작 관리자는 그 화면을 보지 않는다.
+     */
     error: text("error"),
+    /**
+     * 관리자만 보는 진짜 원인. `/admin`의 "최근 실패"가 읽는다.
+     *
+     * 고치려면 무엇이 왔는지 알아야 한다 — 상태 코드, 제공자 문구, 어느 단계였는지.
+     * 이용자에게 보여 줄 수 없는 말이 여기 들어가므로 **공개 화면에서 읽지 않는다.**
+     */
+    detail: text("detail"),
     createdAt: createdAt(),
     finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
   },

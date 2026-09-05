@@ -315,7 +315,11 @@ describe("claimUploadJob", () => {
       stage: "verify",
     });
 
-    finishUploadJob(db, claim.jobId, { ok: false, error: "모델이 답하지 않았습니다" });
+    finishUploadJob(db, claim.jobId, {
+      ok: false,
+      reason: "모델이 답하지 않았습니다",
+      detail: "운영자용 자세한 원인",
+    });
     expect(findUploadJobProgress(db, { ...base, uploadId })).toMatchObject({
       status: "failed",
       stage: null,

@@ -14,6 +14,7 @@
  */
 
 import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
 import {
@@ -453,10 +454,46 @@ function setUploadJobStage(
     .run();
 }
 
+interface UploadGenerationFailure {
+  readonly level: Level;
+  readonly at: Date | null;
+  readonly shown: string | null;
+  readonly detail: string | null;
+}
+
+/**
+ * 최근에 실패한 업로드 생성. **어느 문서인지는 내지 않는다.**
+ *
+ * 올린 판결문은 그 사람의 것이고, 관리자라도 어떤 문서를 올렸는지 목록으로 볼 이유가
+ * 없다(§7). 여기 필요한 것은 "무엇이 우리 쪽에서 깨졌나"이지 누구의 문서인가가 아니다 —
+ * 진단 문구는 우리가 쓴 말이라 문서 내용을 담지 않는다.
+ */
+function listRecentUploadFailures(db: AppDb, limit: number): UploadGenerationFailure[] {
+  return db
+    .select({
+      level: uploadGenerationJob.level,
+      at: uploadGenerationJob.finishedAt,
+      shown: uploadGenerationJob.error,
+      detail: uploadGenerationJob.detail,
+    })
+    .from(uploadGenerationJob)
+    .where(eq(uploadGenerationJob.status, "failed"))
+    .orderBy(desc(uploadGenerationJob.finishedAt))
+    .limit(limit)
+    .all();
+}
+
+/**
+ * 작업을 닫는다.
+ *
+ * **실패는 두 얼굴로 적는다.** `reason`은 화면 앞의 이용자가 읽고, `detail`은 관리자만
+ * 본다. 예전에는 하나였고 그 하나가 공개 화면에 그대로 나갔다 — AI API 주소와 제공자의
+ * 오류 본문이 문서 페이지에 찍혔고, 정작 그것으로 고칠 수 있는 관리자는 보지 못했다.
+ */
 function finishUploadJob(
   db: AppDb,
   jobId: string,
-  result: { ok: true } | { ok: false; error: string },
+  result: JobOutcome,
   now: Date = new Date(),
 ): void {
   db.update(uploadGenerationJob)
@@ -464,7 +501,8 @@ function finishUploadJob(
       status: result.ok ? "done" : "failed",
       // 끝난 작업에 단계가 남아 있으면 화면이 "아직 만드는 중"으로 읽는다.
       stage: null,
-      error: result.ok ? null : result.error,
+      error: result.ok ? null : result.reason,
+      detail: result.ok ? null : result.detail,
       finishedAt: now,
       heartbeatAt: now,
     })
@@ -502,12 +540,14 @@ export {
   findUploadRendition,
   finishUploadJob,
   listUploadSentences,
+  listRecentUploadFailures,
   listUploadStructureNodes,
   saveUploadRendition,
   saveUploadStructure,
   setUploadJobStage,
 };
 export type {
+  UploadGenerationFailure,
   ClaimResult,
   Confidence,
   JobProgress,

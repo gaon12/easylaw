@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAi, { APIConnectionError, APIError, APIUserAbortError } from "openai";
+import { viewer } from "@/lib/strings";
 import { REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_SECONDS } from "@/lib/timing";
 import { type LlmConfig, llmConfig } from "@/server/settings";
 import { baseUrlAdvice, checkBaseUrl, trimBaseUrl } from "./base-url";
@@ -86,16 +87,29 @@ const NOT_FOUND = 404;
 const UNAUTHORIZED = 401;
 const FORBIDDEN = 403;
 
+/**
+ * AI 호출이 실패했다.
+ *
+ * **`message`는 운영자용이다.** 상태 코드, 제공자가 보낸 문구, 우리가 설정한 주소가
+ * 들어간다 — 고치려면 그것을 알아야 한다. 그래서 **이용자 화면에 그대로 내보내면 안 된다.**
+ * 화면 앞의 사람에게 할 말은 `publicMessage`에 따로 담는다.
+ */
 class LlmError extends Error {
   readonly status: number | undefined;
   /** 재시도가 의미 있는가. 잘림·과부하는 다시 걸어 볼 만하고, 인증 실패는 아니다. */
   readonly retryable: boolean;
+  /** 이용자에게 보여 줄 한 문장. 우리 설정도, 제공자 응답도 담지 않는다. */
+  readonly publicMessage: string;
 
-  constructor(message: string, options?: { status?: number; retryable?: boolean }) {
+  constructor(
+    message: string,
+    options?: { status?: number; retryable?: boolean; publicMessage?: string },
+  ) {
     super(message);
     this.name = "LlmError";
     this.status = options?.status;
     this.retryable = options?.retryable ?? false;
+    this.publicMessage = options?.publicMessage ?? viewer.failedReasons.unknown;
   }
 }
 
@@ -357,7 +371,10 @@ function toLlmError(config: LlmConfig, error: unknown): LlmError {
   /* `APIConnectionError`는 `APIError`의 자식이라 **먼저** 본다. */
   const unreached = unreachedMessage(error);
   if (unreached !== undefined) {
-    return new LlmError(unreached, { retryable: true });
+    return new LlmError(unreached, {
+      retryable: true,
+      publicMessage: viewer.failedReasons.busy,
+    });
   }
 
   if (error instanceof APIError) {
@@ -369,9 +386,16 @@ function toLlmError(config: LlmConfig, error: unknown): LlmError {
         ? `AI 서버 응답이 ${status}입니다. ${detail}`
         : `${hint} (AI 서버 응답 ${status}: ${detail})`;
 
+    /*
+     * **설정이 틀린 것과 서버가 바쁜 것을 가른다.** 앞은 이용자가 할 수 있는 일이 없고
+     * (관리자에게 알리는 것 말고는), 뒤는 잠시 뒤에 다시 누르면 된다. 한 문장으로
+     * 뭉치면 둘 다에게 틀린 말이 된다.
+     */
+    const retryable = status === TOO_MANY_REQUESTS || status >= SERVER_ERROR_FLOOR;
     return new LlmError(message.trim(), {
       status,
-      retryable: status === TOO_MANY_REQUESTS || status >= SERVER_ERROR_FLOOR,
+      retryable,
+      publicMessage: retryable ? viewer.failedReasons.busy : viewer.failedReasons.misconfigured,
     });
   }
 
@@ -382,10 +406,15 @@ function toLlmError(config: LlmConfig, error: unknown): LlmError {
   if (error instanceof Error) {
     return new LlmError(`AI 서버 응답을 읽지 못했습니다. 주소를 확인하세요: ${error.message}`, {
       retryable: true,
+      // 대개 주소가 다른 서비스를 가리킨다. 이용자가 다시 눌러도 같은 결과다.
+      publicMessage: viewer.failedReasons.misconfigured,
     });
   }
 
-  return new LlmError("AI 서버에 연결하지 못했습니다.", { retryable: true });
+  return new LlmError("AI 서버에 연결하지 못했습니다.", {
+    retryable: true,
+    publicMessage: viewer.failedReasons.busy,
+  });
 }
 
 /**
@@ -471,7 +500,7 @@ function createLlmClient(config: LlmConfig): LlmClient {
          */
         throw new LlmError(
           truncationMessage(completion, request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS),
-          { retryable: true },
+          { retryable: true, publicMessage: viewer.failedReasons.modelOutput },
         );
       }
 
@@ -487,11 +516,15 @@ function createLlmClient(config: LlmConfig): LlmClient {
       } catch (error) {
         throw new LlmError(error instanceof Error ? error.message : "JSON을 읽지 못했습니다.", {
           retryable: true,
+          publicMessage: viewer.failedReasons.modelOutput,
         });
       }
 
       if (candidates.length === 0) {
-        throw new LlmError("모델 응답에서 JSON을 찾지 못했습니다.", { retryable: true });
+        throw new LlmError("모델 응답에서 JSON을 찾지 못했습니다.", {
+          retryable: true,
+          publicMessage: viewer.failedReasons.modelOutput,
+        });
       }
 
       const checked = firstValid(candidates, validate);
@@ -502,6 +535,7 @@ function createLlmClient(config: LlmConfig): LlmClient {
       // 스키마 불일치는 모델이 다시 쓰면 맞을 수 있다. 재시도는 호출자가 정한다(§5.5 [7]).
       throw new LlmError(`AI가 만든 JSON이 규격에 맞지 않습니다: ${checked.reason}`, {
         retryable: true,
+        publicMessage: viewer.failedReasons.modelOutput,
       });
     },
   };

@@ -349,7 +349,10 @@ const uploadGenerationJob = sqliteTable(
     claimedBy: text("claimed_by"),
     heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
     attempts: integer("attempts").notNull().default(0),
+    /** 이용자에게 보여 줄 말. 우리 설정도, 제공자 응답 본문도 담지 않는다. */
     error: text("error"),
+    /** 관리자만 보는 진짜 원인. 공개 화면에서 읽지 않는다. 공개 판례 쪽과 같은 이유다. */
+    detail: text("detail"),
     createdAt: timestampNow("created_at"),
     finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
   },

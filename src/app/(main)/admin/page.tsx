@@ -3,8 +3,11 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StructuredList } from "@/components/ui/structured-list";
+import { listRecentUploadFailures } from "@/db/app/generation";
 import { listUsersForAdmin } from "@/db/app/repository";
-import { appDb } from "@/db/client";
+import { appDb, corpusDb } from "@/db/client";
+import { listRecentGenerationFailures } from "@/db/corpus/repository";
+import { formatDateTime } from "@/lib/format";
 import { baseUrlAdvice, isBaseUrlProblem } from "@/lib/llm/base-url";
 import { admin, adminTest, setup } from "@/lib/strings";
 import { generationBudget } from "@/server/generate";
@@ -13,8 +16,12 @@ import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/
 import { saveSettings } from "@/server/setup-actions";
 import { BaseUrlField } from "./base-url-field";
 import styles from "./page.module.css";
+import { RecentFailures } from "./recent-failures";
 import { SecretField } from "./secret-field";
 import { UserRoles } from "./user-roles";
+
+/** 최근 실패를 몇 개까지 보여 주나. 원인을 알아보는 데 필요한 만큼이면 된다. */
+const RECENT_FAILURES = 10;
 
 /** 화면에서 고칠 수 있는 항목. 설치 완료 표시는 여기서 건드리지 않는다. */
 const EDITABLE = [
@@ -88,6 +95,67 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
 }
 
 /**
+ * 설정 폼. 화면 함수에서 떼어 낸 이유는 길이뿐이다 — 칸 종류가 넷이라(시간대·주소·비밀·글)
+ * 한 함수에 두면 "이 화면에 무엇이 있는가"가 폼 안쪽에 묻힌다.
+ */
+function SettingsForm({
+  db,
+  settings,
+  timeZone,
+  zones,
+}: {
+  db: ReturnType<typeof appDb>;
+  settings: readonly { key: string; value: string | undefined }[];
+  timeZone: string;
+  zones: readonly string[];
+}) {
+  return (
+    <form action={saveSettings}>
+      <Card className={styles.form}>
+        {EDITABLE.map((key) => {
+          const value = settings.find((entry) => entry.key === key)?.value;
+
+          if (key === "time_zone") {
+            return <TimeZoneField key={key} timeZone={timeZone} zones={zones} />;
+          }
+          if (key === "llm_base_url") {
+            return (
+              <BaseUrlField key={key} label={setup.settingNames[key]} name={key} value={value} />
+            );
+          }
+          if (SECRET_KEYS.has(key)) {
+            return (
+              <SecretField key={key} label={setup.settingNames[key]} name={key} value={value} />
+            );
+          }
+          return <TextField key={key} name={key} value={value} />;
+        })}
+
+        {/*
+        https 설정은 값을 적는 칸이 아니라 켜고 끄는 것이라 따로 그린다.
+        잘못 켜면 로그인이 조용히 막히므로 경고를 함께 둔다.
+      */}
+        <label className={styles.checkboxRow}>
+          <input
+            className={styles.checkbox}
+            defaultChecked={shouldUseSecureCookies(db)}
+            name="secure_cookies"
+            type="checkbox"
+            value="true"
+          />
+          <span className={styles.label}>{setup.httpsLabel}</span>
+        </label>
+        <p className={styles.hint}>{setup.httpsWarn}</p>
+
+        <Button size="m" type="submit">
+          {admin.save}
+        </Button>
+      </Card>
+    </form>
+  );
+}
+
+/**
  * 관리자 설정. `PAGES.md` §17
  *
  * 마법사에서 넣은 값을 나중에 못 고치면 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
@@ -112,6 +180,7 @@ export default async function AdminPage(props: {
   }
 
   const db = appDb();
+  const timeZone = siteTimeZone(db);
   const settings = listSettingsForEditing(db);
   const zones = Intl.supportedValuesOf("timeZone");
   const budget = generationBudget();
@@ -162,48 +231,13 @@ export default async function AdminPage(props: {
         />
       </Card>
 
-      <form action={saveSettings}>
-        <Card className={styles.form}>
-          {EDITABLE.map((key) => {
-            const value = settings.find((entry) => entry.key === key)?.value;
+      <RecentFailures
+        cases={listRecentGenerationFailures(corpusDb(), RECENT_FAILURES)}
+        formatTime={(at) => formatDateTime(at, timeZone)}
+        uploads={listRecentUploadFailures(db, RECENT_FAILURES)}
+      />
 
-            if (key === "time_zone") {
-              return <TimeZoneField key={key} timeZone={siteTimeZone(db)} zones={zones} />;
-            }
-            if (key === "llm_base_url") {
-              return (
-                <BaseUrlField key={key} label={setup.settingNames[key]} name={key} value={value} />
-              );
-            }
-            if (SECRET_KEYS.has(key)) {
-              return (
-                <SecretField key={key} label={setup.settingNames[key]} name={key} value={value} />
-              );
-            }
-            return <TextField key={key} name={key} value={value} />;
-          })}
-
-          {/*
-          https 설정은 값을 적는 칸이 아니라 켜고 끄는 것이라 따로 그린다.
-          잘못 켜면 로그인이 조용히 막히므로 경고를 함께 둔다.
-        */}
-          <label className={styles.checkboxRow}>
-            <input
-              className={styles.checkbox}
-              defaultChecked={shouldUseSecureCookies(db)}
-              name="secure_cookies"
-              type="checkbox"
-              value="true"
-            />
-            <span className={styles.label}>{setup.httpsLabel}</span>
-          </label>
-          <p className={styles.hint}>{setup.httpsWarn}</p>
-
-          <Button size="m" type="submit">
-            {admin.save}
-          </Button>
-        </Card>
-      </form>
+      <SettingsForm db={db} settings={settings} timeZone={timeZone} zones={zones} />
 
       <UserRoles users={listUsersForAdmin(db)} />
 
