@@ -89,17 +89,39 @@
   margin: 0;
   line-height: 1.7;
   overflow-wrap: anywhere;
+  scroll-margin-top: var(--el-space-8);
 }
 
-/* 근거 보기 링크가 이동한 원문 문장. 동시에 하나만 활성화되는 native :target 상태다. */
-.sentence:target {
-  padding: var(--el-space-2) var(--el-space-3);
-  border-left: 2px solid var(--el-primary-50);
+/*
+ * 근거 보기 링크가 이동한 원문. 배경 폭을 0→100%로 펼쳐 실제 형광펜으로 긋는 듯 보인다.
+ * padding·border로 상자 크기를 바꾸지 않아 강조되는 순간 본문이 흔들리지 않는다.
+ */
+.sentence:target,
+.headingText:target {
   border-radius: var(--el-radius-xs);
-  background: var(--el-evidence-active-bg);
-  outline: 1px solid var(--el-primary-30);
-  scroll-margin-top: var(--el-space-8);
-  transition: background-color 150ms ease-out;
+  outline: 2px solid color-mix(in srgb, var(--el-warning) 58%, transparent);
+  outline-offset: 3px;
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--el-evidence-marker-bg) 84%, transparent) 0%,
+    var(--el-evidence-marker-bg) 72%,
+    color-mix(in srgb, var(--el-evidence-marker-bg) 72%, transparent) 100%
+  );
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 100% 100%;
+  box-shadow: -4px 0 0 var(--el-warning);
+  animation: evidence-marker-sweep calc(var(--el-duration-modal) * 2.5) ease-out both;
+}
+
+@keyframes evidence-marker-sweep {
+  from {
+    background-size: 0% 100%;
+  }
+
+  to {
+    background-size: 100% 100%;
+  }
 }
 
 .notice {
@@ -150,8 +172,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sentence:target {
-    transition-duration: 0ms;
+  .sentence:target,
+  .headingText:target {
+    animation: none;
   }
 }
 
@@ -164,6 +187,7 @@
 .headingText {
   min-width: 0;
   overflow-wrap: anywhere;
+  scroll-margin-top: var(--el-space-8);
 }
 
 /*
