@@ -10,28 +10,61 @@
 import { LEVEL_RULES, type Level } from "@/lib/rendition/lint";
 
 /** 레벨이 무엇을 위한 것인지. `PRODUCT.md` §3의 표를 그대로 옮겼다. */
-const LEVEL_BRIEF: Readonly<Record<Level, { reader: string; question: string; shape: string }>> = {
+interface LevelBrief {
+  readonly reader: string;
+  readonly question: string;
+  readonly shape: string;
+  readonly plan: readonly string[];
+}
+
+const LEVEL_BRIEF: Readonly<Record<Level, LevelBrief>> = {
   L1: {
     reader: "변호사·법무담당·연구자",
     question: "이 판결의 법리는 무엇인가",
-    shape: "쟁점 → 적용 법리 → 판단 구조 순서로 씁니다. 법률 용어를 그대로 씁니다.",
+    shape:
+      "판결 요지와 결론을 먼저 제시한 뒤 사실관계, 쟁점, 당사자 주장, 적용 법리와 인용 조문, 판단 이유를 논리 순서대로 씁니다. 법률 용어를 정확하게 씁니다.",
+    plan: ["판결 요지", "사실관계", "쟁점", "당사자 주장", "법원의 판단", "결론과 의미"],
   },
   L2: {
     reader: "이 사건의 당사자인 성인",
     question: "나에게 무슨 일이 일어났나",
-    shape: "결론 → 그렇게 된 법적 이유 → 당사자에게 미치는 효과 → 다음 절차 순서로 씁니다.",
+    shape:
+      "결론을 먼저 제시한 뒤 사건의 경과, 서로의 주장, 법원이 그렇게 판단한 이유, 당사자에게 미치는 효과, 다음 절차 순서로 씁니다.",
+    plan: [
+      "먼저 보는 결론",
+      "무슨 일이 있었나요",
+      "서로 무엇을 주장했나요",
+      "법원은 왜 이렇게 판단했나요",
+      "나에게 어떤 영향이 있나요",
+      "다음 절차",
+    ],
   },
   L3: {
     reader: "초등학교 고학년~중학생",
     question: "무슨 일이었고 왜 그렇게 됐나",
     shape:
       "초등 고학년~중학생이 아는 일상 낱말을 씁니다. 사건을 시간 순서와 인물의 흐름으로 설명합니다. 피할 수 없는 법률 용어는 쓴 뒤 바로 다음 짧은 문장에서 그 용어의 문맥상 뜻만 풀이합니다.",
+    plan: [
+      "무슨 일이 있었나요",
+      "사람들은 무엇을 말했나요",
+      "법원은 무엇을 살펴봤나요",
+      "법원은 왜 그렇게 정했나요",
+      "다음에는 어떻게 되나요",
+    ],
   },
   L4: {
     reader: "발달장애인",
     question: "나에게 무슨 일이 일어났나",
     shape:
       '한 문장에 한 가지 정보만 담습니다. 읽는 사람을 "당신"이라고 부릅니다. 법률 용어를 쓰면 바로 다음 별도 문장에서 그 용어의 문맥상 뜻만 풀이합니다. 마지막에는 이해 확인 질문을 넣습니다.',
+    plan: [
+      "먼저 알아둘 것",
+      "무슨 일이 있었나요",
+      "법원은 어떻게 정했나요",
+      "왜 그런가요",
+      "그래서 어떻게 되나요",
+      "이해 확인",
+    ],
   },
 };
 
@@ -78,10 +111,33 @@ const COMMON_RULES = [
 ];
 
 function styleLine(level: Level): string {
+  if (level === "L1") {
+    return "- 법률 문서에서 쓰는 간결한 **평서체(-다)**로 씁니다.";
+  }
   if (level === "L2") {
     return "- 일반 성인에게 설명하는 단계입니다. 정중한 **-합니다**체로 씁니다.";
   }
   return "- **-어요**체로 씁니다.";
+}
+
+/**
+ * 출력 예시. **이 레벨이 반드시 넣어야 하는 제목을 예시에 그대로 적는다.**
+ *
+ * 규칙 목록에 "이 제목을 넣으세요"라고 써 두는 것만으로는 모자랐다 — Gemma가 L4에서
+ * 제목을 빼먹어 `"그래서 어떻게 되나요" 섹션이 없습니다`로 통째로 버려졌다. 추출 단계에서
+ * 배운 것과 같다: **모델은 예시를 베낀다.** 규칙에 있고 예시에 없으면 예시가 이긴다.
+ */
+function outputExample(level: Level): string {
+  const sections = LEVEL_RULES[level].requiredSections;
+  const lines = [
+    '  {"role": "body", "text": "…", "from": "n0"}',
+    ...sections.map(
+      (section) =>
+        `  {"role": "heading", "text": "${section}"},\n  {"role": "body", "text": "…", "from": "n1"}`,
+    ),
+  ];
+
+  return ['{"sentences": [', lines.join(",\n"), "]}"].join("\n");
 }
 
 /**
@@ -110,6 +166,14 @@ function renderInstruction(level: Level): string {
     "## 쓰는 법",
     "",
     `- ${brief.shape}`,
+    `- 권장 흐름: ${brief.plan.map((section) => `\`${section}\``).join(" → ")}`,
+    "- 구조에 해당 정보가 있으면 권장 흐름의 제목을 달아 충분히 설명합니다.",
+    "  해당 정보가 전혀 없으면 내용을 지어내거나 빈 제목을 만들지 않습니다.",
+    "- 결론 몇 문장만 쓰고 끝내지 않습니다. 입력의 모든 사실·쟁점·주장·판단·결론 노드를",
+    "  본문에서 최소 한 번씩 다룹니다. 법조계 단계는 인용 법령 노드도 모두 다룹니다.",
+    "- 서로 다른 쟁점과 판단 이유를 한 문장으로 뭉개지 않습니다. 한 노드가 복잡하면",
+    "  같은 `from`을 단 여러 문장으로 나누어 배경, 판단 이유, 효과를 차례로 설명합니다.",
+    "- 같은 말을 늘여 쓰거나 근거 없는 일반론으로 분량을 채우지 않습니다.",
     ...ruleLines(level),
     ...COMMON_RULES,
     styleLine(level),
@@ -122,7 +186,9 @@ function renderInstruction(level: Level): string {
     "",
     "## 출력 형태",
     "",
-    '{"sentences": [{"role": "heading", "text": "..."}, {"role": "body", "text": "...", "from": "n0"}]}',
+    "칸 이름은 아래와 똑같이 씁니다. 값만 이 판결문의 내용으로 채웁니다.",
+    "",
+    outputExample(level),
   ].join("\n");
 }
 
@@ -130,6 +196,6 @@ function renderInstruction(level: Level): string {
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-05-v3";
+const RENDER_PROMPT_VERSION = "render-2026-09-05-v5";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };
