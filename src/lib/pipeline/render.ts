@@ -41,6 +41,8 @@ interface RenderResult {
   readonly blocked: boolean;
   /** 모델이 댔지만 우리 구조에 없던 노드 이름. 세어 둔다. */
   readonly unknownNodeLabels: readonly string[];
+  /** 이 단계에서 반드시 설명해야 하지만 모델이 한 번도 쓰지 않은 구조 노드. */
+  readonly missingNodeIds: readonly string[];
 }
 
 const PARTY_LABELS: Readonly<Record<string, string>> = {
@@ -217,6 +219,13 @@ async function renderLevel(
   }
 
   const issues = lintRendition(level, lines);
+  const coveredNodeIds = new Set(
+    lines.flatMap((line) => (line.structureNodeId === null ? [] : [line.structureNodeId])),
+  );
+  const missingNodeIds = nodes
+    .filter((node) => node.kind !== "citation" || level === "L1")
+    .filter((node) => !coveredNodeIds.has(node.id))
+    .map((node) => node.id);
 
   return {
     level,
@@ -224,8 +233,12 @@ async function renderLevel(
     promptVersion: RENDER_PROMPT_VERSION,
     model: client.model,
     issues,
-    blocked: hasBlockingIssue(issues) || lines.some((line) => line.confidence === "ungrounded"),
+    blocked:
+      hasBlockingIssue(issues) ||
+      lines.some((line) => line.confidence === "ungrounded") ||
+      missingNodeIds.length > 0,
     unknownNodeLabels: unknown,
+    missingNodeIds,
   };
 }
 

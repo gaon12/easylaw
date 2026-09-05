@@ -94,6 +94,16 @@ describe("결과 되돌리기", () => {
     expect(result.model).toBe("test-model");
     expect(result.promptVersion).toMatch(/^extract-/u);
   });
+
+  it("근거 있는 내용을 짧게 줄여 버리지 말고 독립 이유마다 나누라고 지시한다", async () => {
+    const client = fakeClient(goodAnswer);
+    await extractStructure(client, spans);
+
+    const instruction = client.lastRequest?.instruction ?? "";
+    expect(instruction).toContain("짧게 만들려고 근거 있는 내용을");
+    expect(instruction).toContain("이유가 여러 개라면 `holding`도 이유마다 따로");
+    expect(instruction).toContain("누가 무엇을 했거나 주장했는지");
+  });
 });
 
 describe("지어낸 근거", () => {

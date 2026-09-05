@@ -262,10 +262,13 @@ async function attemptOnce(input: {
   });
 
   const ungrounded = sentences.filter((sentence) => sentence.confidence === "ungrounded").length;
-  const reason =
-    ungrounded > 0
-      ? `근거 없는 문장이 ${ungrounded}개 남았습니다.`
-      : (rendered.issues[0]?.message ?? "규칙 검사를 통과하지 못했습니다.");
+  let reason = rendered.issues[0]?.message ?? "규칙 검사를 통과하지 못했습니다.";
+  if (rendered.missingNodeIds.length > 0) {
+    reason = `구조에 있는 핵심 내용 ${rendered.missingNodeIds.length}개를 설명하지 않았습니다.`;
+  }
+  if (ungrounded > 0) {
+    reason = `근거 없는 문장이 ${ungrounded}개 남았습니다.`;
+  }
 
   return { sentences, ok: ungrounded === 0 && !rendered.blocked, reason };
 }
