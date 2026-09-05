@@ -11,7 +11,12 @@ const nextConfig: NextConfig = {
    * `Cannot read properties of undefined (reading '__wbindgen_add_to_stack_pointer')`로 죽는다.
    * 실제로 겪었다. Node는 같은 import를 그대로 처리한다(실험 기능 경고가 하나 붙는다).
    */
-  serverExternalPackages: ["braillify"],
+  /*
+   * `better-sqlite3`는 네이티브 모듈이다. 번들러가 안을 들여다보면 `bindings`의 동적
+   * `require` 때문에 "Can't resolve (<dynamic> | 'null')"로 빌드가 깨진다. 실제로
+   * `instrumentation.ts`를 붙이자 edge 쪽 추적에서 그렇게 됐다.
+   */
+  serverExternalPackages: ["braillify", "better-sqlite3"],
 };
 
 export default nextConfig;

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { dictDb } from "@/db/client";
 import { dictEntry, legalTerm } from "@/db/dict/schema";
 import { candidateTerms } from "@/lib/dict/terms";
@@ -22,6 +22,16 @@ import { lawApi } from "@/lib/law-api/client";
  *
  * 하나도 없으면 **아무것도 돌려주지 않는다.** 그때는 모델에게 그 낱말의 뜻을 주지 않고,
  * 모델도 풀이를 쓰지 않는다. 없는 것을 지어내는 것보다 말하지 않는 편이 낫다.
+ *
+ * ## 어느 뜻으로 쓰였는지는 여기서 정하지 않는다
+ *
+ * 사전은 글자만 보고 찾으므로 `정상`처럼 **법률 뜻이 딸린 흔한 낱말**도 걸린다. 판결문의
+ * `정상`은 대개 情狀이 아니라 "정상 수준"의 그 정상이고, 그때 법률 뜻을 달면 틀린 풀이가 된다.
+ *
+ * 그 판단은 **문장을 쓰는 쪽에 맡긴다.** 문맥을 보는 것은 거기뿐이고, 지시문이 "이 판결문에서
+ * 쓰인 뜻과 다르면 풀이하지 말라"고 못박는다(`render-prompt.ts`). 나눠 두면 각자 잘하는 일을
+ * 한다 — **뜻은 사전에서 오고, 쓸지 말지는 문맥이 정한다.** 우리가 순위를 매겨 걸러 보기도
+ * 했는데, `해태`처럼 뜻이 여럿이면서 그 판결문의 핵심인 낱말이 잘려 나갔다.
  */
 
 interface Gloss {
@@ -38,6 +48,9 @@ const API_TIMEOUT_MS = 5000;
 
 /** 한 번에 얼마나 많은 낱말을 풀어 줄까. 프롬프트가 뜻풀이로 뒤덮이면 안 된다. */
 const MAX_TERMS = 12;
+
+/** 한 질의에 실을 낱말 수. SQLite의 바인딩 개수 한도에 여유를 둔다. */
+const QUERY_CHUNK = 400;
 
 function fromLegalCache(term: string): Gloss | undefined {
   const row = dictDb()
@@ -177,30 +190,94 @@ async function glossesFor(terms: readonly string[]): Promise<Gloss[]> {
 }
 
 /**
+ * 후보 형태들을 **한 번에** 물어 법률 뜻만 받아 온다.
+ *
+ * 예전에는 형태마다 따로 물었다. 60문장짜리 판결문 하나에 물어볼 형태가 306개였고
+ * 185ms가 들었다 — 왕복이 곧 비용인데, 답은 두 번의 질의로 다 나온다.
+ *
+ * **법률 분야만 묻는다.** 어차피 그것만 쓴다(아래 `glossesInText` 참조). 조건을 SQL에
+ * 실으면 509,138행에서 8,307행만 훑는다.
+ */
+function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
+  const found = new Map<string, Gloss>();
+  if (forms.length === 0) {
+    return found;
+  }
+
+  const db = dictDb();
+
+  /*
+   * 바인딩 개수 한도를 넘기지 않으려고 나눠 묻는다. 지금 자료로는 한 번에 끝나지만,
+   * 판결문이 길어지면 후보가 늘어난다.
+   */
+  for (let at = 0; at < forms.length; at += QUERY_CHUNK) {
+    const chunk = forms.slice(at, at + QUERY_CHUNK);
+
+    /* 표준국어대사전을 먼저 담고 법령용어로 덮는다 — 법령이 내린 정의가 근거가 더 세다. */
+    for (const row of db
+      .select({ word: dictEntry.word, definition: dictEntry.definition })
+      .from(dictEntry)
+      .where(and(inArray(dictEntry.word, chunk), eq(dictEntry.category, "법률")))
+      .orderBy(desc(dictEntry.senseOrder))
+      .all()) {
+      found.set(row.word, {
+        term: row.word,
+        definition: row.definition,
+        source: "표준국어대사전",
+        legal: true,
+      });
+    }
+
+    for (const row of db
+      .select({ term: legalTerm.term, definition: legalTerm.definition, source: legalTerm.source })
+      .from(legalTerm)
+      .where(inArray(legalTerm.term, chunk))
+      .all()) {
+      /* 법령이 스스로 내린 정의다. 다른 뜻과 헷갈릴 일이 가장 적으므로 맨 앞에 둔다. */
+      found.set(row.term, {
+        term: row.term,
+        definition: row.definition,
+        source: row.source ?? "법령용어",
+        legal: true,
+      });
+    }
+  }
+
+  return found;
+}
+
+/**
  * 판결문 구조에서 **풀이가 필요한 낱말**만 골라 뜻을 붙인다.
  *
  * 후보를 뽑는 규칙은 `lib/dict/terms.ts`에 있고, 여기서는 그 후보를 사전에 물어본다.
  * **긴 형태부터 물어 처음 맞는 것에서 멈춘다** — 그래야 `과태`가 아니라 `과태료`가 잡힌다.
  *
- * 법령용어를 밖에서 받아 오는 일은 여기서 하지 않는다. 한 판결문에 후보가 수십 개인데
- * 그때마다 밖에 물으면 생성이 몇 배로 느려진다. **이미 받아 둔 것과 사전만 본다** —
- * 법령용어 캐시는 `glossFor`를 직접 부르는 자리(연결 시험·관리 화면)에서 채워진다.
+ * ## 밖으로 한 글자도 내보내지 않는다
+ *
+ * **이 함수는 오직 우리 DB만 본다.** 생성 파이프라인이 이것을 부르는데, 그때 넘어오는 글은
+ * 공개 판례일 수도 있지만 **사람이 올린 판결문**일 수도 있다(`docStore`). 올린 문서의
+ * 낱말을 법제처에 물으면, 그 사람이 어떤 사건을 들고 왔는지가 남의 서버 로그에 남는다.
+ * 그것은 이 서비스가 파일을 나눠 가며 지키려는 것과 정면으로 어긋난다(§6.1).
+ *
+ * 그래서 법령용어는 **이미 받아 둔 것만** 본다. 밖에 묻는 `glossFor`는 낱말 하나를 사람이
+ * 직접 물을 때를 위한 것이고, 여기서 부르지 않는다. 이 구분을 지우지 말 것.
  */
 function glossesInText(text: string): Gloss[] {
+  const candidates = candidateTerms(text);
+  const forms = [...new Set(candidates.flatMap((candidate) => candidate.forms))];
+  const known = legalGlossesFor(forms);
+
   const found: Gloss[] = [];
   const seen = new Set<string>();
 
-  for (const candidate of candidateTerms(text)) {
+  for (const candidate of candidates) {
     if (found.length >= MAX_TERMS) {
       break;
     }
+    /* 긴 형태부터 본다 — 그래야 `과태`가 아니라 `과태료`가 잡힌다. */
     for (const form of candidate.forms) {
-      const gloss = fromLegalCache(form) ?? fromDictionary(form);
-      /*
-       * **법률 분야의 뜻만 붙인다.** 일상 낱말까지 풀면 "그만두다"에 뜻이 달리고, 정작
-       * 어려운 낱말이 그 사이에 묻힌다. 어린이·쉬운말 단계에서 특히 그렇다.
-       */
-      if (gloss?.legal === true && !seen.has(gloss.term)) {
+      const gloss = known.get(form);
+      if (gloss !== undefined && !seen.has(gloss.term)) {
         seen.add(gloss.term);
         found.push(gloss);
         break;

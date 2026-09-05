@@ -35,6 +35,7 @@ const DEFLATED = 8;
 const CENTRAL = {
   method: 10,
   compressedSize: 20,
+  uncompressedSize: 24,
   nameLength: 28,
   extraLength: 30,
   commentLength: 32,
@@ -76,13 +77,37 @@ function dataOffset(buffer: Buffer, localHeaderAt: number): number {
   return localHeaderAt + LOCAL.size + nameLength + extraLength;
 }
 
-function readEntry(buffer: Buffer, method: number, at: number, size: number): Buffer {
-  const slice = buffer.subarray(at, at + size);
+/**
+ * 한 항목을 풀었을 때 받아들일 최대 크기.
+ *
+ * 압축 파일은 **작은 파일이 거대하게 부풀 수 있다.** 지금 자료는 항목 하나가 9MB인데,
+ * 상한이 없으면 조작된 파일 하나가 서버 메모리를 다 쓴다. 이 코드는 예약 작업이
+ * **아무도 보고 있지 않을 때** 부르므로 그 자리에서 막아야 한다.
+ */
+const MEGABYTE = 1_048_576;
+const MAX_ENTRY_MEGABYTES = 128;
+const MAX_ENTRY_BYTES = MAX_ENTRY_MEGABYTES * MEGABYTE;
+
+interface EntryLocation {
+  readonly method: number;
+  readonly at: number;
+  readonly compressed: number;
+  readonly uncompressed: number;
+}
+
+function readEntry(buffer: Buffer, where: EntryLocation): Buffer {
+  const { method, at, compressed, uncompressed } = where;
+  if (uncompressed > MAX_ENTRY_BYTES) {
+    throw new Error(`ZIP 항목이 너무 큽니다(${uncompressed}바이트).`);
+  }
+
+  const slice = buffer.subarray(at, at + compressed);
   if (method === STORED) {
     return slice;
   }
   if (method === DEFLATED) {
-    return inflateRawSync(slice);
+    /* 선언한 크기를 넘기면 거기서 멈춘다. 헤더의 숫자를 그대로 믿지 않는다. */
+    return inflateRawSync(slice, { maxOutputLength: MAX_ENTRY_BYTES });
   }
   throw new Error(`ZIP 압축 방식 ${method}은 읽지 못합니다.`);
 }
@@ -102,6 +127,7 @@ function readZip(buffer: Buffer): ZipEntry[] {
     }
     const method = buffer.readUInt16LE(at + CENTRAL.method);
     const compressedSize = buffer.readUInt32LE(at + CENTRAL.compressedSize);
+    const uncompressedSize = buffer.readUInt32LE(at + CENTRAL.uncompressedSize);
     const nameLength = buffer.readUInt16LE(at + CENTRAL.nameLength);
     const extraLength = buffer.readUInt16LE(at + CENTRAL.extraLength);
     const commentLength = buffer.readUInt16LE(at + CENTRAL.commentLength);
@@ -110,7 +136,13 @@ function readZip(buffer: Buffer): ZipEntry[] {
 
     entries.push({
       name,
-      read: () => readEntry(buffer, method, dataOffset(buffer, localHeaderAt), compressedSize),
+      read: () =>
+        readEntry(buffer, {
+          method,
+          at: dataOffset(buffer, localHeaderAt),
+          compressed: compressedSize,
+          uncompressed: uncompressedSize,
+        }),
     });
 
     at += CENTRAL.size + nameLength + extraLength + commentLength;

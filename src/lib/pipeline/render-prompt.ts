@@ -168,6 +168,9 @@ function glossSection(glosses: readonly PromptGloss[]): string[] {
     '  그 문장은 `"role": "gloss"`로 적고 `from`은 적지 않습니다.',
     "- **여기 적힌 뜻만 씁니다.** 목록에 없는 낱말은 풀이하지 않고, 여기 적힌 뜻을",
     "  이 단계의 말투로 짧게 옮깁니다. 뜻을 새로 지어내지 않습니다.",
+    "- **이 판결문에서 쓰인 뜻과 다르면 그 낱말은 풀이하지 않습니다.** 사전은 글자만 보고",
+    '  찾아 주므로 다른 뜻이 딸려 올 수 있습니다. 예를 들어 `정상`이 "정상 수준"의 뜻으로',
+    "  쓰였다면, 아래에 적힌 법률 뜻은 이 판결문의 것이 아니므로 쓰지 않습니다.",
     "",
     "### 낱말 뜻 (공식 정의)",
     "",
@@ -233,7 +236,7 @@ function renderInstruction(level: Level, glosses: readonly PromptGloss[] = []): 
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-05-v8";
+const RENDER_PROMPT_VERSION = "render-2026-09-05-v9";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };
 export type { PromptGloss };

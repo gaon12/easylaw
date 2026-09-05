@@ -82,3 +82,18 @@ describe("readZip", () => {
     expect(() => readZip(Buffer.from("이건 zip이 아니다"))).toThrow("ZIP 파일이 아닙니다");
   });
 });
+
+/*
+ * 이 코드는 예약 작업이 **아무도 보고 있지 않을 때** 부른다. 헤더에 적힌 숫자를 그대로
+ * 믿으면 조작된 파일 하나가 서버 메모리를 다 쓴다.
+ */
+describe("부풀기 막기", () => {
+  it("풀었을 때 너무 커진다고 적혀 있으면 풀지 않는다", () => {
+    const zip = buildZip([{ name: "big.json", body: "작다" }]);
+    /* 중앙 디렉터리의 "푼 크기"만 크게 적어 둔다 — 실제 자료는 그대로다. */
+    const at = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    zip.writeUInt32LE(999_999_999, at + 24);
+
+    expect(() => readZip(zip)[0]?.read()).toThrow("너무 큽니다");
+  });
+});

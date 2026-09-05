@@ -18,7 +18,7 @@
     "law:sync": "tsx scripts/sync-laws.ts",
     "llm:mock": "tsx scripts/mock-llm.ts",
     "gen:try": "tsx --conditions=react-server scripts/generate-once.ts",
-    "dict:sync": "tsx scripts/sync-dict.ts"
+    "dict:sync": "tsx --conditions=react-server scripts/sync-dict.ts"
   },
   "dependencies": {
     "@dicebear/core": "9.4.3",
