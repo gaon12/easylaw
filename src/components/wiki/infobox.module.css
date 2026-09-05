@@ -6,7 +6,7 @@
 
 .box {
   border: 1px solid var(--el-border-default);
-  border-top: 3px solid var(--el-brand-strong);
+  border-top: 3px solid var(--el-brand-signature);
   border-radius: var(--el-radius-xs);
   overflow: hidden;
   /* 넓은 화면에서 문서 전체 폭을 채우지 않는다 — 틀은 머리이지 본문이 아니다. */

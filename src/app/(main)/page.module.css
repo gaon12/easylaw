@@ -17,10 +17,20 @@
 }
 
 .heroTitle {
-  /* 스케일의 맨 위(`DESIGN.md` §4 — 랜딩 히어로). 더 큰 값을 새로 만들지 않는다. */
-  font-size: var(--el-text-display-s);
-  letter-spacing: -0.02em;
+  /*
+   * 스케일의 맨 위(`DESIGN.md` §4 — 랜딩 히어로). 더 큰 값을 새로 만들지 않는다.
+   * 작은 화면에서는 한 단 내린다 — 52px 제목은 휴대폰에서 두세 글자마다 줄이 바뀐다.
+   */
+  font-size: var(--el-text-display-l);
+  letter-spacing: var(--el-tracking-tight);
+  line-height: var(--el-leading-tight);
   max-width: 22ch;
+}
+
+@media (max-width: 640px) {
+  .heroTitle {
+    font-size: var(--el-text-display-s);
+  }
 }
 
 .heroBody {
