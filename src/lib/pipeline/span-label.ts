@@ -19,6 +19,24 @@ interface LabelledSpan {
   readonly text: string;
 }
 
+/** 앞뒤 대괄호. 안쪽은 건드리지 않는다. */
+const BRACKETS = /^\[(.*)\]$/u;
+
+/**
+ * 모델이 답한 이름을 우리가 아는 형태로 맞춘다. **가리키는 대상은 바뀌지 않는다.**
+ *
+ * 문서의 각 줄이 `[p0.s3] 문장`이라, 모델은 본 대로 `[p0.s3]`이라고 답한다(GLM에서 실제로
+ * 그랬다). 대괄호는 우리가 줄을 구분하려고 씌운 것이지 이름의 일부가 아니다. 여기서
+ * 벗기지 않으면 근거가 전부 "지어낸 이름"으로 분류되고, 근거를 잃은 노드는 통째로 버려져
+ * 판결문 한 편에서 아무것도 안 나온다.
+ *
+ * **여기까지가 관대함의 끝이다.** 벗긴 뒤에도 우리 표에 없는 이름은 없는 것으로 둔다 —
+ * 지어낸 근거를 살려 주지 않는다.
+ */
+function normalizeSpanLabel(raw: string): string {
+  return raw.trim().replace(BRACKETS, "$1").trim();
+}
+
 /** `p{문단}.s{문장}`. 사람도 읽고 모델도 다시 적을 수 있는 형태다. */
 function spanLabel(span: { paraIdx: number; sentIdx: number }): string {
   return `p${span.paraIdx}.s${span.sentIdx}`;
@@ -54,10 +72,10 @@ function labelSpans(spans: readonly LabelledSpan[]): SpanLabels {
 
   return {
     document: lines.join("\n"),
-    resolve: (label) => byLabel.get(label.trim()),
+    resolve: (label) => byLabel.get(normalizeSpanLabel(label)),
     size: byLabel.size,
   };
 }
 
-export { labelSpans, spanLabel };
+export { labelSpans, normalizeSpanLabel, spanLabel };
 export type { LabelledSpan, SpanLabels };

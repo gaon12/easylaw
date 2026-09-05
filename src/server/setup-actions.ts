@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { hasAdmin, type RoleChangeResult, setUserRole } from "@/db/app/repository";
 import { appDb } from "@/db/client";
+import { checkBaseUrl, trimBaseUrl } from "@/lib/llm/base-url";
 import type { AuthProblem } from "./auth";
 import { signIn, signUp } from "./auth";
 import { currentSession } from "./owner";
@@ -98,7 +99,13 @@ async function saveService(formData: FormData): Promise<void> {
   redirect("/setup/connections");
 }
 
-/** 4단계 — 외부 연결. 비워 두면 그 기능만 꺼진 채로 넘어간다. */
+/**
+ * 4단계 — 외부 연결. 비워 두면 그 기능만 꺼진 채로 넘어간다.
+ *
+ * **AI 주소가 틀렸으면 저장하지 않는다.** 칸에서 이미 한 번 말해 주지만(`ConnectionsForm`),
+ * 서버 액션은 폼을 거치지 않고도 불린다. 그리고 잘못된 값이 한 번 저장되면 그 뒤로는
+ * 실제로 생성을 돌릴 때가 되어서야 막히고, 그때 사람은 설치 화면을 다시 찾아와야 한다.
+ */
 async function saveConnections(formData: FormData): Promise<void> {
   const db = appDb();
   const session = await currentSession();
@@ -106,9 +113,16 @@ async function saveConnections(formData: FormData): Promise<void> {
     return;
   }
 
+  const baseUrl = field(formData, "llm_base_url");
+  const problem = checkBaseUrl(baseUrl);
+  if (problem !== undefined) {
+    // 문장이 아니라 이름을 넘긴다 — 주소줄에 실린 글이 화면에 그대로 나오면 안 된다.
+    redirect(`/setup/connections?url_problem=${problem}`);
+  }
+
   const values: Partial<Record<SettingKey, string>> = {
     law_api_oc: field(formData, "law_api_oc"),
-    llm_base_url: field(formData, "llm_base_url"),
+    llm_base_url: trimBaseUrl(baseUrl),
     llm_api_key: field(formData, "llm_api_key"),
     llm_model: field(formData, "llm_model"),
     generation_daily_limit: field(formData, "generation_daily_limit"),
@@ -144,11 +158,17 @@ async function saveSettings(formData: FormData): Promise<void> {
     return;
   }
 
+  const baseUrl = field(formData, "llm_base_url");
+  const problem = checkBaseUrl(baseUrl);
+  if (problem !== undefined) {
+    redirect(`/admin?url_problem=${problem}`);
+  }
+
   const values: Partial<Record<SettingKey, string>> = {
     time_zone: field(formData, "time_zone"),
     secure_cookies: formData.get("secure_cookies") === "true" ? "true" : "false",
     law_api_oc: field(formData, "law_api_oc"),
-    llm_base_url: field(formData, "llm_base_url"),
+    llm_base_url: trimBaseUrl(baseUrl),
     llm_api_key: field(formData, "llm_api_key"),
     llm_model: field(formData, "llm_model"),
     generation_daily_limit: field(formData, "generation_daily_limit"),

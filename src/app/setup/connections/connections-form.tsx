@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StructuredList } from "@/components/ui/structured-list";
+import { baseUrlAdvice, checkBaseUrl } from "@/lib/llm/base-url";
 import { admin, adminTest, setup } from "@/lib/strings";
 import { saveConnections } from "@/server/setup-actions";
 import {
@@ -51,6 +52,44 @@ function ProbeCard({
   );
 }
 
+/**
+ * AI API 주소 칸.
+ *
+ * **여기서 막는다.** 주소를 대신 고쳐서 저장하면 사람은 자기가 무엇을 넣었는지 모른 채
+ * 넘어가고, 다음에도 같은 값을 넣는다. 무엇을 어떻게 고쳐야 하는지 칸 아래에 적는다.
+ */
+function BaseUrlField({
+  onChange,
+  value,
+}: {
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  value: string;
+}) {
+  const hintId = useId();
+  const problem = checkBaseUrl(value);
+
+  return (
+    <label className={styles.field}>
+      <span className={styles.label}>{setup.llmBaseUrlLabel}</span>
+      <input
+        aria-describedby={hintId}
+        aria-invalid={problem !== undefined}
+        autoComplete="url"
+        className={styles.input}
+        name="llm_base_url"
+        onChange={onChange}
+        placeholder={setup.llmBaseUrlPlaceholder}
+        type="url"
+        value={value}
+      />
+      {/* 문제가 있으면 안내 대신 고칠 방법을 적는다. 둘을 같이 두면 어느 쪽을 읽어야 할지 모른다. */}
+      <span className={problem === undefined ? styles.hint : styles.fieldError} id={hintId}>
+        {problem === undefined ? setup.llmBaseUrlHint : baseUrlAdvice(problem, value)}
+      </span>
+    </label>
+  );
+}
+
 function ConnectionsForm({
   dailyLimit,
   defaultModel,
@@ -67,6 +106,9 @@ function ConnectionsForm({
   });
   const setValue = (name: keyof typeof values) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setValues((previous) => ({ ...previous, [name]: event.target.value }));
+
+  /* 주소가 틀린 동안에는 다음으로 넘어가지 못하게 한다. 칸이 무엇을 고칠지 말해 준다. */
+  const urlProblem = checkBaseUrl(values.llm_base_url);
 
   return (
     <>
@@ -92,19 +134,7 @@ function ConnectionsForm({
           <fieldset className={styles.group}>
             <legend className={styles.groupTitle}>{setup.llmTitle}</legend>
             <p className={styles.groupBody}>{setup.llmBody}</p>
-            <label className={styles.field}>
-              <span className={styles.label}>{setup.llmBaseUrlLabel}</span>
-              <input
-                autoComplete="url"
-                className={styles.input}
-                name="llm_base_url"
-                onChange={setValue("llm_base_url")}
-                placeholder={setup.llmBaseUrlPlaceholder}
-                type="url"
-                value={values.llm_base_url}
-              />
-              <span className={styles.hint}>{setup.llmBaseUrlHint}</span>
-            </label>
+            <BaseUrlField onChange={setValue("llm_base_url")} value={values.llm_base_url} />
             <label className={styles.field}>
               <span className={styles.label}>{setup.llmApiKeyLabel}</span>
               <input
@@ -143,10 +173,16 @@ function ConnectionsForm({
 
           <p className={styles.optional}>{setup.optionalNote}</p>
           <div className={styles.actions}>
-            <Button size="l" type="submit" disabled={pending}>
+            <Button size="l" type="submit" disabled={pending || urlProblem !== undefined}>
               {pending ? "연결을 시험하고 있어요…" : "입력한 연결 시험하기"}
             </Button>
-            <Button formAction={saveConnections} size="l" type="submit" variant="secondary">
+            <Button
+              disabled={urlProblem !== undefined}
+              formAction={saveConnections}
+              size="l"
+              type="submit"
+              variant="secondary"
+            >
               {setup.connectionsSubmit}
             </Button>
           </div>

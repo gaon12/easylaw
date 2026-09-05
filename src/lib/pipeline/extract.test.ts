@@ -58,7 +58,12 @@ describe("문서 만들기", () => {
     const client = fakeClient(goodAnswer);
     await extractStructure(client, spans);
 
-    expect(client.lastRequest?.instruction).not.toContain("원고는");
+    /*
+     * 판결문의 **문장**이 지시문에 섞였는지를 본다. "원고는" 같은 낱말 하나로 보면
+     * 안 된다 — 지시문의 출력 예시에도 그 말이 정당하게 들어간다(예시가 없으면 모델이
+     * 칸 이름을 지어낸다). 실제로 옮겨졌다면 문장째 옮겨진다.
+     */
+    expect(client.lastRequest?.instruction).not.toContain("2019. 3. 1. 피고와 계약을 맺었다");
     expect(client.lastRequest?.documents).toHaveLength(1);
   });
 });

@@ -19,12 +19,24 @@ interface Completion {
   /** 비용 추적용. 서버가 안 줄 수도 있다. */
   readonly promptTokens: number | undefined;
   readonly completionTokens: number | undefined;
+  /**
+   * 그중 **생각하는 데** 쓴 몫.
+   *
+   * 생각하는 모델(GLM-4.7, o-시리즈…)은 답을 쓰기 전에 출력 한도를 먼저 갉아먹는다.
+   * 한도에 걸려 잘렸을 때 이 숫자가 없으면 "한도를 올려라"밖에 말할 수 없는데,
+   * 실제로는 **한도가 아니라 모델이 문제**인 경우가 많다. 구분해서 말하려고 읽는다.
+   */
+  readonly reasoningTokens: number | undefined;
 }
 
 const usageSchema = z
   .object({
     prompt_tokens: z.number().optional(),
     completion_tokens: z.number().optional(),
+    completion_tokens_details: z
+      .object({ reasoning_tokens: z.number().optional() })
+      .loose()
+      .optional(),
   })
   .loose();
 
@@ -71,6 +83,7 @@ function parseCompletion(payload: unknown): Completion {
     finishReason: toFinishReason(choice.finish_reason),
     promptTokens: parsed.usage?.prompt_tokens,
     completionTokens: parsed.usage?.completion_tokens,
+    reasoningTokens: parsed.usage?.completion_tokens_details?.reasoning_tokens,
   };
 }
 

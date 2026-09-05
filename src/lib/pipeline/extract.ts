@@ -120,8 +120,10 @@ async function extractStructure(
 /**
  * 판결문 하나의 구조는 길다. 조문이 많은 사건은 노드가 수십 개 나오고, 한도가 모자라면
  * JSON이 잘려 통째로 재시도가 된다(`completeJson`이 `length`를 따로 알린다).
+ *
+ * 생각하는 모델은 그 위에 한 겹을 더 얹는다 — 답을 쓰기 전에 한도를 먼저 쓴다.
  */
-const MAX_OUTPUT_TOKENS = 8192;
+const MAX_OUTPUT_TOKENS = 16_384;
 
 export { extractStructure };
 export type { ExtractResult, StructureNode };

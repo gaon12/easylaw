@@ -848,6 +848,8 @@ export const setup = {
    */
   llmBaseUrlHint:
     "OpenAI 호환 주소를 넣어 주세요. 뒤의 /chat/completions는 저희가 붙이니 빼고 넣으시면 돼요. Gemini는 https://generativelanguage.googleapis.com/v1beta/openai 예요.",
+  /** 저장 자리에서 되돌려보냈을 때 화면 맨 위에 붙는 제목. 무엇이 안 됐는지부터 말한다. */
+  llmBaseUrlRejected: "AI API 주소를 저장하지 않았어요",
   llmApiKeyLabel: "API 키",
   llmModelLabel: "모델 이름",
   /** `models/` 접두사를 붙이면 그대로 모델 이름으로 나가 404가 된다. */

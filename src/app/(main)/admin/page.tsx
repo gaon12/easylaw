@@ -5,11 +5,13 @@ import { Card } from "@/components/ui/card";
 import { StructuredList } from "@/components/ui/structured-list";
 import { listUsersForAdmin } from "@/db/app/repository";
 import { appDb } from "@/db/client";
+import { baseUrlAdvice, isBaseUrlProblem } from "@/lib/llm/base-url";
 import { admin, adminTest, setup } from "@/lib/strings";
 import { generationBudget } from "@/server/generate";
 import { currentSession } from "@/server/owner";
 import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
 import { saveSettings } from "@/server/setup-actions";
+import { BaseUrlField } from "./base-url-field";
 import styles from "./page.module.css";
 import { SecretField } from "./secret-field";
 import { UserRoles } from "./user-roles";
@@ -94,7 +96,9 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
  * 않아서 무엇이 들어 있는지 확인할 방법이 없었고, 그래서 빈 칸을 "그대로 두기"로 읽어야
  * 했다. 지금은 **칸에 보이는 것이 곧 저장될 값**이고 비우면 지워진다 — 규칙이 하나다.
  */
-export default async function AdminPage(props: { searchParams: Promise<{ saved?: string }> }) {
+export default async function AdminPage(props: {
+  searchParams: Promise<{ saved?: string; url_problem?: string }>;
+}) {
   const [session, searchParams] = await Promise.all([currentSession(), props.searchParams]);
 
   if (session?.role !== "admin") {
@@ -125,6 +129,18 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
         </div>
       )}
 
+      {/*
+        저장 자리에서 되돌려보냈을 때. 주소줄에 실려 오는 것은 문장이 아니라 **문제의
+        이름**이다 — 아무나 만든 주소로 이 화면에 아무 문장이나 띄울 수 없어야 한다.
+      */}
+      {isBaseUrlProblem(searchParams.url_problem) ? (
+        <div aria-live="polite">
+          <Alert title={setup.llmBaseUrlRejected} tone="danger">
+            {baseUrlAdvice(searchParams.url_problem)}
+          </Alert>
+        </div>
+      ) : null}
+
       <Card className={styles.usage} as="section">
         <h2 className={styles.sectionTitle}>{admin.usageTitle}</h2>
         <p className={styles.usageSummary}>
@@ -153,6 +169,11 @@ export default async function AdminPage(props: { searchParams: Promise<{ saved?:
 
             if (key === "time_zone") {
               return <TimeZoneField key={key} timeZone={siteTimeZone(db)} zones={zones} />;
+            }
+            if (key === "llm_base_url") {
+              return (
+                <BaseUrlField key={key} label={setup.settingNames[key]} name={key} value={value} />
+              );
             }
             if (SECRET_KEYS.has(key)) {
               return (

@@ -159,3 +159,17 @@
   height: 1.25rem;
   accent-color: var(--el-action);
 }
+
+/*
+  칸 아래에 붙는 잘못 안내. `.hint` 자리를 대신 차지한다 — 둘을 같이 두면 어느 쪽을
+  읽어야 하는지 모른다.
+*/
+.fieldError {
+  color: var(--el-danger-70);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--el-danger);
+}

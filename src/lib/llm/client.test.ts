@@ -5,6 +5,9 @@ import { createLlmClient, LlmError } from "./client";
 /**
  * `CONVENTIONS.md` §8 — LLM을 테스트에서 실제로 호출하지 않는다.
  * `fetch`를 가로채 우리가 **보내는 것**과 응답을 다루는 방식만 본다.
+ *
+ * 전송은 공식 `openai` SDK가 한다(2026-09-05). 그래서 헤더는 `Headers` 객체로 오고
+ * 본문은 SDK가 직렬화한 문자열이다 — 보는 것은 그대로이고 읽는 방법만 다르다.
  */
 
 const CONFIG = { baseUrl: "https://ai.example.com/v1", apiKey: "sk-test", model: "test-model" };
@@ -18,6 +21,7 @@ interface SentRequest {
     temperature: number;
     max_tokens: number;
     response_format?: { type: string };
+    thinking?: { type: string };
   };
 }
 
@@ -25,21 +29,31 @@ let sent: SentRequest | undefined;
 
 function stubFetch(respond: () => Response): void {
   sent = undefined;
-  vi.stubGlobal("fetch", (url: string | URL, init?: RequestInit) => {
+  vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
+    const request = input instanceof Request ? input : undefined;
+    const headers = new Headers(request?.headers ?? init?.headers ?? {});
     sent = {
-      url: String(url),
-      headers: (init?.headers ?? {}) as Record<string, string>,
-      body: JSON.parse(String(init?.body)) as SentRequest["body"],
+      url: request?.url ?? String(input),
+      headers: Object.fromEntries(headers.entries()),
+      body: JSON.parse(String(init?.body ?? "{}")) as SentRequest["body"],
     };
     return Promise.resolve(respond());
   });
 }
 
-function ok(content: string, finishReason = "stop"): Response {
+function ok(content: string, finishReason = "stop", usage?: unknown): Response {
   return new Response(
-    JSON.stringify({ choices: [{ message: { content }, finish_reason: finishReason }] }),
+    JSON.stringify({ choices: [{ message: { content }, finish_reason: finishReason }], usage }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
+}
+
+/** 제공자가 "그 값은 모른다"고 답하는 400. 이름이 본문에 실려 온다. */
+function unknownParam(name: string): Response {
+  return new Response(JSON.stringify({ error: { message: `Unrecognized argument: ${name}` } }), {
+    status: 400,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 function lastRequest(): SentRequest {
@@ -158,6 +172,33 @@ describe("판결문은 데이터다 (CONVENTIONS.md §7)", () => {
   });
 });
 
+describe("규격에 없는 값", () => {
+  it("생각을 끄라고 보낸다 — 생각하는 모델이 답 대신 궁리에 한도를 쓴다", async () => {
+    stubFetch(() => ok("네"));
+    await createLlmClient(CONFIG).complete({ instruction: "안녕하세요." });
+
+    expect(lastRequest().body.thinking).toEqual({ type: "disabled" });
+  });
+
+  it("모른다고 거절하면 그 값만 빼고 다시 건다", async () => {
+    const responses = [unknownParam("thinking"), ok("네")];
+    stubFetch(() => responses.shift() ?? ok("네"));
+
+    const result = await createLlmClient(CONFIG).complete({ instruction: "안녕하세요." });
+
+    expect(result.text).toBe("네");
+    expect(lastRequest().body.thinking).toBeUndefined();
+  });
+
+  it("뺄 것이 없으면 오류를 그대로 올린다 — 고리가 되지 않는다", async () => {
+    stubFetch(() => unknownParam("temperature"));
+
+    await expect(createLlmClient(CONFIG).complete({ instruction: "안녕하세요." })).rejects.toThrow(
+      LlmError,
+    );
+  });
+});
+
 describe("응답 다루기", () => {
   it("검증기를 통과한 JSON만 돌려준다", async () => {
     stubFetch(() => ok('```json\n{"쟁점":["소멸시효"]}\n```'));
@@ -186,6 +227,24 @@ describe("응답 다루기", () => {
     await expect(
       createLlmClient(CONFIG).completeJson({ instruction: "뽑아 주세요." }, (v) => v),
     ).rejects.toThrow("잘렸습니다");
+  });
+
+  /*
+   * GLM-4.7에서 실제로 겪은 일이다 — 렌더 한 번에 16384토큰 중 16076을 "생각"에 쓰고
+   * 답을 한 글자도 못 쓴 채 잘렸다. 그때 "한도에 걸렸다"고만 하면 운영자는 한도를
+   * 올리며 돈만 쓴다. 무엇이 그 한도를 태웠는지 말해야 모델을 바꿀 생각을 한다.
+   */
+  it("생각에 한도를 다 쓴 경우에는 그렇다고 말한다", async () => {
+    stubFetch(() =>
+      ok('{"쟁점":[', "length", {
+        completion_tokens: 16384,
+        completion_tokens_details: { reasoning_tokens: 16076 },
+      }),
+    );
+
+    await expect(
+      createLlmClient(CONFIG).completeJson({ instruction: "뽑아 주세요." }, (v) => v),
+    ).rejects.toThrow("생각");
   });
 
   it.each([

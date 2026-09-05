@@ -1,5 +1,7 @@
 import "server-only";
+import OpenAi, { APIConnectionError, APIError, APIUserAbortError } from "openai";
 import { type LlmConfig, llmConfig } from "@/server/settings";
+import { baseUrlAdvice, trimBaseUrl } from "./base-url";
 import { type Completion, extractJson, parseCompletion } from "./parse";
 
 /**
@@ -7,8 +9,20 @@ import { type Completion, extractJson, parseCompletion } from "./parse";
  *
  * **OpenAI 호환 chat completions만 말한다.** 설정이 `llm_base_url` + `llm_api_key` +
  * `llm_model` 세 값인 이상(`SETUP.md`) 그것이 곧 이 프로토콜을 고른다는 뜻이다.
- * 자가 호스팅하는 사람이 무엇을 꽂든 — 상용 API든 로컬 vLLM·Ollama든 — 같은 세 칸으로
- * 끝나야 한다. 특정 제공자의 SDK를 끌어오면 그 선택지가 사라진다.
+ * 자가 호스팅하는 사람이 무엇을 꽂든 — 상용 API든 로컬 vLLM·Ollama든 — 같은 세 칸으로 끝난다.
+ *
+ * **공식 `openai` SDK로 보낸다(2026-09-05 변경).** 전에는 `fetch`로 직접 만들어 보냈는데,
+ * 그 판단을 뒤집은 이유가 있다.
+ *
+ * - **제공자 문서가 전부 이 SDK 기준이다.** Gemini(OpenAI 호환 계층)도, Z.AI도, vLLM도
+ *   "`baseURL`과 `apiKey`를 넣어 `openai` 클라이언트를 만들라"고 적어 둔다. 문서대로 넣었는데
+ *   안 된다는 신고가 실제로 왔고, 우리 손수 만든 요청과 SDK가 보내는 요청의 미묘한 차이
+ *   (헤더 조합·주소 이어 붙이기·오류 형태)를 사용자가 알아낼 방법이 없었다.
+ * - SDK를 쓴다고 제공자에 묶이지 않는다. `baseURL`을 바꾸는 것이 곧 제공자를 바꾸는 것이고,
+ *   그것이 이 SDK가 사실상의 **호환 규격 클라이언트**가 된 이유다.
+ *
+ * 대신 우리 것으로 남기는 것이 있다 — 지시/문서 분리와 울타리, 오류 문구, 재시도 판단.
+ * 그것들은 이 서비스의 규칙이지 전송 계층의 일이 아니다.
  *
  * **인터페이스로 감싸는 이유**는 `law-api`와 같다 — 테스트에서 구현을 갈아 끼운다.
  * `CONVENTIONS.md` §8: LLM 응답을 테스트에서 실제로 호출하지 않는다.
@@ -70,6 +84,8 @@ const ERROR_DETAIL_LIMIT = 500;
 const TOO_MANY_REQUESTS = 429;
 const SERVER_ERROR_FLOOR = 500;
 const NOT_FOUND = 404;
+const UNAUTHORIZED = 401;
+const FORBIDDEN = 403;
 
 class LlmError extends Error {
   readonly status: number | undefined;
@@ -146,13 +162,6 @@ function buildMessages(request: CompletionRequest): ChatMessage[] {
   ];
 }
 
-const TRAILING_SLASHES = /\/+$/u;
-
-/** `https://host/v1`과 `https://host/v1/`을 같게 다룬다. 설정 칸에 사람이 무엇을 넣을지 모른다. */
-function endpoint(baseUrl: string): string {
-  return `${baseUrl.replace(TRAILING_SLASHES, "")}/chat/completions`;
-}
-
 /**
  * 주소를 잘못 넣은 흔한 경우를 알아보고 무엇을 고칠지 말한다.
  *
@@ -169,111 +178,184 @@ function endpoint(baseUrl: string): string {
  * 둘 다 사용자가 고칠 수 있는 문제다. **고칠 방법을 알려 주지 않으면 고칠 수 없을 뿐이다.**
  */
 function diagnoseEndpoint(baseUrl: string, status: number, detail: string): string | undefined {
-  const url = baseUrl.replace(TRAILING_SLASHES, "");
-
   if (detail.includes("GenerateContentRequest") || detail.includes("contents is not specified")) {
-    return `이 주소는 OpenAI 호환 엔드포인트가 아니라 Gemini 네이티브 API입니다. 주소 끝에 \`/openai\`를 붙여 \`${url}/openai\` 로 바꾸세요.`;
+    return `이 주소는 OpenAI 호환 엔드포인트가 아니라 Gemini 네이티브 API입니다. ${baseUrlAdvice("gemini_native", baseUrl)}`;
   }
 
-  if (status === NOT_FOUND && url.endsWith("/chat/completions")) {
-    return `주소에 \`/chat/completions\`가 이미 들어 있습니다. 그 부분은 우리가 붙이므로 \`${url.slice(0, -"/chat/completions".length)}\` 까지만 넣으세요.`;
+  if (status === NOT_FOUND) {
+    return `그 주소에 \`/chat/completions\`가 없습니다. 제공자 문서의 **base URL**(보통 \`/v1\`이나 \`/v4\`로 끝나는 주소)을 넣으세요 — 지금 값은 \`${baseUrl}\`입니다.`;
+  }
+
+  if (status === UNAUTHORIZED || status === FORBIDDEN) {
+    return "키가 거절됐습니다. 키 자체와, 그 키가 이 주소의 제공자 것인지 함께 확인하세요.";
   }
 
   return;
 }
 
-/** 보낼 본문. 프로토콜 필드명이라 snake_case를 그대로 쓴다. */
-function buildBody(config: LlmConfig, request: CompletionRequest): Record<string, unknown> {
+/**
+ * 규격에 없지만 넣고 싶은 값들. **모르는 제공자는 400으로 거절하고, 그러면 빼고 다시 건다.**
+ *
+ * 규격(OpenAI chat completions)에 없는 값을 보내는 것은 원래 하지 않는 일이다. 그런데
+ * 이 둘은 넣지 않으면 **되는 조합과 안 되는 조합이 갈린다**, 그것도 조용히.
+ *
+ * - `response_format` — JSON을 달라고 말하는 표준 방법. 오래된 제공자와 일부 로컬
+ *   서버가 모른다.
+ * - `thinking` — **생각을 끈다.** GLM-4.7 계열은 답을 쓰기 전에 "생각"에 출력 한도를
+ *   먼저 쓴다. 실측: 두 문장짜리 답에 943토큰 중 860, 이 서비스의 렌더 한 번에
+ *   16384토큰 중 16076을 생각에 쓰고 **답을 한 글자도 못 쓴 채** 잘렸다(4분 36초).
+ *   우리 파이프라인은 이미 구조를 뽑아 놓고 그것만 보고 문장을 만들게 하므로(§5.5 [4]→[5])
+ *   모델이 따로 궁리할 것이 없다. 이 값을 아는 제공자에게만 듣고, 나머지는 거절 →
+ *   빼고 재시도로 흘러간다. OpenAI의 생각하는 모델은 이 이름을 모르므로 영향을 받지 않는다.
+ */
+const OPTIONAL_PARAMS = ["response_format", "thinking"] as const;
+
+type OptionalParam = (typeof OPTIONAL_PARAMS)[number];
+
+/**
+ * 요청 하나. SDK가 받는 형태 그대로다.
+ *
+ * `dropped`에 든 이름은 넣지 않는다 — 제공자가 앞선 시도에서 거절한 것들이다.
+ */
+function buildParams(
+  config: LlmConfig,
+  request: CompletionRequest,
+  dropped: ReadonlySet<OptionalParam>,
+): OpenAi.Chat.ChatCompletionCreateParamsNonStreaming {
   return {
     model: config.model,
     messages: buildMessages(request),
     temperature: request.temperature ?? 0,
     max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
-    ...(request.json === true ? { response_format: { type: "json_object" } } : {}),
-  };
+    ...(request.json === true && !dropped.has("response_format")
+      ? { response_format: { type: "json_object" as const } }
+      : {}),
+    ...(dropped.has("thinking") ? {} : { thinking: { type: "disabled" } }),
+  } as OpenAi.Chat.ChatCompletionCreateParamsNonStreaming;
 }
 
-/** 요청을 보내고 HTTP 수준의 실패를 `LlmError`로 옮긴다. 응답 해석은 하지 않는다. */
-async function postCompletion(
-  config: LlmConfig,
-  request: CompletionRequest,
-  signal: AbortSignal | undefined,
-): Promise<Response> {
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+/**
+ * 제공자가 "그 값은 모른다"고 답했나. 그렇다면 **어느 값인지** 돌려준다.
+ *
+ * 400의 본문에 이름이 그대로 실려 오는 것에 기댄다. 실려 오지 않으면 아무것도 빼지 않고
+ * 오류를 그대로 올린다 — 엉뚱한 값을 빼고 다시 걸면 무엇 때문에 실패했는지가 흐려진다.
+ */
+function rejectedParam(
+  error: APIError,
+  dropped: ReadonlySet<OptionalParam>,
+): OptionalParam | undefined {
+  if (error.status !== BAD_REQUEST) {
+    return;
+  }
+  const text = `${error.message} ${JSON.stringify(error.error ?? {})}`;
+  return OPTIONAL_PARAMS.find((name) => !dropped.has(name) && text.includes(name));
+}
 
-  try {
-    return await fetch(endpoint(config.baseUrl), {
-      method: "POST",
-      signal: combined,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify(buildBody(config, request)),
-      // 생성 결과 캐시는 우리 DB(rendition)가 맡는다. fetch 계층 캐시를 겹치지 않는다.
-      cache: "no-store",
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
-      throw new LlmError(`AI 서버가 ${REQUEST_TIMEOUT_SECONDS}초 안에 응답하지 않았습니다.`, {
-        retryable: true,
-      });
+const BAD_REQUEST = 400;
+
+/**
+ * **닿지 못한 것**인가. 그렇다면 왜인지.
+ *
+ * 닿지 못한 것과 거절당한 것은 고치는 방법이 다르다 — 앞은 주소·네트워크라 다시 걸어 볼
+ * 만하고, 뒤는 키나 요청이 잘못된 것이라 같은 요청을 다시 보내도 같은 답이 온다.
+ */
+function unreachedMessage(error: unknown): string | undefined {
+  if (error instanceof APIConnectionError || error instanceof APIUserAbortError) {
+    if (error.message.toLowerCase().includes("timed out")) {
+      return `AI 서버가 ${REQUEST_TIMEOUT_SECONDS}초 안에 응답하지 않았습니다.`;
     }
-    throw new LlmError(
-      error instanceof Error
-        ? `AI 서버에 연결하지 못했습니다: ${error.message}`
-        : "AI 서버에 연결하지 못했습니다.",
-      { retryable: true },
-    );
+    const cause = error.cause instanceof Error ? error.cause.message : error.message;
+    return `AI 서버에 연결하지 못했습니다: ${cause}`;
   }
+
+  if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+    return `AI 서버가 ${REQUEST_TIMEOUT_SECONDS}초 안에 응답하지 않았습니다.`;
+  }
+
+  return;
 }
 
-/** 성공 응답을 해석한다. 실패 응답은 여기 오기 전에 걸러진다. */
-async function readCompletion(response: Response): Promise<Completion> {
-  let payload: unknown;
-  try {
-    payload = (await response.json()) as unknown;
-  } catch {
-    throw new LlmError("AI 서버가 JSON이 아닌 응답을 보냈습니다. 주소를 확인하세요.");
+/** SDK의 오류를 우리 오류로 옮긴다. 고칠 방법을 아는 경우에는 그것을 **먼저** 말한다. */
+function toLlmError(config: LlmConfig, error: unknown): LlmError {
+  /* `APIConnectionError`는 `APIError`의 자식이라 **먼저** 본다. */
+  const unreached = unreachedMessage(error);
+  if (unreached !== undefined) {
+    return new LlmError(unreached, { retryable: true });
   }
 
-  try {
-    return parseCompletion(payload);
-  } catch (error) {
-    throw new LlmError(
-      `AI 서버 응답을 읽지 못했습니다: ${error instanceof Error ? error.message : "형태를 알 수 없습니다."}`,
-    );
+  if (error instanceof APIError) {
+    const detail = (error.message || "").slice(0, ERROR_DETAIL_LIMIT);
+    const status = error.status ?? 0;
+    const hint = diagnoseEndpoint(config.baseUrl, status, detail);
+    const message =
+      hint === undefined
+        ? `AI 서버 응답이 ${status}입니다. ${detail}`
+        : `${hint} (AI 서버 응답 ${status}: ${detail})`;
+
+    return new LlmError(message.trim(), {
+      status,
+      retryable: status === TOO_MANY_REQUESTS || status >= SERVER_ERROR_FLOOR,
+    });
   }
+
+  /*
+   * 200인데 우리가 아는 형태가 아닌 경우다. 대개 주소가 다른 서비스를 가리키고 있다
+   * (로그인 페이지 HTML이 오는 식). 그때 "연결 실패"라고 하면 엉뚱한 곳을 보게 된다.
+   */
+  if (error instanceof Error) {
+    return new LlmError(`AI 서버 응답을 읽지 못했습니다. 주소를 확인하세요: ${error.message}`, {
+      retryable: true,
+    });
+  }
+
+  return new LlmError("AI 서버에 연결하지 못했습니다.", { retryable: true });
 }
 
+/**
+ * 한 번 부른다.
+ *
+ * **설정에 적힌 주소를 그대로 쓴다.** 앞뒤 공백과 끝의 슬래시만 턴다(`base-url.ts`) —
+ * 그 둘은 사람이 의도한 값이 아니고 어느 서버를 부르는지도 바뀌지 않는다. 그 밖의 교정은
+ * 하지 않는다: 저장된 값과 실제로 부르는 주소가 다르면 사람은 자기가 무엇을 넣었는지
+ * 모르게 된다. 틀린 주소는 **넣는 자리에서** 막는다(`setup-actions.ts`).
+ */
 async function requestCompletion(
   config: LlmConfig,
   request: CompletionRequest,
   signal: AbortSignal | undefined,
 ): Promise<Completion> {
-  const response = await postCompletion(config, request, signal);
+  const client = new OpenAi({
+    apiKey: config.apiKey,
+    // biome-ignore lint/style/useNamingConvention: SDK가 정한 옵션 이름이다. 바꾸면 무시된다.
+    baseURL: trimBaseUrl(config.baseUrl),
+    timeout: REQUEST_TIMEOUT_MS,
+    /* 다시 걸지 말지는 파이프라인이 정한다(§5.5 [7]). SDK가 몰래 두 번 부르면 지출이 는다. */
+    maxRetries: 0,
+  });
 
-  if (!response.ok) {
-    // 본문에 원인이 적혀 있는 경우가 많다. 키가 섞일 자리가 아니라 그대로 담아도 된다.
-    const detail = (await response.text()).slice(0, ERROR_DETAIL_LIMIT);
-    /*
-     * 고칠 방법을 아는 경우에는 그것을 **먼저** 말한다. 제공자가 보낸 문장을 그대로
-     * 앞세우면 원인을 아는 사람만 읽을 수 있는 오류가 된다.
-     */
-    const hint = diagnoseEndpoint(config.baseUrl, response.status, detail);
-    const message =
-      hint === undefined
-        ? `AI 서버 응답이 ${response.status}입니다. ${detail}`
-        : `${hint} (AI 서버 응답 ${response.status}: ${detail})`;
+  /*
+   * 거절당한 값을 하나씩 빼면서 다시 건다. **최대 `OPTIONAL_PARAMS`의 수만큼**이고,
+   * 뺄 것이 없으면 그 자리에서 오류를 올린다 — 여기가 도는 고리가 되면 지출이 는다.
+   *
+   * 이 재시도는 §5.5 [7]의 재시도와 다르다. 그쪽은 **같은 요청**을 다시 보내는 것이고,
+   * 이쪽은 제공자가 받아 주는 요청을 찾는 것이라 파이프라인이 알 필요가 없다.
+   */
+  const dropped = new Set<OptionalParam>();
 
-    throw new LlmError(message.trim(), {
-      status: response.status,
-      retryable: response.status === TOO_MANY_REQUESTS || response.status >= SERVER_ERROR_FLOOR,
-    });
+  for (;;) {
+    try {
+      const params = buildParams(config, request, dropped);
+      // biome-ignore lint/performance/noAwaitInLoops: 앞 시도의 거절을 보고 다음 요청을 만든다. 동시에 걸 수 없다.
+      const response = await client.chat.completions.create(params, { signal });
+      return parseCompletion(response);
+    } catch (error) {
+      const rejected = error instanceof APIError ? rejectedParam(error, dropped) : undefined;
+      if (rejected === undefined) {
+        throw toLlmError(config, error);
+      }
+      dropped.add(rejected);
+    }
   }
-
-  return readCompletion(response);
 }
 
 function createLlmClient(config: LlmConfig): LlmClient {
@@ -292,7 +374,7 @@ function createLlmClient(config: LlmConfig): LlmClient {
          * 잘린 JSON은 망가진 JSON과 고치는 방법이 다르다 — 프롬프트가 아니라 출력 한도가
          * 문제다. 아래 파싱으로 흘려보내면 "JSON을 찾지 못했습니다"가 되어 원인이 지워진다.
          */
-        throw new LlmError("출력 한도에 걸려 응답이 잘렸습니다.", { retryable: true });
+        throw new LlmError(truncationMessage(completion), { retryable: true });
       }
 
       let parsed: unknown;
@@ -315,6 +397,32 @@ function createLlmClient(config: LlmConfig): LlmClient {
       }
     },
   };
+}
+
+/** 생각에 쓴 몫이 이만큼을 넘으면 "한도가 모자란다"가 아니라 "모델이 다 썼다"고 말한다. */
+const REASONING_SHARE_LIMIT = 0.5;
+
+/**
+ * 왜 잘렸는지. **한도가 작은 것과 모델이 그 한도를 생각으로 태운 것은 다른 문제다.**
+ *
+ * GLM-4.7이나 o-시리즈 같은 생각하는 모델은 답을 쓰기 전에 출력 한도를 먼저 쓴다.
+ * 실제로 글 두 문장을 얻는 데 943토큰 중 860을 생각에 쓴 응답을 봤다. 그때 "한도에 걸려
+ * 잘렸습니다"라고만 하면 운영자는 한도를 올리며 돈만 쓰게 된다 — 무엇이 태웠는지 말한다.
+ */
+function truncationMessage(completion: Completion): string {
+  const total = completion.completionTokens;
+  const reasoning = completion.reasoningTokens;
+
+  if (
+    total !== undefined &&
+    reasoning !== undefined &&
+    total > 0 &&
+    reasoning / total > REASONING_SHARE_LIMIT
+  ) {
+    return `출력 한도에 걸려 응답이 잘렸습니다. 이 모델은 답을 쓰기 전에 "생각"에 한도를 먼저 씁니다(${total}토큰 중 ${reasoning}토큰). 생각을 하지 않는 모델을 쓰거나 출력 한도를 올리세요.`;
+  }
+
+  return "출력 한도에 걸려 응답이 잘렸습니다.";
 }
 
 /**

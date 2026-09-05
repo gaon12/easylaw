@@ -12,7 +12,7 @@
  *
  * `rendition`과 `generation_job`의 유일 키에 들어간다(`judgment_id, level, prompt_version`).
  */
-const PROMPT_VERSION = "extract-2026-09-03";
+const PROMPT_VERSION = "extract-2026-09-05";
 
 /**
  * 지시문.
@@ -28,20 +28,40 @@ const PROMPT_VERSION = "extract-2026-09-03";
  *   낫다. `source_spans`가 비면 어차피 스키마에서 걸리는데, 그때는 통째로 재시도가 된다.
  * - **원문을 옮겨 적지 마라.** 요약은 다음 단계([5])가 하고, 여기서는 구조만 뽑는다.
  *   그래야 [4] → [5] 분리가 의미를 갖는다.
+ *
+ * **칸 이름을 하나도 빠짐없이 적는다(2026-09-05).** 전에는 출력 예시가
+ * `{"kind": "...", "source_spans": [...], ...}`였고, 내용을 담을 칸이 `…` 뒤에 숨어 있었다.
+ * 실제로 GLM은 그 자리에 `description`을 지어내 넣었고, `text`가 필수인 스키마에 전부 걸려
+ * 판결문 한 편이 통째로 버려졌다. 스키마가 요구하는 칸은 **지시문에도 이름 그대로** 적혀
+ * 있어야 한다 — 모델은 우리 zod 파일을 읽지 않는다.
+ *
+ * 같은 이유로 **줄 이름에서 대괄호를 뺀다**고 못박는다. 문서의 각 줄이 `[p0.s3] 문장`이라
+ * 모델은 본 대로 `"[p0.s3]"`이라고 답했다. 받는 쪽에서도 벗겨 주지만
+ * (`normalizeSpanLabel`), 어느 쪽이 맞는지 말해 주지 않을 이유가 없다.
+ *
+ * **한국어로 답하라고 적는다.** 지시문이 한국어인 것만으로는 모자랐다 — 실제 응답은
+ * 영어로 왔고, 그 문장은 [5]를 거쳐 그대로 화면에 나갈 뻔했다.
  */
 const EXTRACT_INSTRUCTION = [
   "당신은 한국 판결문에서 구조를 뽑아내는 도구입니다. JSON만 출력합니다.",
+  "**모든 내용을 한국어로 씁니다.**",
   "",
   "문서의 각 줄은 `[p0.s3] 문장` 형태입니다. `p0.s3`이 그 문장의 이름입니다.",
+  "이름을 답할 때는 **대괄호 없이** `p0.s3`이라고만 적습니다.",
   "",
   "## 뽑을 것",
   "",
-  "- `fact_event` — 언제 무슨 일이 있었나. 날짜를 알 수 있으면 `occurred_on`에 YYYY-MM-DD로 적습니다.",
-  "- `issue` — 이 사건에서 다투는 쟁점.",
-  "- `claim` — 당사자의 주장. `party`에 누구의 주장인지 적습니다(plaintiff/defendant/prosecutor/other).",
-  "- `holding` — 법원의 판단과 그 이유.",
-  "- `conclusion` — 주문, 즉 최종 결론.",
+  "종류마다 채우는 칸이 다릅니다. **여기 적힌 칸 이름을 그대로** 씁니다.",
+  "",
+  "- `fact_event` — 언제 무슨 일이 있었나. `text`에 무슨 일인지 적고,",
+  "  날짜를 알 수 있으면 `occurred_on`에 YYYY-MM-DD로 적습니다.",
+  "- `issue` — 이 사건에서 다투는 쟁점. `text`.",
+  "- `claim` — 당사자의 주장. `text`와 함께 `party`에 누구의 주장인지 적습니다",
+  "  (plaintiff/defendant/prosecutor/other).",
+  "- `holding` — 법원의 판단과 그 이유. `text`.",
+  "- `conclusion` — 주문, 즉 최종 결론. `text`.",
   "- `citation` — 인용된 법령. `law_name`과 `article`은 필수, `clause`(항)와 `item`(호)은 있으면 적습니다.",
+  "  이 종류에만 `text`가 없습니다.",
   "",
   "## 규칙",
   "",
@@ -53,10 +73,23 @@ const EXTRACT_INSTRUCTION = [
   "4. **주장과 판단을 섞지 않습니다.** 당사자가 그렇게 주장한 것은 `claim`이고,",
   "   법원이 그렇게 판단한 것만 `holding`입니다.",
   "5. **원문을 그대로 옮겨 적지 않습니다.** 무엇에 관한 항목인지 알 수 있을 만큼만 짧게 적습니다.",
+  "6. **칸 이름을 바꾸지 않습니다.** `text`를 `description`이나 `content` 같은 다른 이름으로",
+  "   적으면 그 항목은 버려집니다.",
   "",
   "## 출력 형태",
   "",
-  '{"nodes": [{"kind": "...", "source_spans": ["p0.s3"], ...}]}',
+  "칸 이름은 아래와 똑같이 쓰고, 값만 이 판결문의 내용으로 채웁니다.",
+  "",
+  "{",
+  '  "nodes": [',
+  '    {"kind": "fact_event", "text": "은행이 토지에 근저당권을 설정했습니다.", "occurred_on": "2006-07-03", "source_spans": ["p1.s4"]},',
+  '    {"kind": "issue", "text": "배당 순위를 어떻게 정할지가 쟁점입니다.", "source_spans": ["p2.s0"]},',
+  '    {"kind": "claim", "party": "plaintiff", "text": "원고는 자신이 먼저 배당받아야 한다고 주장했습니다.", "source_spans": ["p2.s3"]},',
+  '    {"kind": "holding", "text": "법원은 저당권을 설정한 때를 기준으로 순위를 정한다고 보았습니다.", "source_spans": ["p3.s1", "p3.s2"]},',
+  '    {"kind": "conclusion", "text": "원심판결을 파기하고 사건을 서울고등법원에 환송합니다.", "source_spans": ["p0.s3"]},',
+  '    {"kind": "citation", "law_name": "민법", "article": "제368조", "clause": "제1항", "source_spans": ["p3.s5"]}',
+  "  ]",
+  "}",
 ].join("\n");
 
 export { EXTRACT_INSTRUCTION, PROMPT_VERSION };

@@ -12,6 +12,7 @@ import type { LlmClient } from "@/lib/llm/client";
 import { hasBlockingIssue, type Level, type LintIssue, lintRendition } from "@/lib/rendition/lint";
 import { RENDER_PROMPT_VERSION, renderInstruction } from "./render-prompt";
 import { parseRendition } from "./render-schema";
+import { normalizeSpanLabel } from "./span-label";
 
 /** [4]가 낸 노드 중 렌더링에 필요한 것만. DB 행이든 방금 뽑은 것이든 이 모양이면 된다. */
 interface RenderableNode {
@@ -143,10 +144,22 @@ function labelNodes(nodes: readonly RenderableNode[]): {
     lines.push(`[${label}] ${describeNode(node)}`);
   }
 
-  return { document: lines.join("\n"), resolve: (label) => byLabel.get(label.trim()) };
+  return {
+    document: lines.join("\n"),
+    /*
+     * 대괄호를 벗기고 찾는다. 문서에 `[n0] …`이라고 적혀 있으니 모델은 본 대로
+     * `[n0]`이라고 답한다 — 추출 단계에서 실제로 그랬다(`normalizeSpanLabel`).
+     */
+    resolve: (label) => byLabel.get(normalizeSpanLabel(label)),
+  };
 }
 
-const MAX_OUTPUT_TOKENS = 4096;
+/**
+ * 넉넉하게 잡는다. **생각하는 모델은 답을 쓰기 전에 한도를 먼저 쓴다** — GLM-4.7에서
+ * 두 문장짜리 답에 943토큰 중 860을 생각에 썼다. 4096으로는 이 단계가 늘 잘렸다.
+ * 남는 몫에 값이 붙지는 않는다. 실제로 쓴 만큼만 청구된다.
+ */
+const MAX_OUTPUT_TOKENS = 16_384;
 
 /**
  * 구조에서 그 레벨의 문장을 만든다.

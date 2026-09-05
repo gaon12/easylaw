@@ -11,6 +11,7 @@
  */
 
 import { z } from "zod";
+import { normalizeSpanLabel } from "./span-label";
 
 /** 노드 종류. 스키마(`corpus/schema.ts`)의 enum과 같아야 한다. */
 const NODE_KINDS = ["fact_event", "issue", "claim", "holding", "conclusion", "citation"] as const;
@@ -18,8 +19,19 @@ const NODE_KINDS = ["fact_event", "issue", "claim", "holding", "conclusion", "ci
 /** `p0.s3` 형태만 받는다. 모델이 다른 모양을 지어내면 여기서 걸린다. */
 const SPAN_LABEL = /^p\d+\.s\d+$/u;
 
+/*
+ * 대괄호를 벗기고 나서 본다. 문서에 `[p0.s3]`이라고 적혀 있으니 모델은 그대로 베껴 오고,
+ * 그 형태를 여기서 거절하면 판결문 한 편이 통째로 재시도로 간다. **벗기는 것은 표기이지
+ * 내용이 아니다** — 어느 문장을 가리키는지는 조금도 달라지지 않는다. 지어낸 이름은
+ * 그다음 `resolve`에서 여전히 걸린다.
+ */
 const spanLabels = z
-  .array(z.string().regex(SPAN_LABEL, "span 이름은 p0.s0 형태여야 합니다."))
+  .array(
+    z
+      .string()
+      .transform(normalizeSpanLabel)
+      .refine((label) => SPAN_LABEL.test(label), "span 이름은 p0.s0 형태여야 합니다."),
+  )
   .min(1, "근거 span이 없는 노드는 받지 않습니다.");
 
 /** 사실 이벤트의 날짜. 모르면 비운다 — 지어낸 날짜가 가장 위험하다. */
