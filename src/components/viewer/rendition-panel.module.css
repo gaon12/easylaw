@@ -82,15 +82,19 @@
 
 /*
   낱말 뜻. 본문 문장과 **다르게 보여야 한다** — 판결문에서 온 말이 아니라 사전에서 온
-  말이고, 읽는 사람이 그 차이를 알아야 한다. 왼쪽 선과 옅은 면으로 한 단 들여 놓는다.
+  말이고, 읽는 사람이 그 차이를 알아야 한다.
+
+  그 구분을 **면과 라벨**로 한다. 왼쪽에 굵은 색 막대를 세우지 않는다 — 그 표시가 화면
+  곳곳에 반복되면 "만들어 붙인 티"가 나고, 무엇보다 색을 못 보는 사람에게는 아무 말도
+  하지 않는다. `낱말 뜻`이라는 글자가 그 일을 한다.
 */
 .gloss {
   display: grid;
   gap: var(--el-space-1);
   margin: 0;
   padding: var(--el-space-3) var(--el-space-4);
-  border-left: 3px solid var(--el-border-focus);
-  border-radius: 0 var(--el-radius-s) var(--el-radius-s) 0;
+  border: 1px solid var(--el-border-subtle);
+  border-radius: var(--el-radius-s);
   background: var(--el-bg-subtle);
 }
 
