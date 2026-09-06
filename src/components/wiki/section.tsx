@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Icon } from "@/components/ui/icon";
 import { wiki } from "@/lib/strings";
 import styles from "./section.module.css";
 
@@ -42,8 +43,9 @@ function WikiSection({
             <span className={styles.number}>{wiki.sectionNumber(number)}</span>
           )}
           {heading}
+          {/* 문단 주소. `#` 글자 대신 사슬 아이콘을 쓴다 — `icon.tsx`의 `link` 참고. */}
           <a aria-label={wiki.anchorTo(heading)} className={styles.anchor} href={`#${id}`}>
-            {wiki.anchorMark}
+            <Icon name="link" size={16} />
           </a>
         </Heading>
         {meta === undefined ? null : <div className={styles.meta}>{meta}</div>}

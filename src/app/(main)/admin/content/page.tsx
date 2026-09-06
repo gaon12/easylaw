@@ -3,13 +3,22 @@ import { StructuredList } from "@/components/ui/structured-list";
 import { appDb } from "@/db/client";
 import { formatDateTime } from "@/lib/format";
 import { admin } from "@/lib/strings";
-import { contentCounts, dictSources, listLookupMisses } from "@/server/admin-overview";
+import {
+  contentCounts,
+  dictSources,
+  listJudgments,
+  listLookupMisses,
+} from "@/server/admin-overview";
 import { dictScheduleState } from "@/server/dict-schedule";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../admin.module.css";
+import { JudgmentList } from "../judgment-list";
 
 /** 못 찾은 사건번호를 몇 개까지 보여 주나. 자주 오르는 것만 보면 된다. */
 const MISS_ROWS = 20;
+
+/** 판례를 몇 줄까지. 최근에 받은 것부터 — 이상한 것은 대개 방금 받은 것이다. */
+const JUDGMENT_ROWS = 30;
 
 /**
  * 자료. `PAGES.md` §17
@@ -25,6 +34,7 @@ export default function AdminContentPage() {
   const counts = contentCounts();
   const sources = dictSources();
   const misses = listLookupMisses(MISS_ROWS);
+  const judgments = listJudgments(JUDGMENT_ROWS);
   const schedule = dictScheduleState();
   const timeZone = siteTimeZone(appDb());
   const at = (value: Date) => formatDateTime(value, timeZone);
@@ -55,6 +65,15 @@ export default function AdminContentPage() {
             { label: admin.contentLawVersions, value: `${counts.lawVersions.toLocaleString()}건` },
             { label: admin.contentLawArticles, value: `${counts.lawArticles.toLocaleString()}건` },
           ]}
+        />
+      </Card>
+
+      <Card as="section" className={styles.usage}>
+        <h2 className={styles.sectionTitle}>{admin.judgmentTitle}</h2>
+        <p className={styles.sectionBody}>{admin.judgmentIntro}</p>
+        <JudgmentList
+          formatTime={(value) => (value === null ? admin.judgmentNever : at(value))}
+          rows={judgments}
         />
       </Card>
 

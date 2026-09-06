@@ -217,3 +217,50 @@ describe("같은 법 시행령", () => {
     expect(detect("민법 제105조, 같은 법 시행령 제1조")[1]?.law).toBeUndefined();
   });
 });
+
+describe("이어 적은 항·호", () => {
+  /**
+   * `제5조 제2항·제3항`은 실제 판결문 표기다. 예전에는 첫 항만 링크가 되고 `제3항`은
+   * 맨 글자로 남았다 — 읽는 사람에게 두 항은 같은 무게인데 하나만 눌렸다.
+   */
+  it("가운뎃점으로 이어진 항을 각각 링크한다", () => {
+    const cites = detectCitations("민법 제5조 제2항·제3항에 따라", index);
+
+    expect(cites.map((c) => [c.articleNo, c.clauseNo, c.text])).toEqual([
+      ["5", "2", "제5조 제2항"],
+      ["5", "3", "제3항"],
+    ]);
+    expect(cites[1]?.law?.name).toBe("민법");
+    expect(cites[1]?.named).toBe(false);
+  });
+
+  it("`및`·`내지`·쉼표·`과`도 이어짐으로 본다", () => {
+    for (const joiner of ["·", " 및 ", " 내지 ", ", ", "과 "]) {
+      const cites = detectCitations(`민법 제5조 제2항${joiner}제3항`, index);
+      expect(cites, joiner).toHaveLength(2);
+      expect(cites[1]?.clauseNo, joiner).toBe("3");
+    }
+  });
+
+  it("이어진 호는 앞 항의 호다", () => {
+    const cites = detectCitations("민법 제10조 제1항 제2호·제3호", index);
+
+    expect(cites.map((c) => [c.clauseNo, c.itemNo])).toEqual([
+      ["1", "2"],
+      ["1", "3"],
+    ]);
+  });
+
+  it("항이 이어지면 앞의 호는 물려주지 않는다", () => {
+    // `제3항 제2호`는 글에 없다. 물려주면 있지도 않은 조문을 가리킨다.
+    const cites = detectCitations("민법 제10조 제1항 제2호, 제3항", index);
+
+    expect(cites.at(-1)).toMatchObject({ clauseNo: "3", itemNo: undefined });
+  });
+
+  it("조가 이어지는 것은 이어짐이 아니다 — 각자 하나의 인용이다", () => {
+    const cites = detectCitations("민법 제251조, 제252조 제1항", index);
+
+    expect(cites.map((c) => c.articleNo)).toEqual(["251", "252"]);
+  });
+});

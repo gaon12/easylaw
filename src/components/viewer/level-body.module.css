@@ -5,17 +5,31 @@
  * 예를 들어 L4를 21px로 키우고 줄 길이를 76ch로 두면, 한 줄이 너무 길어져 오히려 읽기 어렵다.
  */
 
+/*
+  **격자가 아니라 보통 흐름이다.**
+
+  한때 `display: grid`와 `gap`으로 문단 사이를 벌렸다. 보기에는 같았지만 격자 상자는
+  **띄운 상자(float)를 비켜 간다** — 정보 틀을 오른쪽에 띄우자 본문 전체가 그 폭만큼
+  좁아진 채로 문서 끝까지 내려갔고, 정보 틀이 끝난 아래로 화면 오른쪽 4분의 1이 빈
+  띠로 남았다. 보통 흐름에서는 글이 정보 틀을 **둘러 흐르고**, 틀이 끝나면 폭을 되찾는다.
+
+  문단 간격은 인접 형제에게만 준다. 첫 문단 위에는 여백이 붙지 않아야 앞의 제목과
+  간격이 두 번 더해지지 않는다.
+*/
 .body {
-  display: grid;
   min-width: 0;
   width: 100%;
+}
+
+.body > * + * {
+  margin-block-start: var(--el-level-gap);
 }
 
 /* 원문·법조 — 위키의 긴 법률 문서라 현재 열을 모두 쓴다. */
 .L0,
 .L1 {
   max-width: 100%;
-  gap: var(--el-space-4);
+  --el-level-gap: var(--el-space-4);
   font-size: var(--el-text-body-m);
   line-height: var(--el-leading-body);
 }
@@ -23,7 +37,7 @@
 /* 일반 설명 — 긴 글줄을 피하되, 어린이·쉬운말보다는 정보 밀도를 유지한다. */
 .L2 {
   max-width: 76ch;
-  gap: var(--el-space-4);
+  --el-level-gap: var(--el-space-4);
   font-size: var(--el-text-body-m);
   line-height: var(--el-leading-body);
 }
@@ -31,7 +45,7 @@
 /* L3 어린이 — 19px, 60ch. `fg-3` 이하를 본문에 쓰지 않는다(§4). */
 .L3 {
   max-width: 60ch;
-  gap: var(--el-space-5);
+  --el-level-gap: var(--el-space-5);
   font-size: var(--el-text-body-l);
   line-height: var(--el-leading-body);
 }
@@ -42,7 +56,7 @@
  */
 .L4 {
   max-width: 46ch;
-  gap: var(--el-space-6);
+  --el-level-gap: var(--el-space-6);
   font-size: var(--el-text-body-xl);
   line-height: var(--el-leading-loose);
 }

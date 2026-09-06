@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectHeadings, isHeading, tidyHeading } from "./headings";
+import { detectHeadings, isHeading, parseFieldLabel, tidyHeading } from "./headings";
 
 /** 예문은 실제 판결문(서울고법 2023나2014894)의 문장을 그대로 가져왔다. */
 const spans = [
@@ -68,5 +68,47 @@ describe("tidyHeading", () => {
     // 판결문은 `【주 문】`처럼 글자 사이를 벌려 적는다. 세로쓰기 시절의 관습이다.
     expect(tidyHeading("주    문")).toBe("주문");
     expect(tidyHeading("이 유")).toBe("이유");
+  });
+});
+
+describe("parseFieldLabel", () => {
+  /**
+   * 예문은 대법원 2023다287663의 머리다. 판결문은 당사자·원심판결을 구간 표제와 **같은
+   * 모양**으로 적는데, 뜻은 제목이 아니라 이름표다.
+   */
+  it("이름과 값을 나눈다", () => {
+    const field = parseFieldLabel(
+      "【원고, 피상고인】                ○○○유동화전문 유한회사 (소송대리인 법무법인(유한) 세종 담당변호사 백명헌 외 2인)",
+    );
+
+    expect(field?.label).toBe("원고, 피상고인");
+  });
+
+  it("쉼표 뒤의 공백은 남긴다 — 구간 표제와 다르다", () => {
+    // 구간 표제는 `【주 문】`처럼 글자 사이만 벌어져 있어 공백을 다 턴다.
+    expect(parseFieldLabel("【피고, 상고인】 기술보증기금")?.label).toBe("피고, 상고인");
+    expect(tidyHeading("주 문")).toBe("주문");
+  });
+
+  it("구간 표제는 이름표가 아니다", () => {
+    expect(parseFieldLabel("【주    문】")).toBeUndefined();
+    expect(parseFieldLabel("【이    유】  상고이유를 판단한다.")).toBeUndefined();
+  });
+
+  it("값이 없으면 이름표로 보지 않는다 — 오른쪽이 빈 줄이 남는다", () => {
+    expect(parseFieldLabel("【전 문】")).toBeUndefined();
+  });
+
+  it("문장 한가운데의 낫표는 건드리지 않는다", () => {
+    expect(parseFieldLabel("원심은 【주 문】이라고 적었다")).toBeUndefined();
+  });
+
+  it("값의 시작 위치를 알려 준다 — 인용 좌표를 옮겨야 한다", () => {
+    const text = "【원심판결】  서울고법 2023. 9. 20. 선고 2023나2014894 판결";
+    const field = parseFieldLabel(text);
+
+    expect(text.slice(field?.contentStart).trim()).toBe(
+      "서울고법 2023. 9. 20. 선고 2023나2014894 판결",
+    );
   });
 });

@@ -12,8 +12,18 @@ import { lawApi } from "@/lib/law-api/client";
 import type { PrecedentSummary } from "@/lib/law-api/parse";
 import { segmentJudgment } from "@/lib/text/segment";
 
-/** 저장해 둔 원문 링크에서 판례일련번호를 되찾는다. */
-const PRECEDENT_ID_IN_URL = /ID=(\d+)/u;
+/**
+ * 저장해 둔 원문 링크에서 판례일련번호를 되찾는다.
+ *
+ * **두 가지 모양을 다 본다.** 예전에는 오픈API 주소(`…lawService.do?…ID=622253`)를 적어
+ * 두었고, 지금은 사람이 열 수 있는 공개 주소(`…precInfoP.do?precSeq=622253`)를 적는다
+ * (`publicPrecedentUrl`). 그런데 이 정규식은 `ID=`만 보고 있었다 — 주소를 바꾼 뒤로
+ * **아무 판례도 본문을 받아 오지 못했다.** 조회는 되는데 원문이 없는 상태가 되고,
+ * 화면에는 "판례 일련번호를 알 수 없습니다"만 남는다.
+ *
+ * 옛 주소로 저장된 행이 아직 있으므로 둘 다 받는다.
+ */
+const PRECEDENT_ID_IN_URL = /(?:precSeq|ID)=(\d+)/u;
 
 /**
  * 사건번호 조회. `.dev/PRODUCT.md` §5.1
@@ -148,17 +158,25 @@ async function lookupCase(input: string, signal?: AbortSignal): Promise<LookupRe
  * 원문을 확보한다. 이미 캐시가 있으면 그대로 쓰고, 없으면 법제처에서 받아 저장한다.
  *
  * 문장 분할 결과를 그대로 저장한다 — 이 좌표가 근거 연결의 기준이다.
+ *
+ * ## `refresh`가 왜 있나
+ *
+ * 한 번 받아 둔 원문은 **영영 다시 받지 않았다.** 그래서 잘못 들어간 본문이 그대로 굳었다 —
+ * 실제로 시드가 넣은 잘린 픽스처가 화면에 문장 도중에서 끊긴 판결문으로 남아 있었고, 고칠
+ * 방법이 DB를 직접 여는 것뿐이었다. 판결문 본문은 확정되면 바뀌지 않으므로 **자동으로**
+ * 다시 받을 이유는 없다. 사람이 시켰을 때만 다시 받는다(`/admin/content`).
  */
 async function ensureJudgmentText(
   caseNoCanonical: string,
   signal?: AbortSignal,
+  options: { refresh?: boolean } = {},
 ): Promise<{ ok: true; spanCount: number } | { ok: false; reason: string }> {
   const db = corpusDb();
   const row = findJudgmentByCaseNo(db, caseNoCanonical);
   if (row === undefined) {
     return { ok: false, reason: "판례를 찾지 못했습니다." };
   }
-  if (row.textCachedAt !== null) {
+  if (row.textCachedAt !== null && options.refresh !== true) {
     return { ok: true, spanCount: listSpans(db, row.id).length };
   }
 

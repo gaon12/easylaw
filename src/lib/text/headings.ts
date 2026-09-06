@@ -75,6 +75,54 @@ function parseHeading(text: string): { label: string; contentStart: number } | u
 }
 
 /**
+ * `【원고, 피상고인】 ○○○유동화전문 유한회사 (…)` 처럼 **이름과 값**으로 적힌 줄.
+ *
+ * 판결문 머리에는 당사자·원심판결·변론종결이 이 꼴로 온다. 구간 표제와 모양이 같아서
+ * 한때 둘을 함께 제목으로 만들었는데, 그러면 사건 정보가 목차를 차지하고 같은 줄에 붙은
+ * **값까지 굵은 제목**이 됐다. 그래서 되돌려 평문으로 두었더니 이번에는 반대가 됐다 —
+ * `【원고, 피상고인】`이 문장 한가운데 글자로 남아, 무엇이 이름이고 무엇이 값인지
+ * 화면에서 구분되지 않았다.
+ *
+ * **셋째 갈래로 둔다.** 목차에는 올리지 않고(구간이 아니다), 이름과 값을 나눠 그린다.
+ * 원문 글자는 그대로 두고 화면에서만 나눈다 — 점자와 좌표는 원문을 본다.
+ */
+function parseFieldLabel(text: string): { label: string; contentStart: number } | undefined {
+  const matched = HEADING.exec(text);
+  const rawLabel = matched?.[1];
+  if (matched === null || rawLabel === undefined) {
+    return;
+  }
+
+  const label = tidyHeading(rawLabel);
+  // 구간 표제는 제목이지 이름표가 아니다.
+  if (SECTION_HEADINGS.has(label)) {
+    return;
+  }
+
+  /*
+   * 값이 없으면 이름표가 아니다. `【전 문】`처럼 홀로 선 낫표를 빈 값과 함께 그리면
+   * 화면에 이름만 있고 오른쪽이 비어 있는 줄이 남는다 — 그때는 평문이 낫다.
+   */
+  const value = text.slice(matched[0].length).trim();
+  if (value.length === 0) {
+    return;
+  }
+
+  return { label: tidyLabel(rawLabel), contentStart: matched[0].length };
+}
+
+/**
+ * 이름표의 공백을 **다듬되 뜻을 지킨다.**
+ *
+ * 구간 표제는 `【주 문】`처럼 글자 사이만 벌어져 있어 공백을 전부 털면 된다. 이름표는
+ * `【원고, 피상고인】`처럼 **쉼표 뒤의 공백이 뜻을 가진다** — 전부 털면 `원고,피상고인`이
+ * 되어 읽기 나빠진다. 그래서 연속 공백만 하나로 줄인다.
+ */
+function tidyLabel(raw: string): string {
+  return raw.trim().replace(/\s+/gu, " ");
+}
+
+/**
  * 구간 앵커. `s-1`, `s-2` …
  *
  * **span id(UUID)를 주소에 쓰지 않는다.** 두 가지가 나빠서다.
@@ -117,5 +165,5 @@ function isHeading(text: string): boolean {
   return parseHeading(text) !== undefined;
 }
 
-export { detectHeadings, isHeading, sectionAnchor, tidyHeading };
+export { detectHeadings, isHeading, parseFieldLabel, sectionAnchor, tidyHeading };
 export type { HeadingSpan };
