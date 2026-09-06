@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { admin } from "@/lib/strings";
 import type { AudioStatusRow } from "@/server/audio";
-import styles from "./page.module.css";
+import styles from "./admin.module.css";
 
 /**
  * 어느 설명에 음성이 있고 어디가 비었나. `PAGES.md` §17 · [F-11]
@@ -51,19 +51,15 @@ function AudioStatus({ rows }: { rows: readonly AudioStatusRow[] }) {
 
   if (rows.length === 0) {
     return (
-      <Card className={styles.usage} as="section">
-        <h2 className={styles.sectionTitle}>{admin.audioTitle}</h2>
-        <p className={styles.usageSummary}>{admin.audioEmpty}</p>
+      <Card>
+        <p className={styles.empty}>{admin.audioEmpty}</p>
       </Card>
     );
   }
 
   return (
-    <Card className={styles.usage} as="section">
-      <h2 className={styles.sectionTitle}>{admin.audioTitle}</h2>
-      <p className={styles.usageSummary}>{admin.audioBody}</p>
-
-      <table className={styles.audioTable}>
+    <Card className={styles.tableScroll}>
+      <table className={styles.table}>
         <thead>
           <tr>
             <th scope="col">{admin.audioColumns.caseNo}</th>
