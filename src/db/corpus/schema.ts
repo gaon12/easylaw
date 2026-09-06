@@ -7,8 +7,16 @@
  */
 
 import { sql } from "drizzle-orm";
-// biome-ignore lint/suspicious/noDeprecatedImports: primaryKey의 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
-import { index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import {
+  blob,
+  index,
+  integer,
+  // biome-ignore lint/suspicious/noDeprecatedImports: 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
+  primaryKey,
+  sqliteTable,
+  text,
+  unique,
+} from "drizzle-orm/sqlite-core";
 
 /** 판결 결과. "일부"를 숨기지 않으려고 별도 값으로 둔다(`PRODUCT.md` §4-A). */
 const OUTCOMES = [
@@ -146,6 +154,35 @@ const structureNode = sqliteTable(
     index("structure_node_version_idx").on(table.judgmentId, table.promptVersion),
   ],
 );
+
+/**
+ * 문장 하나의 음성. [F-11]
+ *
+ * **문장 단위다.** 변환본 한 벌을 통짜 파일로 두면 "지금 읽는 문장"을 표시하려고 타이밍
+ * 마크가 필요한데, 제공자마다 주는 것이 다르고 오픈웨이트 모델은 대개 주지 않는다.
+ * 문장마다 파일이면 다 읽은 뒤 다음 파일로 넘기면 되고, 지금 화면이 하는 그대로다.
+ *
+ * **문장 표에 매단다.** 그래야 변환본이 지워질 때, 그리고 올린 문서를 거둘 때
+ * (`/settings/data`) **cascade로 따라 지워진다.** 파일로 두면 따로 지워야 하고, 한 번
+ * 빠뜨리면 "지운 줄 알았던 판결문의 음성"이 디스크에 남는다. 그건 사고다.
+ *
+ * **속도는 저장하지 않는다.** 한 벌만 만들고 재생할 때 `playbackRate`로 바꾼다 —
+ * 세 단계를 각각 저장하면 자리가 세 배가 되는데, 브라우저가 이미 잘하는 일이다.
+ *
+ * `voice`·`model`을 함께 적는 이유는 **낡음을 알아보기 위해서**다. 운영자가 목소리를
+ * 바꾸면 옛 음성은 그 설정의 산물이지 지금 설정의 산물이 아니다.
+ */
+const renditionAudio = sqliteTable("rendition_audio", {
+  sentenceId: text("sentence_id")
+    .primaryKey()
+    .references(() => renditionSentence.id, { onDelete: "cascade" }),
+  voice: text("voice").notNull(),
+  model: text("model").notNull(),
+  /** `opus`·`mp3`처럼. 화면이 `<audio>`에 실을 때 MIME을 정하는 데 쓴다. */
+  format: text("format").notNull(),
+  bytes: blob("bytes", { mode: "buffer" }).notNull(),
+  createdAt: createdAt(),
+});
 
 /** 구조 노드 ↔ 원문 span (N:M). 근거 연결의 실체다. */
 const nodeSpan = sqliteTable(
@@ -317,6 +354,21 @@ const generationUsage = sqliteTable("generation_usage", {
 });
 
 /**
+ * 하루에 음성을 몇 벌 만들었나. **설명 생성과 따로 센다.**
+ *
+ * 표를 나누는 이유는 값이 다르기 때문이다 — 설명은 판결문 하나에 한 번이면 끝이지만
+ * 음성은 그 판결문의 **네 단계에 각각** 붙고, 글자당 값이 붙는 제공자도 있다. 한 통에
+ * 담으면 어느 쪽이 몫을 썼는지 알 수 없고, 상한 하나로 둘을 다스리게 된다.
+ *
+ * 한 벌(변환본 하나)이 한 번이다. 문장 스무 개를 스무 번으로 세지 않는다 — 사람이 누른
+ * 횟수가 곧 지출의 단위다.
+ */
+const audioUsage = sqliteTable("audio_usage", {
+  day: text("day").primaryKey(),
+  count: integer("count").notNull().default(0),
+});
+
+/**
  * 조회했지만 없던 사건번호.
  *
  * 하급심 대부분은 공개되지 않아 이 경로가 예외가 아니라 주 경로다(`PRODUCT.md` §5.4).
@@ -462,6 +514,8 @@ const apiCache = sqliteTable(
 
 /** drizzle 클라이언트에 넘길 스키마 묶음. 네임스페이스 import 대신 명시적으로 모은다. */
 const corpusSchema = {
+  audioUsage,
+  renditionAudio,
   apiCache,
   generationJob,
   generationUsage,
@@ -479,6 +533,8 @@ const corpusSchema = {
 };
 
 export {
+  audioUsage,
+  renditionAudio,
   apiCache,
   corpusSchema,
   CONFIDENCES,

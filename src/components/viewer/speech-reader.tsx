@@ -12,6 +12,7 @@ import {
   type SpeechRate,
   type SpeechSnapshot,
 } from "@/lib/speech";
+import { createAudioSpeech } from "@/lib/speech-audio";
 import { viewer } from "@/lib/strings";
 import styles from "./speech-reader.module.css";
 
@@ -108,30 +109,63 @@ function SpeechControls({
   );
 }
 
-function useSpeechPlayback(texts: readonly string[]) {
+interface SpeechParts {
+  driver: Parameters<typeof createSpeechPlayer>[0]["driver"];
+  createItem: Parameters<typeof createSpeechPlayer>[0]["createItem"];
+  destroy?: () => void;
+}
+
+/* 브라우저 음성. **아무것도 깔려 있지 않으면 `undefined`.** */
+function browserSpeech(): SpeechParts | undefined {
+  if (!("speechSynthesis" in window && "SpeechSynthesisUtterance" in window)) {
+    return;
+  }
+  const synthesis = window.speechSynthesis;
+  return {
+    driver: {
+      speak: (item) => synthesis.speak(item as SpeechSynthesisUtterance),
+      pause: () => synthesis.pause(),
+      resume: () => synthesis.resume(),
+      cancel: () => synthesis.cancel(),
+    },
+    createItem: (text): SpeechItem => new SpeechSynthesisUtterance(text) as unknown as SpeechItem,
+  };
+}
+
+/**
+ * 무엇으로 읽을까.
+ *
+ * **미리 만들어 둔 음성이 있으면 그것으로 읽는다.** 하나라도 빠지면 쓰지 않는다 —
+ * 중간에 브라우저 음성으로 갈아타면 목소리가 문장마다 바뀌어 더 나쁘다.
+ */
+function useSpeechPlayback(texts: readonly string[], audioUrls?: readonly (string | null)[]) {
   const [support, setSupport] = useState<Support>("checking");
   const [snapshot, setSnapshot] = useState<SpeechSnapshot>(INITIAL_SNAPSHOT);
   const [error, setError] = useState<string | null>(null);
   const playerRef = useRef<SpeechPlayer | null>(null);
+  const ready =
+    audioUrls !== undefined &&
+    audioUrls.length === texts.length &&
+    audioUrls.every((url) => url !== null);
 
   useEffect(() => {
-    if (
-      !("speechSynthesis" in window && "SpeechSynthesisUtterance" in window) ||
-      texts.length === 0
-    ) {
+    if (texts.length === 0) {
       setSupport("unsupported");
       return;
     }
-    const synthesis = window.speechSynthesis;
+
+    const made: SpeechParts | undefined = ready
+      ? createAudioSpeech((audioUrls ?? []).filter((url): url is string => url !== null))
+      : browserSpeech();
+    if (made === undefined) {
+      setSupport("unsupported");
+      return;
+    }
+
     const player = createSpeechPlayer({
       texts,
-      driver: {
-        speak: (item) => synthesis.speak(item as SpeechSynthesisUtterance),
-        pause: () => synthesis.pause(),
-        resume: () => synthesis.resume(),
-        cancel: () => synthesis.cancel(),
-      },
-      createItem: (text): SpeechItem => new SpeechSynthesisUtterance(text) as unknown as SpeechItem,
+      driver: made.driver,
+      createItem: made.createItem,
       onChange: setSnapshot,
       onError: () => setError(viewer.speech.error),
     });
@@ -142,8 +176,9 @@ function useSpeechPlayback(texts: readonly string[]) {
     return () => {
       player.destroy();
       playerRef.current = null;
+      made.destroy?.();
     };
-  }, [texts]);
+  }, [texts, audioUrls, ready]);
 
   return { error, playerRef, setError, snapshot, support };
 }

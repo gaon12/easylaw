@@ -14,8 +14,16 @@
  */
 
 import { sql } from "drizzle-orm";
-// biome-ignore lint/suspicious/noDeprecatedImports: primaryKey의 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
-import { index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import {
+  blob,
+  index,
+  integer,
+  // biome-ignore lint/suspicious/noDeprecatedImports: 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
+  primaryKey,
+  sqliteTable,
+  text,
+  unique,
+} from "drizzle-orm/sqlite-core";
 import { MASK_KINDS } from "@/lib/text/mask";
 
 /**
@@ -266,6 +274,23 @@ const uploadStructureNode = sqliteTable(
   ],
 );
 
+/**
+ * 올린 문서 문장의 음성. 공개 판례 쪽(`rendition_audio`)과 같은 이유·같은 모양이다.
+ *
+ * 여기서는 **거두기가 더 중요하다.** `/settings/data`에서 자료를 거둘 때 문장이 지워지면
+ * 음성도 따라 지워져야 한다. 파일이 아니라 이 표에 두는 이유가 그것이다.
+ */
+const uploadRenditionAudio = sqliteTable("upload_rendition_audio", {
+  sentenceId: text("sentence_id")
+    .primaryKey()
+    .references(() => uploadRenditionSentence.id, { onDelete: "cascade" }),
+  voice: text("voice").notNull(),
+  model: text("model").notNull(),
+  format: text("format").notNull(),
+  bytes: blob("bytes", { mode: "buffer" }).notNull(),
+  createdAt: timestampNow("created_at"),
+});
+
 /** 구조 노드 ↔ 올린 문서의 원문 span (N:M). 근거 연결의 실체다. */
 const uploadNodeSpan = sqliteTable(
   "upload_node_span",
@@ -392,6 +417,7 @@ const auditLog = sqliteTable(
 
 /** drizzle 클라이언트에 넘길 스키마 묶음. 네임스페이스 import 대신 명시적으로 모은다. */
 const appSchema = {
+  uploadRenditionAudio,
   auditLog,
   session,
   setting,
@@ -407,6 +433,7 @@ const appSchema = {
 };
 
 export {
+  uploadRenditionAudio,
   appSchema,
   auditLog,
   CONFIDENCES,

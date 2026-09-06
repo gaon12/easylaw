@@ -35,6 +35,30 @@ const SETTINGS = {
   llm_base_url: { secret: false },
   llm_api_key: { secret: true },
   llm_model: { secret: false },
+  /**
+   * 음성 합성. `llm_*`과 같은 모양이다 — 주소·키·모델 세 칸이면 어느 제공자든 꽂힌다.
+   *
+   * **목소리는 운영자가 하나 고른다.** 이용자에게 고르게 하면 저장이 목소리 수만큼
+   * 늘어나고(문장마다 파일이 하나씩이다), 화면에는 설정이 하나 더 는다. 이용자가
+   * 바꾸고 싶은 것은 대개 목소리가 아니라 **속도**이고, 그것은 재생할 때 바꾼다.
+   */
+  tts_base_url: { secret: false },
+  tts_api_key: { secret: true },
+  tts_model: { secret: false },
+  tts_voice: { secret: false },
+  /**
+   * 음성은 **따로 센다.** 설명 생성과 값이 다르다 — 설명은 한 번 만들면 끝이지만 음성은
+   * 같은 판결문의 네 단계에 각각 붙고, 글자당 값이 붙는 제공자도 있다.
+   */
+  tts_daily_limit: { secret: false },
+  /**
+   * 올린 문서도 음성으로 만들까. **기본은 금지.**
+   *
+   * 올린 판결문을 밖의 TTS로 보내면 그 사람이 어떤 사건을 들고 왔는지가 남의 서버에
+   * 남는다. 그래서 이 값은 **주소가 내 컴퓨터를 가리킬 때만** 화면에 나타난다
+   * (`admin/page.tsx`) — 외부 주소를 넣은 설치에서는 켤 길 자체가 없다.
+   */
+  tts_uploads: { secret: false },
   generation_daily_limit: { secret: false },
   generation_ip_limit: { secret: false },
   generation_session_limit: { secret: false },
@@ -171,6 +195,69 @@ function llmConfig(db: AppDb = appDb()): LlmConfig | undefined {
 
 const DEFAULT_LLM_MODEL = "claude-sonnet-5";
 
+interface TtsConfig {
+  readonly baseUrl: string;
+  readonly apiKey: string;
+  readonly model: string;
+  readonly voice: string;
+}
+
+/**
+ * 음성 연결. 주소가 없으면 `undefined`이고, 그때는 브라우저 음성으로 읽는다.
+ *
+ * **키는 없어도 된다.** 자기 컴퓨터에 띄운 서버는 키를 요구하지 않는 경우가 흔하다 —
+ * 키를 필수로 두면 그런 설치가 아무 이유 없이 막힌다(`llm_*`과 다른 점이다).
+ */
+function ttsConfig(db: AppDb = appDb()): TtsConfig | undefined {
+  const baseUrl = readSetting(db, "tts_base_url");
+  if (baseUrl === undefined) {
+    return;
+  }
+  return {
+    baseUrl,
+    apiKey: readSetting(db, "tts_api_key") ?? "",
+    model: readSetting(db, "tts_model") ?? DEFAULT_TTS_MODEL,
+    voice: readSetting(db, "tts_voice") ?? DEFAULT_TTS_VOICE,
+  };
+}
+
+const DEFAULT_TTS_MODEL = "melo-ko";
+const DEFAULT_TTS_VOICE = "KR";
+
+/** 하루에 음성을 몇 벌까지 만들까. 변환본 하나가 한 벌이다. */
+const DEFAULT_TTS_DAILY_LIMIT = 100;
+
+function ttsDailyLimit(db: AppDb = appDb()): number {
+  const raw = Number(readSetting(db, "tts_daily_limit") ?? DEFAULT_TTS_DAILY_LIMIT);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_TTS_DAILY_LIMIT;
+}
+
+/**
+ * 올린 문서도 음성으로 만들까.
+ *
+ * **주소가 내 컴퓨터를 가리킬 때만 참이 될 수 있다.** 설정값이 켜져 있어도 주소가 밖을
+ * 가리키면 거짓이다 — 주소를 바꾼 뒤 설정을 끄는 것을 잊는 일이 실제로 일어난다.
+ */
+function ttsAllowsUploads(db: AppDb = appDb()): boolean {
+  if (readSetting(db, "tts_uploads") !== "true") {
+    return false;
+  }
+  return isLocalUrl(readSetting(db, "tts_base_url"));
+}
+
+/** 내 컴퓨터를 가리키는 주소인가. 사내망 주소는 밖으로 본다 — 우리가 알 수 없다. */
+function isLocalUrl(raw: string | undefined): boolean {
+  if (raw === undefined) {
+    return false;
+  }
+  try {
+    const { hostname } = new URL(raw);
+    return hostname === "localhost" || hostname === "::1" || hostname.startsWith("127.");
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 기본 시간대.
  *
@@ -239,6 +326,10 @@ function generationSessionLimit(db: AppDb = appDb()): number {
 }
 
 export {
+  isLocalUrl,
+  ttsAllowsUploads,
+  ttsConfig,
+  ttsDailyLimit,
   DEFAULT_DAILY_GENERATION_LIMIT,
   DEFAULT_GENERATION_IP_LIMIT,
   DEFAULT_GENERATION_SESSION_LIMIT,
@@ -260,4 +351,4 @@ export {
   writeSetting,
   writeSettings,
 };
-export type { LlmConfig, SettingKey, SettingView };
+export type { LlmConfig, SettingKey, SettingView, TtsConfig };
