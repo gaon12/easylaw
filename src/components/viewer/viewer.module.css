@@ -89,7 +89,11 @@
   margin: 0;
   line-height: 1.7;
   overflow-wrap: anywhere;
-  scroll-margin-top: var(--el-space-8);
+  /*
+   * 칸이 스스로 흐르므로(2단 대조), 근거 링크로 뛰어온 문장이 칸 위쪽의 붙박이 제목에
+   * 가리지 않도록 여유를 둔다.
+   */
+  scroll-margin-top: var(--el-space-12);
 }
 
 /*

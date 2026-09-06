@@ -51,7 +51,7 @@
   gap: var(--el-space-4);
   max-width: var(--el-container-wide);
   margin: 0 auto;
-  padding: 0 var(--el-space-6);
+  padding: 0 var(--el-gutter);
   min-height: 58px;
 }
 
@@ -225,7 +225,7 @@
 .footerInner {
   max-width: var(--el-container-wide);
   margin: 0 auto;
-  padding: var(--el-space-8) var(--el-space-6);
+  padding: var(--el-space-8) var(--el-gutter);
   display: grid;
   gap: var(--el-space-4);
 }
