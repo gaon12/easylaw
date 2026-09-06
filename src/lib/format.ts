@@ -108,4 +108,28 @@ function daysUntil(
   return Math.round((startOfDay(target, timeZone) - startOfDay(now, timeZone)) / DAY_MS);
 }
 
-export { DAY_MS, dayKey, daysUntil, DEFAULT_TIME_ZONE, formatDate, formatDateTime };
+/** 한 단위를 오르는 크기. 파일 탐색기가 1024로 나누므로 우리도 그렇게 센다. */
+const BYTES_PER_STEP = 1024;
+
+/**
+ * 파일 크기를 사람이 읽는 말로. 관리 화면이 디스크 사용량을 보여 줄 때 쓴다.
+ *
+ * **1000이 아니라 1024로 나눈다.** 운영체제의 파일 탐색기가 그렇게 보여 주기 때문에,
+ * 여기서 다르게 세면 같은 파일이 두 가지 크기로 보인다.
+ */
+function formatBytes(bytes: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+
+  let value = bytes;
+  let unit = 0;
+  while (value >= BYTES_PER_STEP && unit < units.length - 1) {
+    value /= BYTES_PER_STEP;
+    unit += 1;
+  }
+
+  // 바이트 단위에는 소수점이 뜻이 없다. 그 위로는 한 자리면 눈으로 견주기에 충분하다.
+  const shown = unit === 0 ? String(value) : value.toFixed(1);
+  return `${shown}${units[unit]}`;
+}
+
+export { DAY_MS, dayKey, daysUntil, DEFAULT_TIME_ZONE, formatBytes, formatDate, formatDateTime };

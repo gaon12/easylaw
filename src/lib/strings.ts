@@ -922,8 +922,93 @@ export const setup = {
  * 마법사에서 넣은 값을 나중에 못 고치면, 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
  */
 export const admin = {
-  title: "관리자 설정",
-  intro: "서비스 설정을 바꾸실 수 있어요. 이 화면은 관리자만 볼 수 있어요.",
+  title: "관리자",
+  intro: "서비스 상태를 보고 설정을 바꾸실 수 있어요. 이 화면은 관리자만 볼 수 있어요.",
+
+  /*
+   * 메뉴. **한 화면에 다 쌓아 두었던 것을 성격대로 갈랐다.**
+   *
+   * 예전에는 사용량·음성·실패·설정·계정이 한 장에 세로로 이어져 있었다. 그러면 설정
+   * 하나를 고치려고 들어와도 실패 목록을 지나쳐야 하고, 반대로 상태를 보러 와도 저장
+   * 버튼이 눈에 들어온다. **보는 것과 바꾸는 것은 다른 일이다.**
+   */
+  nav: {
+    overview: "한눈에",
+    audio: "설명 음성",
+    content: "자료",
+    log: "기록",
+    settings: "설정",
+    users: "계정",
+    system: "시스템",
+    test: "연결 시험",
+  },
+  navLabel: "관리자 메뉴",
+
+  /* 한눈에. 숫자만 크게 놓고, 문제가 없으면 조용하다. */
+  overviewTitle: "한눈에",
+  overviewIntro: "지금 서비스가 어떤 상태인지 한 화면에 모았어요.",
+  overviewHealthy: "지금은 살펴볼 것이 없어요.",
+  metricGeneration: "오늘 만든 설명",
+  metricGenerationLimit: (limit: number) => `하루 상한 ${limit}번`,
+  metricJudgments: "가지고 있는 판례",
+  metricRenditions: "만들어 둔 설명",
+  metricAudio: "설명 음성",
+  metricUsers: "계정",
+  metricFailures: "최근 실패",
+  metricUnit: { times: "번", cases: "건", clips: "개", people: "명" },
+  seeMore: "자세히 보기",
+
+  /** 자료. 무엇을 얼마나 들고 있나. */
+  contentTitle: "자료",
+  contentIntro: "지금 가지고 있는 판례·법령·사전이에요.",
+  contentCorpus: "판례·법령",
+  contentDict: "사전",
+  contentJudgments: "판례",
+  contentRenditions: "쉬운 설명",
+  contentLawVersions: "법령 판",
+  contentLawArticles: "조문",
+  contentDictEntries: "사전 뜻풀이",
+  contentLegalTerms: "법령용어",
+  dictSourceColumns: { label: "원본", builtAt: "판", fetchedAt: "받은 때", entries: "항목" },
+  dictNever: "아직 받지 않았어요.",
+  dictScheduleTitle: "사전 자동 갱신",
+  dictScheduleIdle: "아직 돌지 않았어요. 서버가 뜬 뒤 1분쯤 지나면 한 번 살펴봐요.",
+  dictScheduleOk: (at: string) => `${at}에 확인했고 문제없었어요.`,
+  dictScheduleFailed: (at: string) => `${at}에 확인하다 실패했어요.`,
+  missTitle: "못 찾은 사건번호",
+  missIntro: "찾으셨는데 우리가 가져오지 못한 사건번호예요. 자주 오르는 것부터 살펴볼 만해요.",
+  missEmpty: "못 찾은 사건번호가 없어요.",
+  missColumns: { caseNo: "사건번호", count: "찾은 횟수", lastTriedAt: "마지막" },
+
+  /** 기록. 감사 기록과 최근 실패를 함께 둔다 — 둘 다 "무슨 일이 있었나"다. */
+  logTitle: "기록",
+  logIntro: "계정과 문서에 무슨 일이 있었는지, 무엇이 실패했는지 적어 둔 것이에요.",
+  auditTitle: "감사 기록",
+  auditIntro: "내용은 남기지 않아요. 언제 무슨 일이 있었는지만 적어요.",
+  auditEmpty: "아직 남은 기록이 없어요.",
+  auditColumns: { at: "때", action: "한 일", actor: "누가", target: "대상" },
+  auditUnknownActor: "(알 수 없음)",
+  auditActions: {
+    "user.signed_up": "가입",
+    "user.nickname_changed": "이름 바꿈",
+    "user.role_changed": "권한 바꿈",
+    "user.deleted": "탈퇴",
+    "upload.created": "문서 올림",
+    "upload.deleted": "문서 지움",
+    "setting.changed": "설정 바꿈",
+  } as Record<string, string>,
+
+  /** 시스템. 설치 마법사에만 있던 환경 점검을 설치 뒤에도 볼 수 있게 옮겼다. */
+  systemTitle: "시스템",
+  systemIntro: "이 서버가 어떤 상태인지 살펴봤어요. 설치할 때 본 것과 같은 항목이에요.",
+  storageTitle: "저장 공간",
+  storageIntro: "데이터베이스는 세 파일로 나뉘어 있어요. 어느 것이 커지는지 여기서 보여요.",
+  storageColumns: { label: "무엇", path: "파일", bytes: "크기" },
+  storageMissing: "아직 없어요",
+  audioStorage: (clips: number, size: string) => `음성 ${clips}개, ${size}`,
+
+  settingsTitle: "설정",
+  settingsIntro: "마법사에서 넣은 값을 여기서 고치실 수 있어요. 저장하면 곧바로 반영돼요.",
   /**
    * 최근 실패. **여기가 없어서 실패 이유가 이용자 화면에 적혀 있었다.**
    * 운영자가 원인을 아는 길이 터미널뿐이었기 때문이다.

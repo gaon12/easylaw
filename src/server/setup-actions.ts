@@ -161,7 +161,7 @@ async function saveSettings(formData: FormData): Promise<void> {
   const baseUrl = field(formData, "llm_base_url");
   const problem = checkBaseUrl(baseUrl);
   if (problem !== undefined) {
-    redirect(`/admin?url_problem=${problem}`);
+    redirect(`/admin/settings?url_problem=${problem}`);
   }
 
   const values: Partial<Record<SettingKey, string>> = {
@@ -198,7 +198,7 @@ async function saveSettings(formData: FormData): Promise<void> {
    * **칸에 보이는 것이 곧 저장될 값이다.**
    */
   writeSettings(appDb(), values, session.userId);
-  redirect("/admin?saved=1");
+  redirect("/admin/settings?saved=1");
 }
 
 /** 관리자 화면에서 기존 가입자를 관리자로 지정한다. 비밀번호를 다루지 않는다. */
@@ -219,7 +219,7 @@ async function setAdminRole(
   if (result !== "updated" && result !== "unchanged") {
     return { problem: result };
   }
-  redirect("/admin?saved=1");
+  redirect("/admin/users?saved=1");
 }
 
 export {

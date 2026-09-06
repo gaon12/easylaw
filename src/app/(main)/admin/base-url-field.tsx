@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { baseUrlAdvice, checkBaseUrl } from "@/lib/llm/base-url";
 import { setup } from "@/lib/strings";
-import styles from "./page.module.css";
+import styles from "./admin.module.css";
 
 /**
  * AI API 주소 칸. `CONVENTIONS.md` §7

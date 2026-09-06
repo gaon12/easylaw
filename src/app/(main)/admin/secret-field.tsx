@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { admin } from "@/lib/strings";
-import styles from "./page.module.css";
+import styles from "./admin.module.css";
 
 /**
  * 비밀 항목 입력 칸. `CONVENTIONS.md` §10.5

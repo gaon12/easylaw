@@ -1,12 +1,131 @@
-/* 관리자 설정. 폼 화면이라 단일 canvas를 쓴다(`DESIGN.md` §5.1). */
+/*
+  관리자 화면. 단일 canvas를 쓴다(`DESIGN.md` §5.1).
+
+  폭이 두 겹인 이유: 바깥(`.shell`)은 메뉴와 본문이 **같은 선에서 시작**하도록 잡고,
+  안쪽(`.page`)은 간격만 준다. 예전처럼 화면마다 폭을 따로 적으면 메뉴와 본문의 왼쪽
+  끝이 화면마다 어긋난다.
+*/
+
+.shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--el-space-8) var(--el-gutter) var(--el-space-16);
+  display: grid;
+  gap: var(--el-space-8);
+  align-content: start;
+}
 
 .page {
-  max-width: 620px;
-  margin: 0 auto;
-  padding: var(--el-space-10) var(--el-space-6) var(--el-space-16);
   display: grid;
   gap: var(--el-space-6);
   align-content: start;
+}
+
+/* 권한이 없을 때. 껍데기 바깥에서 그리므로 여백을 스스로 갖는다. */
+.denied {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--el-space-10) var(--el-gutter) var(--el-space-16);
+}
+
+/*
+  메뉴. 가로로 흐르고 좁은 화면에서는 접힌다 — 항목이 여덟이라 한 줄에 다 들어가지 않는다.
+  좌측 세로 메뉴로 두지 않은 이유는, 관리 화면이 본문 폭을 다 쓰는 표를 여럿 그리기
+  때문이다. 세로 메뉴를 두면 표가 그만큼 좁아진다.
+*/
+.nav {
+  border-bottom: 1px solid var(--el-border-default);
+  padding-bottom: var(--el-space-3);
+}
+
+.navList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-1) var(--el-space-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 지금 자리를 색으로만 알리지 않는다(§11) — 굵기와 밑줄이 함께 말한다. */
+.navLink {
+  color: var(--el-fg-2);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--el-touch-target);
+  font-size: var(--el-text-body-s);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  color: var(--el-fg-1);
+  text-decoration: underline;
+}
+
+.navLink[aria-current="page"] {
+  color: var(--el-action);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 2px;
+}
+
+/*
+  한눈에 보는 숫자들. **숫자를 크게, 이름을 작게.** 상자마다 색을 입히거나 왼쪽에 색 막대를
+  두지 않는다(§11.6) — 여덟 개가 저마다 다른 색이면 어느 것이 문제인지가 오히려 안 보인다.
+*/
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--el-space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.metric {
+  display: grid;
+  gap: var(--el-space-1);
+  align-content: start;
+}
+
+.metricValue {
+  font-size: var(--el-text-heading-l);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.metricUnit {
+  font-size: var(--el-text-body-s);
+  font-weight: 400;
+  color: var(--el-fg-2);
+  margin-left: 2px;
+}
+
+.metricLabel {
+  font-size: var(--el-text-body-s);
+  color: var(--el-fg-2);
+}
+
+.metricNote {
+  font-size: var(--el-text-body-xs);
+  color: var(--el-fg-3);
+}
+
+/* 표가 좁은 화면에서 본문을 밀어내지 않게 제 안에서 흐른다(§5.2). */
+.tableScroll {
+  overflow-x: auto;
+}
+
+.sectionBody {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+}
+
+.empty {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
 }
 
 .header {
@@ -76,8 +195,9 @@
 }
 
 @media (max-width: 640px) {
-  .page {
-    padding: var(--el-space-8) var(--el-space-4) var(--el-space-12);
+  .shell {
+    padding: var(--el-space-6) var(--el-gutter) var(--el-space-12);
+    gap: var(--el-space-6);
   }
 
   .form {
@@ -242,23 +362,23 @@
   border-top: 0;
 }
 
-/* 음성 현황 표. 숫자가 나란히 읽히게 고정폭 숫자를 쓴다. */
-.audioTable {
+/* 관리 화면의 표. 숫자가 나란히 읽히게 고정폭 숫자를 쓴다. */
+.table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--el-text-body-s);
   font-variant-numeric: tabular-nums;
 }
 
-.audioTable th,
-.audioTable td {
+.table th,
+.table td {
   padding: var(--el-space-2) var(--el-space-3) var(--el-space-2) 0;
   border-bottom: 1px solid var(--el-border-subtle);
   text-align: left;
   vertical-align: middle;
 }
 
-.audioTable th {
+.table th {
   color: var(--el-fg-2);
   font-weight: 700;
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useId } from "react";
+import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { admin } from "@/lib/strings";
 import { type AdminRoleState, setAdminRole } from "@/server/setup-actions";
-import styles from "./page.module.css";
+import styles from "./admin.module.css";
 
 interface AdminUser {
   readonly id: string;
@@ -52,20 +52,14 @@ function UserRoleForm({ user }: { user: AdminUser }) {
   );
 }
 
+/** 제목과 안내는 화면이 그린다 — 이 컴포넌트는 목록만 그린다. */
 function UserRoles({ users }: { users: readonly AdminUser[] }) {
-  const titleId = useId();
   return (
-    <section aria-labelledby={titleId} className={styles.usersSection}>
-      <h2 className={styles.sectionTitle} id={titleId}>
-        {admin.usersTitle}
-      </h2>
-      <p className={styles.usageSummary}>{admin.usersIntro}</p>
-      <ul className={styles.userList}>
-        {users.map((user) => (
-          <UserRoleForm key={user.id} user={user} />
-        ))}
-      </ul>
-    </section>
+    <ul className={styles.userList}>
+      {users.map((user) => (
+        <UserRoleForm key={user.id} user={user} />
+      ))}
+    </ul>
   );
 }
 

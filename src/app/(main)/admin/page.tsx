@@ -1,315 +1,153 @@
 import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StructuredList } from "@/components/ui/structured-list";
 import { listRecentUploadFailures } from "@/db/app/generation";
 import { listUsersForAdmin } from "@/db/app/repository";
 import { appDb, corpusDb } from "@/db/client";
 import { listRecentGenerationFailures } from "@/db/corpus/repository";
-import { formatDateTime } from "@/lib/format";
-import { baseUrlAdvice, isBaseUrlProblem } from "@/lib/llm/base-url";
-import { admin, adminTest, setup } from "@/lib/strings";
-import { caseAudioStatus } from "@/server/audio";
+import { admin } from "@/lib/strings";
+import { audioStored, contentCounts } from "@/server/admin-overview";
+import { checkEnvironment, hasBlockingIssue } from "@/server/environment";
 import { generationBudget } from "@/server/generate";
-import { currentSession } from "@/server/owner";
-import {
-  isLocalUrl,
-  listSettingsForEditing,
-  shouldUseSecureCookies,
-  siteTimeZone,
-  ttsAllowsUploads,
-} from "@/server/settings";
-import { saveSettings } from "@/server/setup-actions";
-import { AudioStatus } from "./audio-status";
-import { BaseUrlField } from "./base-url-field";
-import styles from "./page.module.css";
-import { RecentFailures } from "./recent-failures";
-import { SecretField } from "./secret-field";
-import { UserRoles } from "./user-roles";
+import styles from "./admin.module.css";
 
-/** 최근 실패를 몇 개까지 보여 주나. 원인을 알아보는 데 필요한 만큼이면 된다. */
-const RECENT_FAILURES = 10;
-
-/** 음성 현황을 몇 줄까지 보여 주나. 최근 것부터. */
-const AUDIO_ROWS = 20;
-
-/** 화면에서 고칠 수 있는 항목. 설치 완료 표시는 여기서 건드리지 않는다. */
-const EDITABLE = [
-  "time_zone",
-  "law_api_oc",
-  "llm_base_url",
-  "llm_api_key",
-  "llm_model",
-  "tts_base_url",
-  "tts_api_key",
-  "tts_model",
-  "tts_voice",
-  "tts_daily_limit",
-  "generation_daily_limit",
-  "generation_ip_limit",
-  "generation_session_limit",
-] as const;
-
-type EditableKey = (typeof EDITABLE)[number];
-
-const SECRET_KEYS = new Set<string>(["law_api_oc", "llm_api_key", "tts_api_key"]);
+/** 살펴볼 것이 있는지 판단할 때만 센다. 목록은 "기록" 화면이 보여 준다. */
+const FAILURE_WINDOW = 10;
 
 /**
- * 시간대 칸.
+ * 숫자 하나. **크기로 읽히게 한다** — 이름은 작게, 값은 크게.
  *
- * 목록을 손으로 적지 않고 `Intl.supportedValuesOf`로 이 런타임이 아는 것만 보여 준다.
- * 적어 둔 목록은 Node를 올리는 순간 낡는다.
+ * 상자 왼쪽이나 위에 색 막대를 두지 않는다(`DESIGN.md` §11.6). 숫자 여섯 개가 저마다 다른
+ * 색을 달고 있으면 어느 것이 문제인지가 오히려 안 보인다. 색은 정말로 살펴볼 것이 있을 때
+ * 화면 맨 위 한 곳에서만 쓴다.
  */
-function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly string[] }) {
-  return (
-    <label className={styles.field}>
-      <span className={styles.label}>{setup.settingNames.time_zone}</span>
-      <select className={styles.input} defaultValue={timeZone} name="time_zone">
-        {zones.map((zone) => (
-          <option key={zone} value={zone}>
-            {zone}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-/**
- * 칸마다 붙는 안내. 없는 칸에는 붙이지 않는다.
- *
- * AI 주소는 **OpenAI 호환이어야 한다.** 칸이 하나뿐이라 제공자가 안내하는 주소를 그대로
- * 붙여 넣게 되는데, Gemini 네이티브 주소를 넣으면 `contents is not specified` 400이 오고
- * 그 문장만으로는 원인을 알 수 없다. 마법사에만 적어 두면 소용이 없다 — 설치가 끝난 뒤에
- * 주소를 고치는 곳은 여기다.
- */
-const FIELD_HINTS: Partial<Record<EditableKey, string>> = {
-  llm_base_url: setup.llmBaseUrlHint,
-  llm_model: setup.llmModelHint,
-  tts_base_url: setup.ttsBaseUrlHint,
-  tts_model: setup.ttsModelHint,
-  tts_voice: setup.ttsVoiceHint,
-  tts_daily_limit: setup.ttsLimitHint,
-  generation_ip_limit: setup.ipLimitHint,
-  generation_session_limit: setup.sessionLimitHint,
-};
-
-/** 가릴 것이 없는 칸. 비밀 항목은 `SecretField`가 따로 그린다. */
-function TextField({ name, value }: { name: EditableKey; value: string | undefined }) {
-  const hint = FIELD_HINTS[name];
-
-  return (
-    <label className={styles.field}>
-      <span className={styles.label}>{setup.settingNames[name]}</span>
-      <input
-        autoComplete="off"
-        className={styles.input}
-        defaultValue={value}
-        name={name}
-        type="text"
-      />
-      {hint === undefined ? null : <span className={styles.hint}>{hint}</span>}
-    </label>
-  );
-}
-
-/**
- * 설정 폼. 화면 함수에서 떼어 낸 이유는 길이뿐이다 — 칸 종류가 넷이라(시간대·주소·비밀·글)
- * 한 함수에 두면 "이 화면에 무엇이 있는가"가 폼 안쪽에 묻힌다.
- */
-function SettingsForm({
-  db,
-  settings,
-  timeZone,
-  zones,
-  localTts,
-  uploadsOn,
+function Metric({
+  label,
+  value,
+  unit,
+  note,
+  href,
 }: {
-  db: ReturnType<typeof appDb>;
-  settings: readonly { key: string; value: string | undefined }[];
-  timeZone: string;
-  zones: readonly string[];
-  /** 음성 주소가 내 컴퓨터를 가리키나. 올린 문서 스위치를 그릴지 정한다. */
-  localTts: boolean;
-  uploadsOn: boolean;
+  label: string;
+  value: number;
+  unit: string;
+  note?: string;
+  href?: string;
 }) {
   return (
-    <form action={saveSettings}>
-      <Card className={styles.form}>
-        {EDITABLE.map((key) => {
-          const value = settings.find((entry) => entry.key === key)?.value;
-
-          if (key === "time_zone") {
-            return <TimeZoneField key={key} timeZone={timeZone} zones={zones} />;
-          }
-          if (key === "llm_base_url") {
-            return (
-              <BaseUrlField key={key} label={setup.settingNames[key]} name={key} value={value} />
-            );
-          }
-          if (SECRET_KEYS.has(key)) {
-            return (
-              <SecretField key={key} label={setup.settingNames[key]} name={key} value={value} />
-            );
-          }
-          return <TextField key={key} name={key} value={value} />;
-        })}
-
-        {/*
-        https 설정은 값을 적는 칸이 아니라 켜고 끄는 것이라 따로 그린다.
-        잘못 켜면 로그인이 조용히 막히므로 경고를 함께 둔다.
-      */}
-        <label className={styles.checkboxRow}>
-          <input
-            className={styles.checkbox}
-            defaultChecked={shouldUseSecureCookies(db)}
-            name="secure_cookies"
-            type="checkbox"
-            value="true"
-          />
-          <span className={styles.label}>{setup.httpsLabel}</span>
-        </label>
-        <p className={styles.hint}>{setup.httpsWarn}</p>
-
-        {/*
-          **주소가 내 컴퓨터를 가리킬 때만 이 칸이 있다.**
-
-          외부 주소를 넣은 설치에는 켜는 길 자체가 없다 — 실수로 켤 수 있는 경로를 없애는
-          것이 안내 문구보다 확실하다. 설정이 켜져 있어도 주소가 밖을 가리키면 서버가
-          다시 거짓으로 본다(`ttsAllowsUploads`).
-        */}
-        {localTts ? (
-          <>
-            <label className={styles.checkboxRow}>
-              <input
-                className={styles.checkbox}
-                defaultChecked={uploadsOn}
-                name="tts_uploads"
-                type="checkbox"
-                value="true"
-              />
-              <span className={styles.label}>{setup.settingNames.tts_uploads}</span>
-            </label>
-            <p className={styles.hint}>{setup.ttsUploadsHint}</p>
-          </>
-        ) : null}
-
-        <Button size="m" type="submit">
-          {admin.save}
-        </Button>
-      </Card>
-    </form>
+    <Card as="li" padding="tight">
+      <div className={styles.metric}>
+        <span className={styles.metricLabel}>{label}</span>
+        <span className={styles.metricValue}>
+          {value.toLocaleString()}
+          <span className={styles.metricUnit}>{unit}</span>
+        </span>
+        {note === undefined ? null : <span className={styles.metricNote}>{note}</span>}
+        {href === undefined ? null : (
+          <Link className={styles.link} href={href}>
+            {admin.seeMore}
+          </Link>
+        )}
+      </div>
+    </Card>
   );
 }
 
 /**
- * 관리자 설정. `PAGES.md` §17
+ * 한눈에. `PAGES.md` §17
  *
- * 마법사에서 넣은 값을 나중에 못 고치면 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
+ * **문제가 없으면 조용하다.** 예전 관리자 화면은 사용량·음성·실패·설정·계정을 한 장에
+ * 세로로 쌓아 두어서, 아무 일도 없는 날에도 화면 절반이 목록이었다. 그러면 정말로 뭔가
+ * 잘못된 날에도 눈에 띄지 않는다.
  *
- * **비밀 항목은 가린 채로 값을 채워 준다**(`SecretField`). 예전에는 값을 아예 돌려주지
- * 않아서 무엇이 들어 있는지 확인할 방법이 없었고, 그래서 빈 칸을 "그대로 두기"로 읽어야
- * 했다. 지금은 **칸에 보이는 것이 곧 저장될 값**이고 비우면 지워진다 — 규칙이 하나다.
+ * 그래서 이 화면에는 **숫자와 경고만** 있다. 자세한 것은 각 화면이 맡는다 — 여기서 할 수
+ * 있는 일은 하나도 없고, 그것이 의도다(보는 것과 바꾸는 것을 섞지 않는다).
  */
-export default async function AdminPage(props: {
-  searchParams: Promise<{ saved?: string; url_problem?: string }>;
-}) {
-  const [session, searchParams] = await Promise.all([currentSession(), props.searchParams]);
-
-  if (session?.role !== "admin") {
-    return (
-      <div className={styles.page}>
-        <Alert title={admin.deniedTitle} tone="warning">
-          {admin.deniedBody}
-        </Alert>
-      </div>
-    );
-  }
-
+export default function AdminPage() {
   const db = appDb();
-  const timeZone = siteTimeZone(db);
-  const settings = listSettingsForEditing(db);
-  const zones = Intl.supportedValuesOf("timeZone");
   const budget = generationBudget();
+  const counts = contentCounts();
+  const audio = audioStored();
+  const users = listUsersForAdmin(db);
+  const failures =
+    listRecentGenerationFailures(corpusDb(), FAILURE_WINDOW).length +
+    listRecentUploadFailures(db, FAILURE_WINDOW).length;
+  const blocked = hasBlockingIssue(checkEnvironment());
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{admin.title}</h1>
-        <p className={styles.intro}>{admin.intro}</p>
+        <h1 className={styles.title}>{admin.overviewTitle}</h1>
+        <p className={styles.intro}>{admin.overviewIntro}</p>
       </header>
 
-      {searchParams.saved === undefined ? null : (
-        <div aria-live="polite">
-          <Alert title={admin.saved} tone="success" />
-        </div>
-      )}
-
       {/*
-        저장 자리에서 되돌려보냈을 때. 주소줄에 실려 오는 것은 문장이 아니라 **문제의
-        이름**이다 — 아무나 만든 주소로 이 화면에 아무 문장이나 띄울 수 없어야 한다.
+        살펴볼 것이 있을 때만 색이 나온다. 둘 다 아니면 한 줄로 조용히 지나간다 —
+        "이상 없음"을 초록 상자로 크게 그리면 진짜 경고와 자리를 다투게 된다.
       */}
-      {isBaseUrlProblem(searchParams.url_problem) ? (
-        <div aria-live="polite">
-          <Alert title={setup.llmBaseUrlRejected} tone="danger">
-            {baseUrlAdvice(searchParams.url_problem)}
-          </Alert>
-        </div>
+      {blocked ? (
+        <Alert title={admin.systemTitle} tone="danger">
+          <Link className={styles.link} href="/admin/system">
+            {admin.seeMore}
+          </Link>
+        </Alert>
+      ) : null}
+      {failures > 0 ? (
+        <Alert title={admin.failuresTitle} tone="warning">
+          <Link className={styles.link} href="/admin/log">
+            {admin.seeMore}
+          </Link>
+        </Alert>
+      ) : null}
+      {!blocked && failures === 0 ? (
+        <Card>
+          <p className={styles.sectionBody}>{admin.overviewHealthy}</p>
+        </Card>
       ) : null}
 
-      <Card className={styles.usage} as="section">
-        <h2 className={styles.sectionTitle}>{admin.usageTitle}</h2>
-        <p className={styles.usageSummary}>
-          {admin.usageSummary(budget.used, budget.limit)} {admin.usageRemaining(budget.remaining)}
-        </p>
-        <meter
-          className={styles.meter}
-          min={0}
-          max={budget.limit}
+      <ul className={styles.metrics}>
+        <Metric
+          label={admin.metricGeneration}
+          note={admin.metricGenerationLimit(budget.limit)}
+          unit={admin.metricUnit.times}
           value={budget.used}
-          aria-label={admin.usageTitle}
         />
-        <StructuredList
-          rows={[
-            { label: "사용한 횟수", value: `${budget.used}번` },
-            { label: "남은 횟수", value: `${budget.remaining}번` },
-            { label: "하루 상한", value: `${budget.limit}번` },
-          ]}
+        <Metric
+          href="/admin/content"
+          label={admin.metricJudgments}
+          unit={admin.metricUnit.cases}
+          value={counts.judgments}
         />
-      </Card>
-
-      <AudioStatus rows={caseAudioStatus(AUDIO_ROWS)} />
-
-      <RecentFailures
-        cases={listRecentGenerationFailures(corpusDb(), RECENT_FAILURES)}
-        formatTime={(at) => formatDateTime(at, timeZone)}
-        uploads={listRecentUploadFailures(db, RECENT_FAILURES)}
-      />
-
-      <SettingsForm
-        db={db}
-        localTts={isLocalUrl(settings.find((entry) => entry.key === "tts_base_url")?.value)}
-        settings={settings}
-        timeZone={timeZone}
-        uploadsOn={ttsAllowsUploads(db)}
-        zones={zones}
-      />
-
-      <UserRoles users={listUsersForAdmin(db)} />
-
-      {/*
-        저장한 값이 실제로 통하는지 확인하는 통로. 폼 안에 두지 않는 이유는, 시험이
-        **저장된 값**으로 돌기 때문이다 — 비밀 항목은 폼에 값이 없어서(§10.5) 폼 값으로는
-        시험할 수 없다. 먼저 저장하고, 그 다음에 시험한다.
-      */}
-      <nav className={styles.afterForm}>
-        <Link className={styles.link} href="/admin/test">
-          {adminTest.title}
-        </Link>
-      </nav>
+        <Metric
+          href="/admin/content"
+          label={admin.metricRenditions}
+          unit={admin.metricUnit.cases}
+          value={counts.renditions}
+        />
+        <Metric
+          href="/admin/audio"
+          label={admin.metricAudio}
+          unit={admin.metricUnit.clips}
+          value={audio.clips}
+        />
+        <Metric
+          href="/admin/users"
+          label={admin.metricUsers}
+          unit={admin.metricUnit.people}
+          value={users.length}
+        />
+        <Metric
+          href="/admin/log"
+          label={admin.metricFailures}
+          unit={admin.metricUnit.cases}
+          value={failures}
+        />
+      </ul>
     </div>
   );
 }
+
+/** 상태를 보는 화면이다. 캐시하면 어제 숫자가 보인다. */
+export const dynamic = "force-dynamic";
 
 export const metadata = { title: admin.title, robots: { index: false, follow: false } };

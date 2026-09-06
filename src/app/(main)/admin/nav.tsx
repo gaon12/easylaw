@@ -1,0 +1,57 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { admin } from "@/lib/strings";
+import styles from "./admin.module.css";
+
+/**
+ * 관리자 메뉴.
+ *
+ * **지금 어디에 있는지를 색으로만 알리지 않는다**(`DESIGN.md` §11). `aria-current`가
+ * 화면 낭독기에 말해 주고, 굵기와 밑줄이 눈에 보인다 — 셋이 같은 것을 말한다.
+ *
+ * 클라이언트인 이유는 `usePathname` 하나뿐이다. 목록 자체는 고정이라 서버에서 그려도
+ * 되지만, 그러면 화면마다 "내가 어디인지"를 넘겨줘야 하고 그것을 빠뜨리면 아무 데도
+ * 표시되지 않는다.
+ */
+
+const ITEMS = [
+  { href: "/admin", label: admin.nav.overview },
+  { href: "/admin/audio", label: admin.nav.audio },
+  { href: "/admin/content", label: admin.nav.content },
+  { href: "/admin/log", label: admin.nav.log },
+  { href: "/admin/settings", label: admin.nav.settings },
+  { href: "/admin/users", label: admin.nav.users },
+  { href: "/admin/system", label: admin.nav.system },
+  { href: "/admin/test", label: admin.nav.test },
+] as const;
+
+function AdminNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav aria-label={admin.navLabel} className={styles.nav}>
+      <ul className={styles.navList}>
+        {ITEMS.map((item) => {
+          // "/admin"은 모든 하위 경로의 앞부분이라 앞자리 비교로는 늘 켜진다. 정확히 같을 때만.
+          const here = pathname === item.href;
+
+          return (
+            <li key={item.href}>
+              <Link
+                aria-current={here ? "page" : undefined}
+                className={styles.navLink}
+                href={item.href}
+              >
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+export { AdminNav };

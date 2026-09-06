@@ -3,7 +3,7 @@ import { StructuredList } from "@/components/ui/structured-list";
 import type { UploadGenerationFailure } from "@/db/app/generation";
 import type { GenerationFailure } from "@/db/corpus/repository";
 import { admin } from "@/lib/strings";
-import styles from "./page.module.css";
+import styles from "./admin.module.css";
 
 /**
  * 최근에 설명 만들기가 실패한 기록. `PAGES.md` §17

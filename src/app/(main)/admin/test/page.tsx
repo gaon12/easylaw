@@ -4,9 +4,8 @@ import { Card } from "@/components/ui/card";
 import { StructuredList } from "@/components/ui/structured-list";
 import { lawApi } from "@/lib/law-api/client";
 import { llm } from "@/lib/llm/client";
-import { admin, adminTest } from "@/lib/strings";
+import { adminTest } from "@/lib/strings";
 import { type ProbeResult, probeLawApi, probeLlm } from "@/server/connection-test";
-import { currentSession } from "@/server/owner";
 import styles from "./page.module.css";
 
 /**
@@ -55,17 +54,6 @@ function ProbeCard({ label, result }: { label: string; result: ProbeResult }) {
 }
 
 export default async function AdminTestPage() {
-  const session = await currentSession();
-  if (session?.role !== "admin") {
-    return (
-      <div className={styles.page}>
-        <Alert title={admin.deniedTitle} tone="warning">
-          {admin.deniedBody}
-        </Alert>
-      </div>
-    );
-  }
-
   // 두 시험은 서로 상관이 없다. 차례로 걸면 느린 쪽이 빠른 쪽을 기다리게 한다.
   const [law, model] = await Promise.all([probeLawApi(lawApi()), probeLlm(llm())]);
 
@@ -86,12 +74,10 @@ export default async function AdminTestPage() {
         <ProbeCard label={adminTest.llmLabel} result={model} />
       </div>
 
+      {/* 돌아가는 길은 메뉴가 늘 보여 준다. 여기 남길 것은 "다시 걸어 보기"뿐이다. */}
       <nav className={styles.actions}>
         <Link className={styles.link} href="/admin/test">
           {adminTest.run}
-        </Link>
-        <Link className={styles.link} href="/admin">
-          {adminTest.back}
         </Link>
       </nav>
     </div>
