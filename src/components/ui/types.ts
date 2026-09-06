@@ -25,7 +25,8 @@ type IconName =
   | "search"
   | "book"
   | "settings"
-  | "shield";
+  | "shield"
+  | "link";
 
 /** 배지 톤. `DESIGN.md` §3.4의 신뢰도 3색 + 중립. */
 type BadgeTone = "grounded" | "needs-check" | "ungrounded" | "neutral";

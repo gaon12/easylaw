@@ -1135,12 +1135,12 @@ export const workspace = {
 export const wiki = {
   /** 구간 번호 표기. `2.`처럼 번호 뒤에 점을 찍는다. */
   sectionNumber: (number: string) => `${number}.`,
-  /** 구간 링크. 위키의 문단 링크와 같은 뜻이고, 글자는 하나면 된다. */
-  sectionLinkMark: "§",
+  /*
+   * 구간·문단 링크의 **글자는 없다.** `§`와 `#`를 쓰다가 사슬 아이콘으로 바꿨다
+   * (`components/ui/icon.tsx`의 `link`). 낭독기에는 여기 있는 이름이 대신 간다.
+   */
   sectionLinkLabel: (section: string) => `${section} 구간 링크`,
   tocLabel: "목차",
-  /** 문단 링크 기호. 위키에서 제목 옆의 `¶`가 하는 일이다. */
-  anchorMark: "#",
   anchorTo: (heading: string) => `${heading} 문단으로 가는 링크`,
   expand: "펼쳐 보기",
   collapse: "접기",
