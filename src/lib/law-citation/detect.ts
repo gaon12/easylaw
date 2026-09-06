@@ -74,6 +74,22 @@ const CITATION =
   /제\s*(\d+)\s*조(?:\s*의\s*(\d+))?(?:\s*제\s*(\d+)\s*항)?(?:\s*제\s*(\d+)\s*호)?/gu;
 
 /**
+ * `제5조 제2항·제3항`처럼 **한 조문에 항·호를 이어 적은 것**.
+ *
+ * 위의 `CITATION`은 언제나 `제N조`로 시작해야 맞는다. 그래서 이렇게 이어 적은 두 번째부터는
+ * 아무것에도 걸리지 않았고, 화면에서 **첫 항만 링크가 되고 나머지는 맨 글자로 남았다.**
+ * 읽는 사람에게는 두 항이 같은 무게인데 하나만 눌리는 것이 이상하게 보인다.
+ *
+ * 이어짐으로 보는 말은 실제 판결문에 나오는 것만 둔다 — 가운뎃점·쉼표·`및`·`내지`·`와/과`.
+ * 뒤따르는 것이 `제N항`이나 `제N호`일 때만이다. `제251조, 제252조`처럼 **조**가 이어지는
+ * 것은 여기 걸리지 않고, 원래대로 각자 하나의 인용이 된다.
+ *
+ * `내지`는 범위다(`제1항 내지 제3항`). 가운데 항은 글자로 적혀 있지 않아 링크할 자리가
+ * 없으므로, 적혀 있는 양 끝만 링크한다.
+ */
+const CLAUSE_CONTINUATION = /(\s*(?:[·ㆍ・,、]|및|내지|와|과)\s*)(제\s*(\d+)\s*([항호]))/uy;
+
+/**
  * 이름과 조문 사이에 낄 수 있는 것들.
  *
  * - `(이하 ‘채무자회생법’이라 한다)` 같은 괄호
@@ -238,6 +254,59 @@ function nameEndBefore(text: string, articleStart: number): number {
  * 다만 앞에 아무 법도 없었으면 잇지 않는다 — 아무 법에나 붙이는 것보다 모른다고 두는
  * 편이 낫다(P6).
  */
+/**
+ * 앞 인용 뒤에 이어 붙은 항·호를 읽어 `found`에 더한다. 다음에 볼 자리를 돌려준다.
+ *
+ * **항 뒤에 호가 오면 그 항의 호다.** `제10조 제1항 제2호·제3호`에서 `제3호`는 여전히
+ * 제1항의 호이므로 항 번호를 물려준다. 반대로 항이 이어지면 호는 버린다 — `제1항 제2호,
+ * 제3항`의 `제3항`에 앞의 호를 물려주면 있지도 않은 `제3항 제2호`를 가리킨다.
+ */
+function readContinuations(
+  text: string,
+  from: number,
+  previous: Citation,
+  found: Citation[],
+): number {
+  let cursor = from;
+  let clauseNo = previous.clauseNo;
+
+  CLAUSE_CONTINUATION.lastIndex = cursor;
+  for (
+    let matched = CLAUSE_CONTINUATION.exec(text);
+    matched !== null;
+    matched = CLAUSE_CONTINUATION.exec(text)
+  ) {
+    const [, separator, cited, number, unit] = matched;
+    if (separator === undefined || cited === undefined || number === undefined) {
+      break;
+    }
+
+    const start = matched.index + separator.length;
+    const isClause = unit === "항";
+    if (isClause) {
+      clauseNo = number;
+    }
+
+    found.push({
+      start,
+      end: start + cited.length,
+      text: cited,
+      law: previous.law,
+      // 이름도 조문 번호도 이 자리에 적혀 있지 않다. 물려받은 것이다.
+      named: false,
+      articleNo: previous.articleNo,
+      branchNo: previous.branchNo,
+      clauseNo,
+      itemNo: isClause ? undefined : number,
+    });
+
+    cursor = matched.index + matched[0].length;
+    CLAUSE_CONTINUATION.lastIndex = cursor;
+  }
+
+  return cursor;
+}
+
 function detectCitations(text: string, index: LawNameIndex): Citation[] {
   const found: Citation[] = [];
   let carried: LawRef | undefined;
@@ -265,7 +334,7 @@ function detectCitations(text: string, index: LawNameIndex): Citation[] {
     const law = sameLaw.asked && sameLaw.law === undefined ? undefined : (named ?? carried);
 
     if (articleNo !== undefined) {
-      found.push({
+      const citation: Citation = {
         start,
         end: start + whole.length,
         text: whole,
@@ -275,7 +344,14 @@ function detectCitations(text: string, index: LawNameIndex): Citation[] {
         branchNo,
         clauseNo,
         itemNo,
-      });
+      };
+      found.push(citation);
+
+      /*
+       * 이어 적은 항·호를 각각 하나의 인용으로 만든다. 조·가지·법은 앞의 것을 그대로
+       * 물려받는다 — 글에 다시 적혀 있지 않을 뿐, 가리키는 곳은 같은 조문이다.
+       */
+      CITATION.lastIndex = readContinuations(text, CITATION.lastIndex, citation, found);
     }
     matched = CITATION.exec(text);
   }
