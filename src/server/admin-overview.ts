@@ -5,6 +5,7 @@ import { auditLog, user } from "@/db/app/schema";
 import { appDb, corpusDb, dictDb } from "@/db/client";
 import {
   judgment,
+  judgmentSpan,
   lawArticle,
   lawVersion,
   lookupMiss,
@@ -56,6 +57,29 @@ function contentCounts(): ContentCounts {
     dictEntries: one(dict.select({ n: count() }).from(dictEntry).all()),
     legalTerms: one(dict.select({ n: count() }).from(legalTerm).all()),
   };
+}
+
+/**
+ * 들고 있는 판례와 각각의 원문 상태.
+ *
+ * **문장 수를 함께 센다.** 본문이 잘린 채로 굳어 있어도 사건번호만 봐서는 알 수 없고,
+ * 문장이 열 몇 개뿐인 대법원 판결은 눈에 띈다(실제로 그렇게 잘린 것을 찾았다).
+ */
+function listJudgments(limit: number) {
+  return corpusDb()
+    .select({
+      caseNo: judgment.caseNoDisplay,
+      caseNoCanonical: judgment.caseNoCanonical,
+      court: judgment.court,
+      spans: count(judgmentSpan.id),
+      textCachedAt: judgment.textCachedAt,
+    })
+    .from(judgment)
+    .leftJoin(judgmentSpan, eq(judgmentSpan.judgmentId, judgment.id))
+    .groupBy(judgment.id)
+    .orderBy(desc(judgment.fetchedAt))
+    .limit(limit)
+    .all();
 }
 
 /** 사전 원본의 판과 받은 시각. 두 곳(표준국어대사전·법령용어)이 각각 한 줄이다. */
@@ -165,5 +189,13 @@ function audioStored(): { clips: number; bytes: number } {
   return { clips: row?.clips ?? 0, bytes: row?.bytes ?? 0 };
 }
 
-export { audioStored, contentCounts, dictSources, listAuditEntries, listLookupMisses, storageRows };
+export {
+  audioStored,
+  contentCounts,
+  dictSources,
+  listAuditEntries,
+  listJudgments,
+  listLookupMisses,
+  storageRows,
+};
 export type { ContentCounts, StorageRow };

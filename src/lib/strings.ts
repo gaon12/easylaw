@@ -975,6 +975,16 @@ export const admin = {
   dictScheduleIdle: "아직 돌지 않았어요. 서버가 뜬 뒤 1분쯤 지나면 한 번 살펴봐요.",
   dictScheduleOk: (at: string) => `${at}에 확인했고 문제없었어요.`,
   dictScheduleFailed: (at: string) => `${at}에 확인하다 실패했어요.`,
+  judgmentTitle: "들고 있는 판례",
+  judgmentIntro:
+    "원문을 언제 받았는지와 문장 수예요. 대법원 판결인데 문장이 열 몇 개뿐이면 본문이 잘린 거예요 — 그때 다시 받으시면 돼요.",
+  judgmentEmpty: "아직 받아 둔 판례가 없어요.",
+  judgmentColumns: { caseNo: "사건번호", court: "법원", spans: "문장", cachedAt: "원문 받은 때" },
+  judgmentNoCaseNo: "(사건번호 없음)",
+  judgmentRefresh: "원문 다시 받기",
+  judgmentRefreshing: "받는 중…",
+  judgmentNever: "아직 안 받았어요",
+
   missTitle: "못 찾은 사건번호",
   missIntro: "찾으셨는데 우리가 가져오지 못한 사건번호예요. 자주 오르는 것부터 살펴볼 만해요.",
   missEmpty: "못 찾은 사건번호가 없어요.",
