@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   upload,
   uploadRendition,
@@ -8,7 +8,7 @@ import {
 } from "@/db/app/schema";
 import { appDb, corpusDb } from "@/db/client";
 import { reserveAudioSlot } from "@/db/corpus/repository";
-import { renditionAudio, renditionSentence } from "@/db/corpus/schema";
+import { judgment, rendition, renditionAudio, renditionSentence } from "@/db/corpus/schema";
 import { dayKey } from "@/lib/format";
 import { speak, TtsError } from "@/lib/tts/client";
 import { siteTimeZone, ttsAllowsUploads, ttsConfig, ttsDailyLimit } from "./settings";
@@ -248,6 +248,42 @@ function docAudioSentenceIds(renditionId: string): Set<string> {
   );
 }
 
+interface AudioStatusRow {
+  readonly renditionId: string;
+  readonly caseNo: string;
+  readonly level: string;
+  readonly sentences: number;
+  readonly withAudio: number;
+}
+
+/**
+ * 어느 설명에 음성이 있고 어디가 비었나. **관리 화면이 읽는다.**
+ *
+ * 이 자리가 없으면 운영자는 "음성이 안 만들어진 문서"를 알 방법이 없다 — 화면마다
+ * 들어가 눌러 봐야 하고, 그러면 결국 아무도 확인하지 않는다.
+ *
+ * 공개 판례만 센다. **올린 문서는 목록에 내지 않는다** — 관리자라도 누가 무엇을 올렸는지
+ * 늘어놓고 볼 이유가 없다(§7). 그쪽은 주인이 자기 화면에서 만든다.
+ */
+function caseAudioStatus(limit: number): AudioStatusRow[] {
+  return corpusDb()
+    .select({
+      renditionId: rendition.id,
+      caseNo: judgment.caseNoDisplay,
+      level: rendition.level,
+      sentences: count(renditionSentence.id),
+      withAudio: count(renditionAudio.sentenceId),
+    })
+    .from(rendition)
+    .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
+    .innerJoin(renditionSentence, eq(renditionSentence.renditionId, rendition.id))
+    .leftJoin(renditionAudio, eq(renditionAudio.sentenceId, renditionSentence.id))
+    .groupBy(rendition.id)
+    .orderBy(desc(rendition.generatedAt))
+    .limit(limit)
+    .all();
+}
+
 /** 문장 하나의 음성. 화면이 `<audio>`로 받아 간다. */
 function findCaseAudio(sentenceId: string): { bytes: Buffer; format: string } | undefined {
   return corpusDb()
@@ -287,6 +323,7 @@ function ownsDocSentence(sentenceId: string, userId: string): boolean {
 
 export {
   caseAudioSentenceIds,
+  caseAudioStatus,
   docAudioSentenceIds,
   findCaseAudio,
   findDocAudio,
@@ -294,4 +331,4 @@ export {
   makeDocAudio,
   ownsDocSentence,
 };
-export type { AudioResult };
+export type { AudioResult, AudioStatusRow };

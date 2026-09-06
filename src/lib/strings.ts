@@ -907,6 +907,22 @@ export const admin = {
    * 최근 실패. **여기가 없어서 실패 이유가 이용자 화면에 적혀 있었다.**
    * 운영자가 원인을 아는 길이 터미널뿐이었기 때문이다.
    */
+  /**
+   * 음성 현황. **이 자리가 없으면 운영자는 어느 문서에 음성이 없는지 알 방법이 없다** —
+   * 화면마다 들어가 눌러 봐야 하고, 그러면 결국 아무도 확인하지 않는다.
+   */
+  audioTitle: "설명 음성",
+  audioBody:
+    "음성이 없는 설명은 여기서 만들 수 있어요. 만드는 통로는 이용자 화면과 같아서 하루 상한도 함께 적용돼요.",
+  audioEmpty: "아직 만들어진 설명이 없어요.",
+  audioCount: (made: number, total: number) => `${made}/${total}문장`,
+  audioReady: "다 있어요",
+  audioMissing: "모자라요",
+  audioMake: "음성 만들기",
+  audioColumns: { caseNo: "사건", level: "단계", audio: "음성" },
+  audioMaking: "만드는 중…",
+  audioFailed: "만들지 못했어요. 음성 설정을 확인해 주세요.",
+
   failuresTitle: "최근 설명 만들기 실패",
   failuresBody: "이용자에게 보인 말과 진짜 원인을 함께 적었어요. 진짜 원인은 이 화면에서만 보여요.",
   failuresEmpty: "최근에 실패한 생성이 없어요.",

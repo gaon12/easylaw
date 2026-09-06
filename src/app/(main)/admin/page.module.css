@@ -241,3 +241,24 @@
   padding-top: 0;
   border-top: 0;
 }
+
+/* 음성 현황 표. 숫자가 나란히 읽히게 고정폭 숫자를 쓴다. */
+.audioTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--el-text-body-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.audioTable th,
+.audioTable td {
+  padding: var(--el-space-2) var(--el-space-3) var(--el-space-2) 0;
+  border-bottom: 1px solid var(--el-border-subtle);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.audioTable th {
+  color: var(--el-fg-2);
+  font-weight: 700;
+}

@@ -10,10 +10,12 @@ import { listRecentGenerationFailures } from "@/db/corpus/repository";
 import { formatDateTime } from "@/lib/format";
 import { baseUrlAdvice, isBaseUrlProblem } from "@/lib/llm/base-url";
 import { admin, adminTest, setup } from "@/lib/strings";
+import { caseAudioStatus } from "@/server/audio";
 import { generationBudget } from "@/server/generate";
 import { currentSession } from "@/server/owner";
 import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
 import { saveSettings } from "@/server/setup-actions";
+import { AudioStatus } from "./audio-status";
 import { BaseUrlField } from "./base-url-field";
 import styles from "./page.module.css";
 import { RecentFailures } from "./recent-failures";
@@ -22,6 +24,9 @@ import { UserRoles } from "./user-roles";
 
 /** 최근 실패를 몇 개까지 보여 주나. 원인을 알아보는 데 필요한 만큼이면 된다. */
 const RECENT_FAILURES = 10;
+
+/** 음성 현황을 몇 줄까지 보여 주나. 최근 것부터. */
+const AUDIO_ROWS = 20;
 
 /** 화면에서 고칠 수 있는 항목. 설치 완료 표시는 여기서 건드리지 않는다. */
 const EDITABLE = [
@@ -230,6 +235,8 @@ export default async function AdminPage(props: {
           ]}
         />
       </Card>
+
+      <AudioStatus rows={caseAudioStatus(AUDIO_ROWS)} />
 
       <RecentFailures
         cases={listRecentGenerationFailures(corpusDb(), RECENT_FAILURES)}
