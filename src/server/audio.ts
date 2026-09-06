@@ -203,12 +203,17 @@ async function makeAudio(
        * 여기까지 만든 것은 저장돼 있다. 다음에 부르면 남은 것부터 이어 만든다.
        * 실패 이유는 **읽는 사람에 맞게** 나눈다(`CONVENTIONS.md` §7).
        */
+      const retryable = error instanceof TtsError && error.retryable;
       return {
         kind: "failed",
-        reason:
-          error instanceof TtsError && error.status === undefined
-            ? "음성을 만들지 못했어요. 잠시 뒤에 다시 눌러 주세요."
-            : "음성 만들기 설정에 문제가 있어요. 이 사이트 관리자에게 알려 주세요.",
+        /*
+         * **속도 제한과 설정 오류를 가른다.** 무료 등급에서는 429가 흔하고(Gemini로
+         * 여덟 문장 만에 왔다), 그것을 "설정이 틀렸다"고 말하면 멀쩡한 설정을 고치게 된다.
+         * 여기까지 만든 것은 저장돼 있으니 다시 누르면 남은 것부터 이어 만든다.
+         */
+        reason: retryable
+          ? "음성을 다 만들지 못했어요. 잠시 뒤에 다시 눌러 주시면 이어서 만들어요."
+          : "음성 만들기 설정에 문제가 있어요. 이 사이트 관리자에게 알려 주세요.",
         detail: error instanceof Error ? error.message : "알 수 없는 오류입니다.",
       };
     }

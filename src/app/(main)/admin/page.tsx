@@ -13,7 +13,13 @@ import { admin, adminTest, setup } from "@/lib/strings";
 import { caseAudioStatus } from "@/server/audio";
 import { generationBudget } from "@/server/generate";
 import { currentSession } from "@/server/owner";
-import { listSettingsForEditing, shouldUseSecureCookies, siteTimeZone } from "@/server/settings";
+import {
+  isLocalUrl,
+  listSettingsForEditing,
+  shouldUseSecureCookies,
+  siteTimeZone,
+  ttsAllowsUploads,
+} from "@/server/settings";
 import { saveSettings } from "@/server/setup-actions";
 import { AudioStatus } from "./audio-status";
 import { BaseUrlField } from "./base-url-field";
@@ -35,6 +41,11 @@ const EDITABLE = [
   "llm_base_url",
   "llm_api_key",
   "llm_model",
+  "tts_base_url",
+  "tts_api_key",
+  "tts_model",
+  "tts_voice",
+  "tts_daily_limit",
   "generation_daily_limit",
   "generation_ip_limit",
   "generation_session_limit",
@@ -42,7 +53,7 @@ const EDITABLE = [
 
 type EditableKey = (typeof EDITABLE)[number];
 
-const SECRET_KEYS = new Set<string>(["law_api_oc", "llm_api_key"]);
+const SECRET_KEYS = new Set<string>(["law_api_oc", "llm_api_key", "tts_api_key"]);
 
 /**
  * 시간대 칸.
@@ -76,6 +87,10 @@ function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly 
 const FIELD_HINTS: Partial<Record<EditableKey, string>> = {
   llm_base_url: setup.llmBaseUrlHint,
   llm_model: setup.llmModelHint,
+  tts_base_url: setup.ttsBaseUrlHint,
+  tts_model: setup.ttsModelHint,
+  tts_voice: setup.ttsVoiceHint,
+  tts_daily_limit: setup.ttsLimitHint,
   generation_ip_limit: setup.ipLimitHint,
   generation_session_limit: setup.sessionLimitHint,
 };
@@ -108,11 +123,16 @@ function SettingsForm({
   settings,
   timeZone,
   zones,
+  localTts,
+  uploadsOn,
 }: {
   db: ReturnType<typeof appDb>;
   settings: readonly { key: string; value: string | undefined }[];
   timeZone: string;
   zones: readonly string[];
+  /** 음성 주소가 내 컴퓨터를 가리키나. 올린 문서 스위치를 그릴지 정한다. */
+  localTts: boolean;
+  uploadsOn: boolean;
 }) {
   return (
     <form action={saveSettings}>
@@ -151,6 +171,29 @@ function SettingsForm({
           <span className={styles.label}>{setup.httpsLabel}</span>
         </label>
         <p className={styles.hint}>{setup.httpsWarn}</p>
+
+        {/*
+          **주소가 내 컴퓨터를 가리킬 때만 이 칸이 있다.**
+
+          외부 주소를 넣은 설치에는 켜는 길 자체가 없다 — 실수로 켤 수 있는 경로를 없애는
+          것이 안내 문구보다 확실하다. 설정이 켜져 있어도 주소가 밖을 가리키면 서버가
+          다시 거짓으로 본다(`ttsAllowsUploads`).
+        */}
+        {localTts ? (
+          <>
+            <label className={styles.checkboxRow}>
+              <input
+                className={styles.checkbox}
+                defaultChecked={uploadsOn}
+                name="tts_uploads"
+                type="checkbox"
+                value="true"
+              />
+              <span className={styles.label}>{setup.settingNames.tts_uploads}</span>
+            </label>
+            <p className={styles.hint}>{setup.ttsUploadsHint}</p>
+          </>
+        ) : null}
 
         <Button size="m" type="submit">
           {admin.save}
@@ -244,7 +287,14 @@ export default async function AdminPage(props: {
         uploads={listRecentUploadFailures(db, RECENT_FAILURES)}
       />
 
-      <SettingsForm db={db} settings={settings} timeZone={timeZone} zones={zones} />
+      <SettingsForm
+        db={db}
+        localTts={isLocalUrl(settings.find((entry) => entry.key === "tts_base_url")?.value)}
+        settings={settings}
+        timeZone={timeZone}
+        uploadsOn={ttsAllowsUploads(db)}
+        zones={zones}
+      />
 
       <UserRoles users={listUsersForAdmin(db)} />
 
