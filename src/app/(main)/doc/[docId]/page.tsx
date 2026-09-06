@@ -196,7 +196,7 @@ export default async function DocPage(props: {
         />
       )}
 
-      <section className={styles.panel}>
+      <section className={styles.panel} data-viewer-pane={true}>
         <h2 className={styles.sectionTitle}>{viewer.originalPanel}</h2>
         {/* 표제가 둘 이상일 때만 목차를 낸다 — 하나뿐이면 목차가 아니라 소음이다. */}
         {headings.length > 1 ? (
