@@ -57,12 +57,19 @@ function WikiDocument({
               bodyBesideInfo ? styles.bodyBesideInfo : "",
             ].join(" ")}
           >
+            {/*
+              **정보 틀이 목차보다 먼저 온다.** 넓은 화면에서 정보 틀은 오른쪽으로 띄우는데
+              (`document.module.css`), 띄운 상자는 흐름에서 자기가 놓인 자리보다 위로
+              올라가지 못한다. 목차 뒤에 두면 조문 1,193개짜리 법령처럼 목차가 긴 문서에서
+              정보 틀이 목차 **아래**로 내려간다 — 실제로 그렇게 보였다.
+              좁은 화면에서는 격자 영역 이름이 자리를 정하므로 이 순서가 영향을 주지 않는다.
+            */}
+            {info === undefined ? null : <aside className={styles.info}>{info}</aside>}
             {hasToc ? (
               <div className={styles.lead}>
                 <TableOfContents entries={toc} label={tocLabel} />
               </div>
             ) : null}
-            {info === undefined ? null : <aside className={styles.info}>{info}</aside>}
             <div className={styles.body}>{children}</div>
           </div>
         ) : (

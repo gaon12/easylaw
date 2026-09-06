@@ -35,67 +35,96 @@
 }
 
 /*
- * 목차·본문과 정보 틀을 한 격자에 둔다. 정보 틀이 길어도 왼쪽 본문은 목차 바로 뒤에서
- * 시작한다. 둘을 별도 머리 행으로 두면 짧은 목차 아래에 큰 빈칸이 생긴다.
+ * 목차 · 정보 틀 · 본문.
+ *
+ * ## 왜 격자가 아니라 띄움(float)인가
+ *
+ * 정보 틀을 **격자의 한 열**로 두었더니, 그 열이 문서 끝까지 이어졌다. 정보 틀은 400px
+ * 남짓인데 판결문은 수천 px이라, 틀 아래로 **화면 오른쪽 4분의 1이 빈 띠**가 되어
+ * 문서 끝까지 따라 내려갔다. 1920px 화면에서 본문은 1249px만 썼다.
+ *
+ * 그렇다고 본문을 정보 틀 **아래**로 내리면(예전의 `bodyBesideInfo` 없는 모양) 이번에는
+ * 짧은 목차 밑에 큰 빈칸이 생긴다. 둘 중 하나를 고르는 문제로 보였지만 아니었다 —
+ * 위키가 오래전부터 쓰는 답은 **띄움**이다. 글이 정보 틀을 둘러 흐르고, 틀이 끝나면
+ * 폭을 되찾는다. 빈 띠도 빈칸도 없다.
+ *
+ * 띄운 상자를 비켜 가는 것들이 있다 — 격자·플렉스 상자는 스스로 서식 문맥을 열기 때문에
+ * 둘러 흐르지 않고 옆으로 밀린다. 그래서 본문 안쪽(`level-body`)을 보통 흐름으로 되돌렸고,
+ * 좌우 대조처럼 정말 격자여야 하는 것은 정보 틀 **아래에서** 시작하게 한다(`clear`).
  */
 .layout {
-  display: grid;
-  gap: var(--el-space-4);
-  align-items: start;
   min-width: 0;
 }
 
 .lead {
-  grid-area: lead;
   width: min(100%, 320px);
 }
 
 .info {
-  grid-area: info;
   min-width: 0;
   width: 100%;
 }
 
 .body {
-  grid-area: body;
   min-width: 0;
 }
 
-@media (min-width: 900px) {
-  .layoutWithInfo {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-    column-gap: var(--el-space-8);
+/*
+  **띄우려면 세 칸이 들어갈 폭이 있어야 한다** — 목차 320 + 본문 + 정보 틀 320.
+  1000px 화면에서 셋을 나란히 두었더니 가운데 본문이 40px로 눌려 글자가 한 자씩
+  세로로 떨어졌다. 그 아래에서는 위아래로 쌓는 편이 낫다.
+*/
+@media (min-width: 1200px) {
+  .layoutWithInfo .info {
+    float: right;
+    width: clamp(320px, 26%, 420px);
+    margin: 0 0 var(--el-space-5) var(--el-space-8);
   }
 
-  .layoutWithInfo.bodyBesideInfo.layoutWithToc {
-    grid-template-areas:
-      "lead info"
-      "body info";
+  /*
+   * 목차도 왼쪽으로 띄운다.
+   *
+   * 블록으로 두면 본문이 목차 **아래**에서 시작한다. 판결문처럼 목차가 짧을 때는 문제가
+   * 없지만, 조문 1,193개짜리 법령의 목차는 700px이라 그 오른쪽이 통째로 비었다.
+   * 띄우면 본문이 목차 옆에서 시작하고 목차가 끝나면 폭을 되찾는다 — 위키가 목차를
+   * 다루는 방식 그대로다.
+   */
+  .layoutWithToc .lead {
+    float: left;
+    margin: 0 var(--el-space-8) var(--el-space-5) 0;
   }
 
-  .layoutWithInfo.bodyBesideInfo:not(.layoutWithToc) {
-    grid-template-areas: "body info";
-  }
-
-  .layoutWithInfo:not(.bodyBesideInfo) {
-    grid-template-areas:
-      "lead info"
-      "body body";
-  }
-
-  .layout:not(.layoutWithInfo) {
-    grid-template-areas:
-      "lead"
-      "body";
+  /* 시트가 띄운 상자를 품는다. 없으면 정보 틀이 문서 밖으로 삐져나온다. */
+  .layout::after {
+    content: "";
+    display: block;
+    clear: both;
   }
 }
 
-@media (max-width: 899px) {
+@media (max-width: 1199px) {
+  /* 좁은 화면에서는 정보 틀이 맨 위에 온다. 띄울 폭이 없다. */
   .layout {
+    display: grid;
+    gap: var(--el-space-4);
     grid-template-areas:
       "info"
       "lead"
       "body";
+  }
+
+  .lead {
+    grid-area: lead;
+  }
+
+  .info {
+    grid-area: info;
+    /* 폭을 다 쓰면 표가 화면을 가로지른다. 읽는 폭은 띄웠을 때와 같게 둔다. */
+    width: min(100%, 420px);
+  }
+
+  .body {
+    grid-area: body;
   }
 
   .layout:not(.layoutWithInfo) {
