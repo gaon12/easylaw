@@ -171,6 +171,18 @@ async function saveSettings(formData: FormData): Promise<void> {
     llm_base_url: trimBaseUrl(baseUrl),
     llm_api_key: field(formData, "llm_api_key"),
     llm_model: field(formData, "llm_model"),
+    tts_base_url: field(formData, "tts_base_url"),
+    tts_api_key: field(formData, "tts_api_key"),
+    tts_model: field(formData, "tts_model"),
+    tts_voice: field(formData, "tts_voice"),
+    tts_daily_limit: field(formData, "tts_daily_limit"),
+    /*
+     * 체크 상자는 켰을 때만 값이 온다. 안 오면 끈 것이다.
+     *
+     * 이 값이 켜져 있어도 **주소가 밖을 가리키면 소용이 없다**(`ttsAllowsUploads`).
+     * 화면에도 주소가 내 컴퓨터일 때만 이 칸을 그린다 — 두 겹으로 막는다.
+     */
+    tts_uploads: formData.get("tts_uploads") === "true" ? "true" : "false",
     generation_daily_limit: field(formData, "generation_daily_limit"),
     generation_ip_limit: field(formData, "generation_ip_limit"),
     generation_session_limit: field(formData, "generation_session_limit"),

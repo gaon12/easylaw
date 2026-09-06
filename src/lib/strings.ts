@@ -854,6 +854,21 @@ export const setup = {
   llmModelLabel: "모델 이름",
   /** `models/` 접두사를 붙이면 그대로 모델 이름으로 나가 404가 된다. */
   llmModelHint: "모델 이름만 넣어 주세요. 예: gemini-2.5-flash · gpt-4o-mini",
+
+  /**
+   * 음성 칸 안내.
+   *
+   * **Gemini는 주소가 다르다.** 글을 만드는 쪽은 `/v1beta/openai`(OpenAI 호환)인데,
+   * 음성은 그 계층에 없어서(실측: 404) 네이티브 주소 `/v1beta`를 넣어야 한다. 이 차이를
+   * 적어 두지 않으면 글 주소를 그대로 넣고 404를 보게 된다.
+   */
+  ttsBaseUrlHint:
+    "OpenAI 호환 주소 또는 Gemini 네이티브 주소를 넣어 주세요. Gemini는 https://generativelanguage.googleapis.com/v1beta 예요 — 글을 만드는 주소와 달리 /openai를 붙이지 않아요.",
+  ttsModelHint: "음성 전용 모델이어야 해요. 예: gemini-3.1-flash-tts-preview",
+  ttsVoiceHint: "목소리는 운영자가 하나만 정해요. 듣는 분은 속도만 바꿔요. 예: Kore",
+  ttsLimitHint: "설명 만들기와 따로 세요. 설명 한 벌을 소리로 만드는 것이 한 번이에요.",
+  ttsUploadsHint:
+    "기본은 꺼져 있어요. 올린 판결문을 밖의 음성 서버로 보내면 어떤 사건인지가 남의 서버에 남아요. 음성 주소가 내 컴퓨터를 가리킬 때만 켤 수 있어요.",
   limitLabel: "하루 설명 생성 상한",
   limitHint: "설명 만들기 버튼은 곧 지출이에요. 하루에 몇 번까지 허용할지 정해요.",
   ipLimitHint: "같은 인터넷 주소에서 하루에 만들 수 있는 횟수예요.",
@@ -886,6 +901,12 @@ export const setup = {
     llm_base_url: "AI API 주소",
     llm_api_key: "AI API 키",
     llm_model: "AI 모델",
+    tts_base_url: "음성 API 주소",
+    tts_api_key: "음성 API 키",
+    tts_model: "음성 모델",
+    tts_voice: "목소리",
+    tts_daily_limit: "하루 음성 상한",
+    tts_uploads: "올린 문서도 음성으로",
     generation_daily_limit: "하루 생성 상한",
     generation_ip_limit: "IP별 생성 상한",
     generation_session_limit: "세션별 생성 상한",
