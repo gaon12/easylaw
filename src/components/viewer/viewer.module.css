@@ -101,7 +101,9 @@
  * padding·border로 상자 크기를 바꾸지 않아 강조되는 순간 본문이 흔들리지 않는다.
  */
 .sentence:target,
-.headingText:target {
+.headingText:target,
+.sentence[data-cited],
+.headingText[data-cited] {
   border-radius: var(--el-radius-xs);
   outline: 2px solid color-mix(in srgb, var(--el-warning) 58%, transparent);
   outline-offset: 3px;
@@ -177,7 +179,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sentence:target,
-  .headingText:target {
+  .headingText:target,
+  .sentence[data-cited],
+  .headingText[data-cited] {
     animation: none;
   }
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
 import { CitedLaws } from "@/components/viewer/cited-laws";
+import { EvidencePanes } from "@/components/viewer/evidence-panes";
 import { LevelTabs } from "@/components/viewer/level-tabs";
 import { toLevel, type ViewLevel } from "@/components/viewer/levels";
 import { OriginalPanel } from "@/components/viewer/original-panel";
@@ -214,7 +215,7 @@ function ViewerPanels({
   judgmentId: string | null;
 }) {
   return (
-    <div className={styles.panels}>
+    <EvidencePanes className={styles.panels}>
       {level === "L0" ? null : (
         <RenditionSection
           action={requestGeneration}
@@ -228,7 +229,7 @@ function ViewerPanels({
         />
       )}
 
-      <section className={styles.panel}>
+      <section className={styles.panel} data-viewer-pane={true}>
         {/*
           칸 이름표는 화면에서 걷어내고 스크린리더에만 남긴다. 위키 문서에는 "본문"이라는
           제목이 없다 — 문서가 곧 본문이다. 2단 대조에서 왼쪽·오른쪽이 무엇인지는 눈으로
@@ -243,7 +244,7 @@ function ViewerPanels({
           spans={spans}
         />
       </section>
-    </div>
+    </EvidencePanes>
   );
 }
 

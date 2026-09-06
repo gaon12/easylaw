@@ -191,7 +191,7 @@ function RenditionPlaceholder({
 /** 만들어진 것이 있으면 그것을, 없으면 상태에 맞는 빈 자리를 그린다. */
 function RenditionSection({ sentences, outdatedAt, ...rest }: SectionProps) {
   return (
-    <section className={styles.panel}>
+    <section className={styles.panel} data-viewer-pane={true}>
       {/* 칸 이름표는 스크린리더에만. 위키 문서에는 칸 제목이 없다. */}
       <h2 className="sr-only">{viewer.renditionPanel}</h2>
       <LevelTraits level={rest.level} />
