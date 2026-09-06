@@ -39,7 +39,14 @@ interface SpeechDriver {
 interface SpeechPlayerOptions {
   readonly texts: readonly string[];
   readonly driver: SpeechDriver;
-  readonly createItem: (text: string) => SpeechItem;
+  /**
+   * 읽을 것 하나를 만든다. **글과 함께 몇 번째인지도 준다.**
+   *
+   * 번호를 주는 이유는 미리 만들어 둔 음성 파일 때문이다 — 그 구현은 글이 아니라
+   * `문장 번호 → 파일 주소`로 읽을 것을 찾는다(`speech-audio.ts`). 브라우저 음성 쪽은
+   * 번호를 쓰지 않는다.
+   */
+  readonly createItem: (text: string, index: number) => SpeechItem;
   readonly onChange: (snapshot: SpeechSnapshot) => void;
   readonly onError: () => void;
 }
@@ -104,7 +111,7 @@ class SentenceSpeechPlayer implements SpeechPlayer {
       return;
     }
 
-    const item = this.options.createItem(toSpeechText(this.options.texts[index] ?? ""));
+    const item = this.options.createItem(toSpeechText(this.options.texts[index] ?? ""), index);
     item.lang = "ko-KR";
     item.rate = this.rate;
     item.onstart = () => {

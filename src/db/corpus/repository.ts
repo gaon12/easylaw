@@ -10,6 +10,7 @@ import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
 import {
+  audioUsage,
   generationJob,
   generationUsage,
   judgment,
@@ -474,6 +475,36 @@ function reserveGenerationSlot(db: CorpusDb, input: { day: string; limit: number
     .all();
 
   return rows.length > 0;
+}
+
+/**
+ * 음성 몫에서 한 번을 뗀다. **설명 생성과 같은 방식, 다른 통.**
+ *
+ * 세는 것과 판단하는 것을 한 문장으로 한다 — 읽고 나서 더하면 그 사이에 들어온 요청이
+ * 마지막 한 번을 같이 가져간다.
+ */
+function reserveAudioSlot(db: CorpusDb, input: { day: string; limit: number }): boolean {
+  if (input.limit <= 0) {
+    return false;
+  }
+
+  return (
+    db
+      .insert(audioUsage)
+      .values({ day: input.day, count: 1 })
+      .onConflictDoUpdate({
+        target: audioUsage.day,
+        set: { count: sql`${audioUsage.count} + 1` },
+        setWhere: lt(audioUsage.count, input.limit),
+      })
+      .returning({ count: audioUsage.count })
+      .all().length > 0
+  );
+}
+
+/** 그날 음성을 몇 벌 만들었나. */
+function countAudioOn(db: CorpusDb, day: string): number {
+  return db.select().from(audioUsage).where(eq(audioUsage.day, day)).get()?.count ?? 0;
 }
 
 /** 그날 몇 번 돌렸나. 없던 날은 0이다. */
@@ -1046,7 +1077,9 @@ export {
   listLawSections,
   listSentences,
   listSpans,
+  countAudioOn,
   listRecentGenerationFailures,
+  reserveAudioSlot,
   listStructureNodes,
   recordLookupMiss,
   reserveGenerationSlot,

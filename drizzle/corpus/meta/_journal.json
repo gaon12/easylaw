@@ -78,6 +78,20 @@
       "when": 1788611071419,
       "tag": "0010_long_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1788659030563,
+      "tag": "0011_even_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788659261093,
+      "tag": "0012_uneven_vindicator",
+      "breakpoints": true
     }
   ]
 }
