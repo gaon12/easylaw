@@ -6,14 +6,19 @@
 
 .box {
   border: 1px solid var(--el-border-default);
-  border-top: 3px solid var(--el-brand-signature);
   border-radius: var(--el-radius-xs);
   overflow: hidden;
   /* 넓은 화면에서 문서 전체 폭을 채우지 않는다 — 틀은 머리이지 본문이 아니다. */
   max-width: 640px;
 }
 
-/* 제목 띠. 청록 상단선과 옅은 면으로 브랜드를 잇되 본문보다 먼저 튀지 않게 한다. */
+/*
+  제목 띠. **이 띠가 곧 정보 틀의 표시다.**
+
+  예전에는 상자 위에 3px 색 막대를 얹어 브랜드를 이었는데, 그 표시가 화면 곳곳에 반복되면서
+  "만들어 붙인 티"가 났다. 걷어 내도 잃는 것이 없다 — 옅은 면에 글자가 얹힌 이 머리 줄이
+  무엇인지 이미 말하고 있고, 색을 못 보는 사람에게 남는 것도 그쪽이다.
+*/
 .title {
   margin: 0;
   padding: var(--el-space-2) var(--el-space-3);

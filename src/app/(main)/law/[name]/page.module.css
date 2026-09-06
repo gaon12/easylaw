@@ -33,7 +33,8 @@
   width: fit-content;
   margin-top: var(--el-space-2);
   padding: var(--el-space-2) var(--el-space-3);
-  border-left: 3px solid var(--el-brand-strong);
+  border: 1px solid var(--el-brand-line);
+  border-radius: var(--el-radius-s);
   background: var(--el-brand-surface);
   color: var(--el-brand-fg);
   font-size: var(--el-text-body-s);
@@ -80,10 +81,8 @@
   font-size: var(--el-text-heading-s);
   font-weight: 700;
   margin-top: var(--el-space-8);
-  padding: var(--el-space-2) 0 var(--el-space-2) var(--el-space-3);
+  padding: var(--el-space-2) 0;
   border-bottom: 2px solid var(--el-action);
-  border-left: 4px solid var(--el-action);
-  background: var(--el-bg-subtle);
   scroll-margin-top: var(--el-space-8);
 }
 
@@ -101,13 +100,13 @@
 /*
  * 인용에서 온 조문.
  *
- * 배경과 왼쪽 표식을 함께 준다 — 색만으로 알리면 색을 구별하지 못하는 사람에게는
- * 아무 정보도 아니다(§11). 카드가 아니라 구간 표시라 §11의 "카드 좌측 보더 금지"에
- * 걸리지 않는다.
+ * 면과 테두리를 **한 바퀴** 두른다. 예전에는 왼쪽에 굵은 색 막대를 세웠는데, 그 표시가
+ * 화면 곳곳에 반복되면서 "만들어 붙인 티"가 났다(§11). 색만으로 알리지 않는다는 원칙은
+ * 그대로다 — 그 몫은 이제 위의 안내 문구가 맡는다.
  */
 .hit {
   background: var(--el-action-weak);
-  border-left: 4px solid var(--el-action);
+  border: 1px solid var(--el-primary-30);
   border-radius: var(--el-radius-s);
   padding: var(--el-space-3) var(--el-space-4);
   margin-left: calc(var(--el-space-4) * -1);

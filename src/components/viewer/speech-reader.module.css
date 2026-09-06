@@ -79,7 +79,8 @@
 .unavailable {
   margin: 0;
   padding: var(--el-space-3) var(--el-space-4);
-  border-left: 2px solid var(--el-border-strong);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
   background: var(--el-bg-subtle);
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
