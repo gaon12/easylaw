@@ -30,7 +30,7 @@ import {
   upsertJudgment,
   upsertLawVersions,
 } from "./repository";
-import { lookupMiss, rendition, structureNode } from "./schema";
+import { lookupMiss, rendition, renditionAudio, structureNode } from "./schema";
 
 let db: CorpusDb;
 let close: () => void;
@@ -134,6 +134,43 @@ describe("saveRendition", () => {
     });
 
     expect(listSentences(db, renditionId)[0]?.sourceSpanIds).toEqual([spanId]);
+  });
+
+  /*
+   * **본문을 다시 만들면 음성도 따라 지워져야 한다.**
+   *
+   * 설명을 새 모델·새 프롬프트로 다시 만들면 문장이 달라진다. 그때 옛 음성이 남아 있으면
+   * **글과 소리가 어긋난다** — 화면에는 새 문장이 있는데 귀에는 옛 문장이 들린다.
+   * 그것은 틀린 설명보다 알아채기 어렵다.
+   *
+   * 구조가 그것을 보장한다(음성이 문장 표에 매여 있고 cascade가 걸려 있다). 스키마를
+   * 손대다 그 연결이 끊어지는 일을 막으려고 여기서 지킨다.
+   */
+  it("변환본을 지우면 그 음성도 함께 지워진다", () => {
+    const judgmentId = seedJudgment();
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "test-model",
+      promptVersion: "v1",
+      sentences: [{ orderIdx: 0, text: "옛 문장이에요.", confidence: "grounded" }],
+    });
+
+    const sentenceId = listSentences(db, renditionId)[0]?.id as string;
+    db.insert(renditionAudio)
+      .values({
+        sentenceId,
+        voice: "KR",
+        model: "test-tts",
+        format: "mp3",
+        bytes: Buffer.from([1, 2, 3]),
+      })
+      .run();
+    expect(db.select().from(renditionAudio).all()).toHaveLength(1);
+
+    db.delete(rendition).where(eq(rendition.id, renditionId)).run();
+
+    expect(db.select().from(renditionAudio).all()).toHaveLength(0);
   });
 
   it("문장을 순서대로 저장하고 신뢰도를 보존한다", () => {
