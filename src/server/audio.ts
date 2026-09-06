@@ -33,8 +33,13 @@ import { siteTimeZone, ttsAllowsUploads, ttsConfig, ttsDailyLimit } from "./sett
 interface AudioTarget {
   /** 문장 id와 글. 순서대로 온다. */
   readonly sentences: readonly { id: string; text: string }[];
-  /** 이미 음성이 있는 문장 id. */
-  hasAudio(ids: readonly string[]): Set<string>;
+  /**
+   * **지금 설정으로 만든** 음성이 있는 문장 id.
+   *
+   * 목소리나 모델을 바꾸면 옛 음성은 그 설정의 산물이지 지금 설정의 산물이 아니다.
+   * 그대로 두면 한 변환본 안에서 목소리가 문장마다 달라진다 — 새로 만들 것으로 센다.
+   */
+  hasAudio(ids: readonly string[], voice: string, model: string): Set<string>;
   save(input: {
     sentenceId: string;
     voice: string;
@@ -54,12 +59,18 @@ function caseAudio(renditionId: string): AudioTarget {
       .orderBy(renditionSentence.orderIdx)
       .all(),
 
-    hasAudio: (ids) =>
+    hasAudio: (ids, voice, model) =>
       new Set(
         db
           .select({ id: renditionAudio.sentenceId })
           .from(renditionAudio)
-          .where(inArray(renditionAudio.sentenceId, [...ids]))
+          .where(
+            and(
+              inArray(renditionAudio.sentenceId, [...ids]),
+              eq(renditionAudio.voice, voice),
+              eq(renditionAudio.model, model),
+            ),
+          )
           .all()
           .map((row) => row.id),
       ),
@@ -91,12 +102,18 @@ function docAudio(renditionId: string): AudioTarget {
       .orderBy(uploadRenditionSentence.orderIdx)
       .all(),
 
-    hasAudio: (ids) =>
+    hasAudio: (ids, voice, model) =>
       new Set(
         db
           .select({ id: uploadRenditionAudio.sentenceId })
           .from(uploadRenditionAudio)
-          .where(inArray(uploadRenditionAudio.sentenceId, [...ids]))
+          .where(
+            and(
+              inArray(uploadRenditionAudio.sentenceId, [...ids]),
+              eq(uploadRenditionAudio.voice, voice),
+              eq(uploadRenditionAudio.model, model),
+            ),
+          )
           .all()
           .map((row) => row.id),
       ),
@@ -146,7 +163,7 @@ async function makeAudio(
     return { kind: "cached" };
   }
 
-  const done = target.hasAudio(ids);
+  const done = target.hasAudio(ids, config.voice, config.model);
   const todo = target.sentences.filter((sentence) => !done.has(sentence.id));
   if (todo.length === 0) {
     return { kind: "cached" };
