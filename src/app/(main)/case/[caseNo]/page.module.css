@@ -1,7 +1,7 @@
 .page {
   max-width: var(--el-container-wide);
   margin: 0 auto;
-  padding: var(--el-space-8) var(--el-space-6) var(--el-space-16);
+  padding: var(--el-space-8) var(--el-gutter) var(--el-space-16);
   display: grid;
   gap: var(--el-space-6);
 }
@@ -51,13 +51,43 @@
 @media (min-width: 1024px) {
   /*
    * 2단 대조. `DESIGN.md` §8 — 좌: 변환본, 우: 원문.
-   * 두 칸이 각자 스크롤되지 않고 문서 전체가 함께 흐른다. 문장을 짚어 가며 대조할 때
-   * 한쪽만 움직이면 짝이 어긋나기 때문이다.
    */
   .panels {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--el-space-10);
     align-items: start;
+  }
+
+  /*
+   * **두 칸이 각자 흐른다(2026-09-06에 바꿨다).**
+   *
+   * 예전에는 문서 전체가 함께 흘렀다. "문장을 짚어 가며 대조할 때 한쪽만 움직이면 짝이
+   * 어긋난다"는 이유였는데, **그 전제가 틀렸다** — 두 칸은 줄 단위로 나란하지 않다.
+   * 원문 60문장에 설명 20문장인 판결문에서, 원문을 읽으려고 내리면 설명 칸은 한참 전에
+   * 끝나 흰 여백만 따라 내려온다. 짝은 위치가 아니라 **근거 링크**가 맞춘다.
+   *
+   * `sticky` + `max-height`로 한다. 칸이 화면 위에 붙고 그 안에서 내용이 흐르되, 칸의
+   * 끝에 닿으면 페이지가 이어서 흘러 바닥글까지 갈 수 있다(`overscroll-behavior`를
+   * 막지 않는 이유다).
+   */
+  .panel {
+    position: sticky;
+    top: var(--el-space-4);
+    max-height: calc(100dvh - var(--el-space-8));
+    overflow-y: auto;
+    /* 칸 안에서 스크롤바가 글자에 붙지 않게. */
+    padding-right: var(--el-space-2);
+  }
+
+  /*
+   * 칸이 하나면 붙잡지 않는다. 원문만 볼 때는 대조할 짝이 없어서, 화면 높이에 가두면
+   * 긴 판결문을 읽는 데 방해만 된다.
+   */
+  .panels:has(> :only-child) .panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   /*
