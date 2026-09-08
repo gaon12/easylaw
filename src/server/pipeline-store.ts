@@ -14,13 +14,15 @@ import { listUploadSpans } from "@/db/app/repository";
 import { appDb, corpusDb } from "@/db/client";
 import {
   claimGenerationJob,
+  findCurrentJudgmentRevisionId,
   findGenerationProgress,
-  findRendition,
+  findRenditionAtRevision,
   finishGenerationJob,
   listSpans,
   listStructureNodes,
   saveRendition,
-  saveStructure,
+  type saveStructure,
+  saveStructureAtRevision,
   setGenerationStage,
 } from "@/db/corpus/repository";
 
@@ -126,29 +128,32 @@ interface PipelineStore {
 /** 공개 판례. `corpus` DB. */
 function caseStore(judgmentId: string): PipelineStore {
   const db = corpusDb();
+  /** 생성 요청을 시작할 때 원문판을 고정한다. 갱신 중에도 한 작업 안에서 바뀌지 않는다. */
+  const sourceRevisionId = findCurrentJudgmentRevisionId(db, judgmentId);
 
   return {
     kind: "case",
     documentId: judgmentId,
 
-    listSpans: () => listSpans(db, judgmentId),
-    listNodes: (extractVersion) => listStructureNodes(db, judgmentId, extractVersion),
+    listSpans: () => listSpans(db, judgmentId, sourceRevisionId),
+    listNodes: (extractVersion) =>
+      listStructureNodes(db, judgmentId, extractVersion, sourceRevisionId),
     saveNodes: (extractVersion, nodes) => {
-      saveStructure(
-        db,
+      saveStructureAtRevision(db, {
         judgmentId,
-        extractVersion,
-        nodes.map((node) => ({
+        promptVersion: extractVersion,
+        nodes: nodes.map((node) => ({
           kind: node.kind as Parameters<typeof saveStructure>[3][number]["kind"],
           payload: node.payload,
           occurredOn: node.occurredOn ?? null,
           orderIdx: node.orderIdx,
           spanIds: node.spanIds,
         })),
-      );
+        sourceRevisionId,
+      });
     },
 
-    claimJob: (input) => claimGenerationJob(db, { judgmentId, ...input }),
+    claimJob: (input) => claimGenerationJob(db, { judgmentId, ...input, sourceRevisionId }),
     setStage: (jobId, stage) => {
       setGenerationStage(db, jobId, stage);
     },
@@ -156,11 +161,16 @@ function caseStore(judgmentId: string): PipelineStore {
       finishGenerationJob(db, jobId, result);
     },
     findProgress: (level, promptVersion) =>
-      findGenerationProgress(db, { judgmentId, level, promptVersion }),
+      findGenerationProgress(db, { judgmentId, level, promptVersion, sourceRevisionId }),
 
-    saveRendition: (input) => saveRendition(db, { judgmentId, ...input }),
+    saveRendition: (input) => saveRendition(db, { judgmentId, ...input, sourceRevisionId }),
     findRenditionId: (level, promptVersion) =>
-      findRendition(db, judgmentId, level, promptVersion)?.id,
+      findRenditionAtRevision(db, {
+        judgmentId,
+        level,
+        promptVersion,
+        sourceRevisionId,
+      })?.id,
   };
 }
 

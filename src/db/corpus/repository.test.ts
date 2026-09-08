@@ -13,8 +13,10 @@ import {
   findLawVersionAt,
   findLawVersionByMst,
   findRendition,
+  findRenditionAtRevision,
   finishGenerationJob,
   heartbeatGenerationJob,
+  listJudgmentRevisions,
   listLawArticles,
   listRecentGenerationFailures,
   listSentences,
@@ -30,7 +32,7 @@ import {
   upsertJudgment,
   upsertLawVersions,
 } from "./repository";
-import { lookupMiss, rendition, renditionAudio, structureNode } from "./schema";
+import { judgmentSpan, lookupMiss, rendition, renditionAudio, structureNode } from "./schema";
 
 let db: CorpusDb;
 let close: () => void;
@@ -84,18 +86,66 @@ describe("saveJudgmentText", () => {
     expect(findJudgmentByCaseNo(db, "2019도12345")?.textCachedAt).toBeInstanceOf(Date);
   });
 
-  it("다시 저장하면 이전 문장을 남기지 않는다", () => {
+  it("다른 원문을 다시 저장하면 이전 판을 보존하고 현재 판만 전환한다", () => {
     const id = seedJudgment();
-    saveJudgmentText(db, id, [
+    const old = saveJudgmentText(db, id, [
       { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "옛 문장" },
     ]);
+    const current = saveJudgmentText(db, id, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "새 문장" },
+    ]);
+
+    expect(current.revisionId).not.toBe(old.revisionId);
+    expect(current.revisionId).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(listSpans(db, id).map((span) => span.text)).toEqual(["새 문장"]);
+    expect(listJudgmentRevisions(db, id)).toHaveLength(2);
+    expect(
+      db
+        .select()
+        .from(judgmentSpan)
+        .all()
+        .map((span) => span.text),
+    ).toEqual(["옛 문장", "새 문장"]);
+  });
+
+  it("같은 내용을 다시 받으면 새 판과 span을 만들지 않는다", () => {
+    const id = seedJudgment();
+    const spans = [{ paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "같은 문장" }];
+    const first = saveJudgmentText(db, id, spans);
+    const second = saveJudgmentText(db, id, spans);
+
+    expect(first.created).toBe(true);
+    expect(second).toEqual({ revisionId: first.revisionId, created: false });
+    expect(listJudgmentRevisions(db, id)).toHaveLength(1);
+    expect(db.select().from(judgmentSpan).all()).toHaveLength(1);
+  });
+
+  it("원문판이 바뀌면 구 설명을 현재 판의 캐시로 반환하지 않는다", () => {
+    const id = seedJudgment();
+    const old = saveJudgmentText(db, id, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "옛 문장" },
+    ]);
+    const renditionId = saveRendition(db, {
+      judgmentId: id,
+      level: "L4",
+      model: "test-model",
+      promptVersion: "v1",
+      sentences: [],
+    });
+
     saveJudgmentText(db, id, [
       { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "새 문장" },
     ]);
 
-    const spans = listSpans(db, id);
-    expect(spans).toHaveLength(1);
-    expect(spans[0]?.text).toBe("새 문장");
+    expect(findRendition(db, id, "L4", "v1")).toBeUndefined();
+    expect(
+      findRenditionAtRevision(db, {
+        judgmentId: id,
+        sourceRevisionId: old.revisionId,
+        level: "L4",
+        promptVersion: "v1",
+      })?.id,
+    ).toBe(renditionId);
   });
 });
 

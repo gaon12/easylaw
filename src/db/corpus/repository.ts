@@ -5,7 +5,8 @@
  * 테이블을 직접 만지지 않아야 `corpus`/`app` 양쪽에 같은 파이프라인을 쓸 수 있다.
  */
 
-import { and, asc, desc, eq, inArray, like, lt, lte, or, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, asc, desc, eq, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
@@ -14,6 +15,7 @@ import {
   generationJob,
   generationUsage,
   judgment,
+  judgmentRevision,
   judgmentSpan,
   lawArticle,
   lawVersion,
@@ -66,6 +68,54 @@ interface SentenceInput {
 
 const newId = (): string => crypto.randomUUID();
 
+function findCurrentJudgmentRevisionId(db: CorpusDb, judgmentId: string): string | null {
+  return (
+    db
+      .select({ revisionId: judgment.currentRevisionId })
+      .from(judgment)
+      .where(eq(judgment.id, judgmentId))
+      .get()?.revisionId ?? null
+  );
+}
+
+function listJudgmentRevisions(db: CorpusDb, judgmentId: string) {
+  return db
+    .select()
+    .from(judgmentRevision)
+    .where(eq(judgmentRevision.judgmentId, judgmentId))
+    .orderBy(desc(judgmentRevision.createdAt))
+    .all();
+}
+
+function sourceRevision(
+  db: CorpusDb,
+  judgmentId: string,
+  pinned: string | null | undefined,
+): string | null {
+  return pinned === undefined ? findCurrentJudgmentRevisionId(db, judgmentId) : pinned;
+}
+
+/** 기존 유일 키를 유지하면서 원문판까지 캐시 식별자에 포함한다. */
+function versionForRevision(version: string, revisionId: string | null): string {
+  return revisionId === null ? version : `${version}::source:${revisionId}`;
+}
+
+function contentHash(spans: readonly SpanInput[]): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        spans.map(({ paraIdx, sentIdx, charStart, charEnd, text }) => ({
+          paraIdx,
+          sentIdx,
+          charStart,
+          charEnd,
+          text,
+        })),
+      ),
+    )
+    .digest("hex");
+}
+
 function findJudgmentByCaseNo(db: CorpusDb, caseNoCanonical: string) {
   return db.select().from(judgment).where(eq(judgment.caseNoCanonical, caseNoCanonical)).get();
 }
@@ -101,29 +151,109 @@ function upsertJudgment(db: CorpusDb, input: JudgmentInput): string {
  * 문장 저장과 `textCachedAt` 표시를 한 트랜잭션으로 묶는다. 중간에 끊기면
  * "본문이 있다고 표시됐지만 문장은 없는" 판결문이 남고, 근거 연결이 통째로 깨진다.
  */
-function saveJudgmentText(db: CorpusDb, judgmentId: string, spans: readonly SpanInput[]): void {
-  db.transaction((tx) => {
-    tx.delete(judgmentSpan).where(eq(judgmentSpan.judgmentId, judgmentId)).run();
-    if (spans.length > 0) {
-      tx.insert(judgmentSpan)
-        .values(spans.map((span) => ({ id: newId(), judgmentId, ...span })))
+function saveJudgmentText(
+  db: CorpusDb,
+  judgmentId: string,
+  spans: readonly SpanInput[],
+): { readonly revisionId: string; readonly created: boolean } {
+  const hash = contentHash(spans);
+  return db.transaction(
+    (tx) => {
+      const existing = tx
+        .select({ id: judgmentRevision.id })
+        .from(judgmentRevision)
+        .where(
+          and(eq(judgmentRevision.judgmentId, judgmentId), eq(judgmentRevision.contentHash, hash)),
+        )
+        .get();
+      if (existing !== undefined) {
+        tx.update(judgment)
+          .set({ currentRevisionId: existing.id, textCachedAt: new Date() })
+          .where(eq(judgment.id, judgmentId))
+          .run();
+        return { revisionId: existing.id, created: false };
+      }
+
+      const revisionId = newId();
+      const fetchedAt = new Date();
+      tx.insert(judgmentRevision)
+        .values({ id: revisionId, judgmentId, contentHash: hash, fetchedAt })
         .run();
-    }
-    tx.update(judgment).set({ textCachedAt: new Date() }).where(eq(judgment.id, judgmentId)).run();
-  });
+      if (spans.length > 0) {
+        tx.insert(judgmentSpan)
+          .values(spans.map((span) => ({ id: newId(), judgmentId, revisionId, ...span })))
+          .run();
+      }
+      tx.update(judgment)
+        .set({ currentRevisionId: revisionId, textCachedAt: fetchedAt })
+        .where(eq(judgment.id, judgmentId))
+        .run();
+      return { revisionId, created: true };
+    },
+    { behavior: "immediate" },
+  );
 }
 
-function listSpans(db: CorpusDb, judgmentId: string) {
+function listSpans(db: CorpusDb, judgmentId: string, pinnedRevisionId?: string | null) {
+  const revisionId = sourceRevision(db, judgmentId, pinnedRevisionId);
   return db
     .select()
     .from(judgmentSpan)
-    .where(eq(judgmentSpan.judgmentId, judgmentId))
+    .where(
+      revisionId === null
+        ? and(eq(judgmentSpan.judgmentId, judgmentId), isNull(judgmentSpan.revisionId))
+        : eq(judgmentSpan.revisionId, revisionId),
+    )
     .orderBy(judgmentSpan.paraIdx, judgmentSpan.sentIdx)
     .all();
 }
 
 /** 이 레벨·프롬프트 버전의 변환본이 이미 있는가. 있으면 생성하지 않는다. */
 function findRendition(db: CorpusDb, judgmentId: string, level: Level, promptVersion: string) {
+  return findRenditionAtRevision(db, {
+    judgmentId,
+    level,
+    promptVersion,
+    sourceRevisionId: findCurrentJudgmentRevisionId(db, judgmentId),
+  });
+}
+
+function findRenditionAtRevision(
+  db: CorpusDb,
+  input: {
+    judgmentId: string;
+    level: Level;
+    promptVersion: string;
+    sourceRevisionId: string | null;
+  },
+) {
+  return db
+    .select()
+    .from(rendition)
+    .where(
+      and(
+        eq(rendition.judgmentId, input.judgmentId),
+        eq(rendition.level, input.level),
+        eq(
+          rendition.promptVersion,
+          versionForRevision(input.promptVersion, input.sourceRevisionId),
+        ),
+        input.sourceRevisionId === null
+          ? isNull(rendition.sourceRevisionId)
+          : eq(rendition.sourceRevisionId, input.sourceRevisionId),
+      ),
+    )
+    .get();
+}
+
+/** 프롬프트 버전을 가리지 않고 가장 최근 것. 오래된 버전이라도 보여 주고 재생성을 권한다. */
+function findLatestRendition(
+  db: CorpusDb,
+  judgmentId: string,
+  level: Level,
+  pinnedRevisionId?: string | null,
+) {
+  const revisionId = sourceRevision(db, judgmentId, pinnedRevisionId);
   return db
     .select()
     .from(rendition)
@@ -131,18 +261,11 @@ function findRendition(db: CorpusDb, judgmentId: string, level: Level, promptVer
       and(
         eq(rendition.judgmentId, judgmentId),
         eq(rendition.level, level),
-        eq(rendition.promptVersion, promptVersion),
+        revisionId === null
+          ? isNull(rendition.sourceRevisionId)
+          : eq(rendition.sourceRevisionId, revisionId),
       ),
     )
-    .get();
-}
-
-/** 프롬프트 버전을 가리지 않고 가장 최근 것. 오래된 버전이라도 보여 주고 재생성을 권한다. */
-function findLatestRendition(db: CorpusDb, judgmentId: string, level: Level) {
-  return db
-    .select()
-    .from(rendition)
-    .where(and(eq(rendition.judgmentId, judgmentId), eq(rendition.level, level)))
     .orderBy(desc(rendition.generatedAt))
     .get();
 }
@@ -194,17 +317,20 @@ function saveRendition(
     promptVersion: string;
     reviewState?: ReviewState;
     sentences: readonly SentenceInput[];
+    sourceRevisionId?: string | null;
   },
 ): string {
+  const revisionId = sourceRevision(db, input.judgmentId, input.sourceRevisionId);
   return db.transaction((tx) => {
     const id = newId();
     tx.insert(rendition)
       .values({
         id,
         judgmentId: input.judgmentId,
+        sourceRevisionId: revisionId,
         level: input.level,
         model: input.model,
-        promptVersion: input.promptVersion,
+        promptVersion: versionForRevision(input.promptVersion, revisionId),
         reviewState: input.reviewState ?? "none",
       })
       .run();
@@ -243,15 +369,23 @@ type ClaimResult =
 /** 새 작업을 만들어 선점을 시도한다. 이미 있으면 아무 일도 하지 않고 undefined를 낸다. */
 function insertClaim(
   db: CorpusDb,
-  input: { judgmentId: string; level: Level; promptVersion: string; workerId: string; now: Date },
+  input: {
+    judgmentId: string;
+    sourceRevisionId: string | null;
+    level: Level;
+    promptVersion: string;
+    workerId: string;
+    now: Date;
+  },
 ): string | undefined {
   const rows = db
     .insert(generationJob)
     .values({
       id: newId(),
       judgmentId: input.judgmentId,
+      sourceRevisionId: input.sourceRevisionId,
       level: input.level,
-      promptVersion: input.promptVersion,
+      promptVersion: versionForRevision(input.promptVersion, input.sourceRevisionId),
       status: "running",
       claimedBy: input.workerId,
       heartbeatAt: input.now,
@@ -263,15 +397,29 @@ function insertClaim(
   return rows[0]?.id;
 }
 
-function findJob(db: CorpusDb, judgmentId: string, level: Level, promptVersion: string) {
+function findJob(
+  db: CorpusDb,
+  input: {
+    judgmentId: string;
+    sourceRevisionId: string | null;
+    level: Level;
+    promptVersion: string;
+  },
+) {
   return db
     .select()
     .from(generationJob)
     .where(
       and(
-        eq(generationJob.judgmentId, judgmentId),
-        eq(generationJob.level, level),
-        eq(generationJob.promptVersion, promptVersion),
+        eq(generationJob.judgmentId, input.judgmentId),
+        eq(generationJob.level, input.level),
+        eq(
+          generationJob.promptVersion,
+          versionForRevision(input.promptVersion, input.sourceRevisionId),
+        ),
+        input.sourceRevisionId === null
+          ? isNull(generationJob.sourceRevisionId)
+          : eq(generationJob.sourceRevisionId, input.sourceRevisionId),
       ),
     )
     .get();
@@ -321,19 +469,26 @@ function claimGenerationJob(
     promptVersion: string;
     workerId: string;
     now?: Date;
+    sourceRevisionId?: string | null;
   },
 ): ClaimResult {
   const now = input.now ?? new Date();
+  const revisionId = sourceRevision(db, input.judgmentId, input.sourceRevisionId);
 
-  const claimedId = insertClaim(db, { ...input, now });
+  const claimedId = insertClaim(db, { ...input, sourceRevisionId: revisionId, now });
   if (claimedId !== undefined) {
     return { kind: "claimed", jobId: claimedId };
   }
 
-  const existing = findJob(db, input.judgmentId, input.level, input.promptVersion);
+  const existing = findJob(db, {
+    judgmentId: input.judgmentId,
+    sourceRevisionId: revisionId,
+    level: input.level,
+    promptVersion: input.promptVersion,
+  });
   // 유니크 제약 때문에 여기서 행이 없을 수는 없다. 있어도 다시 시도하는 편이 안전하다.
   if (!existing) {
-    return claimGenerationJob(db, { ...input, now });
+    return claimGenerationJob(db, { ...input, sourceRevisionId: revisionId, now });
   }
   if (existing.status === "done") {
     return { kind: "done", jobId: existing.id };
@@ -377,9 +532,20 @@ interface JobProgress {
 /** 이 변환본을 만드는 작업이 지금 어떤 상태인가. 없으면 undefined. */
 function findGenerationProgress(
   db: CorpusDb,
-  input: { judgmentId: string; level: Level; promptVersion: string },
+  input: {
+    judgmentId: string;
+    level: Level;
+    promptVersion: string;
+    sourceRevisionId?: string | null;
+  },
 ): JobProgress | undefined {
-  const row = findJob(db, input.judgmentId, input.level, input.promptVersion);
+  const revisionId = sourceRevision(db, input.judgmentId, input.sourceRevisionId);
+  const row = findJob(db, {
+    judgmentId: input.judgmentId,
+    sourceRevisionId: revisionId,
+    level: input.level,
+    promptVersion: input.promptVersion,
+  });
   if (row === undefined) {
     return;
   }
@@ -565,18 +731,22 @@ type CorpusTx = Parameters<Parameters<CorpusDb["transaction"]>[0]>[0];
 /** 노드와 근거 연결을 넣는다. 부르는 쪽이 이미 "넣어도 되는가"를 판단했다. */
 function insertStructure(
   tx: CorpusTx,
-  judgmentId: string,
-  promptVersion: string,
-  nodes: readonly StructureNodeInput[],
+  input: {
+    judgmentId: string;
+    sourceRevisionId: string | null;
+    promptVersion: string;
+    nodes: readonly StructureNodeInput[];
+  },
 ): string[] {
-  const ids = nodes.map(() => newId());
+  const ids = input.nodes.map(() => newId());
 
   tx.insert(structureNode)
     .values(
-      nodes.map((node, index) => ({
+      input.nodes.map((node, index) => ({
         id: ids[index] as string,
-        judgmentId,
-        promptVersion,
+        judgmentId: input.judgmentId,
+        sourceRevisionId: input.sourceRevisionId,
+        promptVersion: input.promptVersion,
         kind: node.kind,
         payload: node.payload,
         occurredOn: node.occurredOn ?? null,
@@ -587,7 +757,7 @@ function insertStructure(
 
   tx.insert(nodeSpan)
     .values(
-      nodes.flatMap((node, index) =>
+      input.nodes.flatMap((node, index) =>
         // 같은 span을 두 번 적어 오는 모델이 있다. 복합 기본키가 터지기 전에 여기서 줄인다.
         [...new Set(node.spanIds)].map((spanId) => ({
           structureNodeId: ids[index] as string,
@@ -615,64 +785,83 @@ function assertNodesGrounded(nodes: readonly StructureNodeInput[], valid: Readon
   }
 }
 
-// 캐시 검증과 교체는 같은 즉시 트랜잭션 안에서 이뤄져야 동시 생성 작업의 id가 끊기지 않는다.
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: 트랜잭션 경계를 쪼개지 않는다.
 function saveStructure(
   db: CorpusDb,
   judgmentId: string,
   promptVersion: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
-  assertNodesGrounded(
+  return saveStructureAtRevision(db, {
+    judgmentId,
+    promptVersion,
     nodes,
-    new Set(
-      db
-        .select({ id: judgmentSpan.id })
-        .from(judgmentSpan)
-        .where(eq(judgmentSpan.judgmentId, judgmentId))
-        .all()
-        .map((row) => row.id),
-    ),
+    sourceRevisionId: findCurrentJudgmentRevisionId(db, judgmentId),
+  });
+}
+
+function storedStructureIds(
+  tx: CorpusTx,
+  input: { judgmentId: string; revisionId: string | null; promptVersion: string },
+): string[] {
+  return tx
+    .select({ id: structureNode.id })
+    .from(structureNode)
+    .where(
+      and(
+        eq(structureNode.judgmentId, input.judgmentId),
+        eq(structureNode.promptVersion, input.promptVersion),
+        input.revisionId === null
+          ? isNull(structureNode.sourceRevisionId)
+          : eq(structureNode.sourceRevisionId, input.revisionId),
+      ),
+    )
+    .orderBy(structureNode.orderIdx)
+    .all()
+    .map((row) => row.id);
+}
+
+function allStructuresHaveEvidence(tx: CorpusTx, ids: readonly string[]): boolean {
+  const linked = new Set(
+    tx
+      .select({ id: nodeSpan.structureNodeId })
+      .from(nodeSpan)
+      .where(inArray(nodeSpan.structureNodeId, [...ids]))
+      .all()
+      .map((row) => row.id),
   );
+  return ids.every((id) => linked.has(id));
+}
+
+function saveStructureAtRevision(
+  db: CorpusDb,
+  input: {
+    judgmentId: string;
+    promptVersion: string;
+    nodes: readonly StructureNodeInput[];
+    sourceRevisionId: string | null;
+  },
+): string[] {
+  const { judgmentId, nodes, sourceRevisionId: revisionId } = input;
+  const storedVersion = versionForRevision(input.promptVersion, revisionId);
+  assertNodesGrounded(nodes, new Set(listSpans(db, judgmentId, revisionId).map((row) => row.id)));
 
   return db.transaction(
     (tx) => {
-      const existing = tx
-        .select({ id: structureNode.id })
-        .from(structureNode)
-        .where(
-          and(
-            eq(structureNode.judgmentId, judgmentId),
-            eq(structureNode.promptVersion, promptVersion),
-          ),
-        )
-        .orderBy(structureNode.orderIdx)
-        .all()
-        .map((row) => row.id);
+      const existing = storedStructureIds(tx, {
+        judgmentId,
+        revisionId,
+        promptVersion: storedVersion,
+      });
       if (existing.length > 0) {
-        const linkedNodeIds = new Set(
-          tx
-            .select({ id: nodeSpan.structureNodeId })
-            .from(nodeSpan)
-            .where(inArray(nodeSpan.structureNodeId, existing))
-            .all()
-            .map((row) => row.id),
-        );
-
-        if (existing.every((id) => linkedNodeIds.has(id))) {
+        if (allStructuresHaveEvidence(tx, existing)) {
           return existing;
         }
-
-        /*
-         * 원문을 갱신하면 span은 새 id로 교체되고 node_span은 FK cascade로 지워진다.
-         * 그때 남은 구조 노드는 더 이상 원문으로 되짚을 수 없는 캐시이므로 새 추출 결과로
-         * 교체한다. 여기서 지우면 옛 변환 문장의 structureNodeId는 FK 규칙에 따라 null이 된다.
-         */
+        // 근거 연결이 깨진 같은 판의 캐시만 버린다. 다른 원문판의 구조와 span은 건드리지 않는다.
         tx.delete(structureNode)
           .where(
             and(
               eq(structureNode.judgmentId, judgmentId),
-              eq(structureNode.promptVersion, promptVersion),
+              eq(structureNode.promptVersion, storedVersion),
             ),
           )
           .run();
@@ -681,7 +870,12 @@ function saveStructure(
         return [];
       }
 
-      return insertStructure(tx, judgmentId, promptVersion, nodes);
+      return insertStructure(tx, {
+        judgmentId,
+        sourceRevisionId: revisionId,
+        promptVersion: storedVersion,
+        nodes,
+      });
     },
     { behavior: "immediate" },
   );
@@ -697,12 +891,20 @@ function listStructureNodes(
   db: CorpusDb,
   judgmentId: string,
   promptVersion: string,
+  pinnedRevisionId?: string | null,
 ): StructureNodeRow[] {
+  const revisionId = sourceRevision(db, judgmentId, pinnedRevisionId);
   const nodes = db
     .select()
     .from(structureNode)
     .where(
-      and(eq(structureNode.judgmentId, judgmentId), eq(structureNode.promptVersion, promptVersion)),
+      and(
+        eq(structureNode.judgmentId, judgmentId),
+        eq(structureNode.promptVersion, versionForRevision(promptVersion, revisionId)),
+        revisionId === null
+          ? isNull(structureNode.sourceRevisionId)
+          : eq(structureNode.sourceRevisionId, revisionId),
+      ),
     )
     .orderBy(structureNode.orderIdx)
     .all();
@@ -1097,9 +1299,11 @@ function recordLookupMiss(db: CorpusDb, caseNoCanonical: string, now: Date = new
 export {
   claimGenerationJob,
   countGenerationsOn,
+  findCurrentJudgmentRevisionId,
   findJudgmentByCaseNo,
   findLatestLawVersion,
   findLatestRendition,
+  findRenditionAtRevision,
   findLawArticle,
   findLawVersionAt,
   findGenerationProgress,
@@ -1108,6 +1312,7 @@ export {
   finishGenerationJob,
   heartbeatGenerationJob,
   listLawArticles,
+  listJudgmentRevisions,
   listLawNameEntries,
   listLawSections,
   listSentences,
@@ -1122,6 +1327,7 @@ export {
   saveLawArticles,
   saveRendition,
   saveStructure,
+  saveStructureAtRevision,
   searchLawVersions,
   setGenerationStage,
   upsertJudgment,

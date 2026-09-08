@@ -69,11 +69,37 @@ const judgment = sqliteTable(
     fetchedAt: integer("fetched_at", { mode: "timestamp_ms" }),
     /** 원문 본문을 캐시한 시각. null이면 메타데이터만 있고 본문은 아직 없다. */
     textCachedAt: integer("text_cached_at", { mode: "timestamp_ms" }),
+    /** 현재 공개 원문판. 이전 판은 지우지 않고 이 포인터만 바꾼다. */
+    currentRevisionId: text("current_revision_id"),
     createdAt: createdAt(),
   },
   (table) => [
     unique("judgment_case_no_unique").on(table.caseNoCanonical),
     index("judgment_decided_at_idx").on(table.decidedAt),
+  ],
+);
+
+/**
+ * 판결문 원문의 불변 판.
+ *
+ * 외부 원문을 다시 받았을 때 기존 span을 덮지 않는다. 내용이 같으면 같은 판을 쓰고,
+ * 내용이 달라졌을 때만 새 UUID 판을 만든 뒤 `judgment.currentRevisionId`를 전환한다.
+ */
+const judgmentRevision = sqliteTable(
+  "judgment_revision",
+  {
+    id: text("id").primaryKey(),
+    judgmentId: text("judgment_id")
+      .notNull()
+      .references(() => judgment.id, { onDelete: "cascade" }),
+    /** 새 원문은 SHA-256. 기존 데이터를 옮긴 legacy 판은 계산 근거가 없어 null이다. */
+    contentHash: text("content_hash"),
+    fetchedAt: integer("fetched_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique("judgment_revision_content_unique").on(table.judgmentId, table.contentHash),
+    index("judgment_revision_judgment_idx").on(table.judgmentId, table.createdAt),
   ],
 );
 
@@ -89,6 +115,10 @@ const judgmentSpan = sqliteTable(
     judgmentId: text("judgment_id")
       .notNull()
       .references(() => judgment.id, { onDelete: "cascade" }),
+    /** 이 좌표를 만든 불변 원문판. 기존 행은 마이그레이션에서 legacy 판에 연결한다. */
+    revisionId: text("revision_id").references(() => judgmentRevision.id, {
+      onDelete: "cascade",
+    }),
     paraIdx: integer("para_idx").notNull(),
     sentIdx: integer("sent_idx").notNull(),
     charStart: integer("char_start").notNull(),
@@ -96,8 +126,9 @@ const judgmentSpan = sqliteTable(
     text: text("text").notNull(),
   },
   (table) => [
-    unique("judgment_span_position_unique").on(table.judgmentId, table.paraIdx, table.sentIdx),
+    unique("judgment_span_position_unique").on(table.revisionId, table.paraIdx, table.sentIdx),
     index("judgment_span_judgment_idx").on(table.judgmentId),
+    index("judgment_span_revision_idx").on(table.revisionId),
   ],
 );
 
@@ -127,6 +158,10 @@ const structureNode = sqliteTable(
     judgmentId: text("judgment_id")
       .notNull()
       .references(() => judgment.id, { onDelete: "cascade" }),
+    /** 추출이 읽은 원문판. null은 판 식별자를 갖기 전의 legacy 결과다. */
+    sourceRevisionId: text("source_revision_id").references(() => judgmentRevision.id, {
+      onDelete: "set null",
+    }),
     kind: text("kind", {
       enum: ["fact_event", "issue", "claim", "holding", "conclusion", "citation"],
     }).notNull(),
@@ -153,6 +188,7 @@ const structureNode = sqliteTable(
   (table) => [
     index("structure_node_judgment_idx").on(table.judgmentId, table.orderIdx),
     index("structure_node_version_idx").on(table.judgmentId, table.promptVersion),
+    index("structure_node_revision_idx").on(table.sourceRevisionId, table.promptVersion),
   ],
 );
 
@@ -215,6 +251,10 @@ const rendition = sqliteTable(
     judgmentId: text("judgment_id")
       .notNull()
       .references(() => judgment.id, { onDelete: "cascade" }),
+    /** 이 설명이 근거로 삼은 원문판. */
+    sourceRevisionId: text("source_revision_id").references(() => judgmentRevision.id, {
+      onDelete: "set null",
+    }),
     level: text("level", { enum: LEVELS }).notNull(),
     model: text("model").notNull(),
     promptVersion: text("prompt_version").notNull(),
@@ -226,6 +266,7 @@ const rendition = sqliteTable(
   (table) => [
     unique("rendition_variant_unique").on(table.judgmentId, table.level, table.promptVersion),
     index("rendition_lookup_idx").on(table.judgmentId, table.level),
+    index("rendition_revision_idx").on(table.sourceRevisionId, table.level),
   ],
 );
 
@@ -307,6 +348,10 @@ const generationJob = sqliteTable(
     judgmentId: text("judgment_id")
       .notNull()
       .references(() => judgment.id, { onDelete: "cascade" }),
+    /** 작업이 시작될 때 고정한 원문판. */
+    sourceRevisionId: text("source_revision_id").references(() => judgmentRevision.id, {
+      onDelete: "set null",
+    }),
     level: text("level", { enum: LEVELS }).notNull(),
     promptVersion: text("prompt_version").notNull(),
     status: text("status", { enum: JOB_STATUSES }).notNull().default("queued"),
@@ -336,6 +381,7 @@ const generationJob = sqliteTable(
   (table) => [
     unique("generation_job_variant_unique").on(table.judgmentId, table.level, table.promptVersion),
     index("generation_job_status_idx").on(table.status, table.heartbeatAt),
+    index("generation_job_revision_idx").on(table.sourceRevisionId, table.level),
   ],
 );
 
@@ -521,6 +567,7 @@ const corpusSchema = {
   generationJob,
   generationUsage,
   judgment,
+  judgmentRevision,
   judgmentSpan,
   lawArticle,
   lawVersion,
@@ -544,6 +591,7 @@ export {
   JOB_STAGES,
   JOB_STATUSES,
   judgment,
+  judgmentRevision,
   lawArticle,
   lawVersion,
   judgmentSpan,

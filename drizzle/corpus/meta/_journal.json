@@ -92,6 +92,13 @@
       "when": 1788659261093,
       "tag": "0012_uneven_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1788842008213,
+      "tag": "0013_illegal_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

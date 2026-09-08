@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, sql } from "drizzle-orm";
 import {
   upload,
   uploadRendition,
@@ -301,7 +301,12 @@ function caseAudioStatus(limit: number): AudioStatusRow[] {
     .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
     .innerJoin(renditionSentence, eq(renditionSentence.renditionId, rendition.id))
     .leftJoin(renditionAudio, eq(renditionAudio.sentenceId, renditionSentence.id))
-    .where(eq(rendition.promptVersion, PIPELINE_VERSION))
+    .where(
+      and(
+        like(rendition.promptVersion, `${PIPELINE_VERSION}::source:%`),
+        eq(rendition.sourceRevisionId, judgment.currentRevisionId),
+      ),
+    )
     .groupBy(rendition.id)
     .orderBy(desc(rendition.generatedAt))
     .limit(limit)
@@ -315,8 +320,13 @@ function findCaseAudio(sentenceId: string): { bytes: Buffer; format: string } | 
     .from(renditionAudio)
     .innerJoin(renditionSentence, eq(renditionSentence.id, renditionAudio.sentenceId))
     .innerJoin(rendition, eq(rendition.id, renditionSentence.renditionId))
+    .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
     .where(
-      and(eq(renditionAudio.sentenceId, sentenceId), eq(rendition.promptVersion, PIPELINE_VERSION)),
+      and(
+        eq(renditionAudio.sentenceId, sentenceId),
+        like(rendition.promptVersion, `${PIPELINE_VERSION}::source:%`),
+        eq(rendition.sourceRevisionId, judgment.currentRevisionId),
+      ),
     )
     .all()
     .at(0);
