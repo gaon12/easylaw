@@ -155,6 +155,22 @@ function findJudgmentById(db: CorpusDb, judgmentId: string) {
   return db.select().from(judgment).where(eq(judgment.id, judgmentId)).get();
 }
 
+/** app DB의 신고 목록에 붙일 공개 판결문 이름을 한 질의로 읽는다. */
+function listJudgmentIdentities(db: CorpusDb, judgmentIds: readonly string[]) {
+  if (judgmentIds.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      id: judgment.id,
+      caseNoCanonical: judgment.caseNoCanonical,
+      caseNoDisplay: judgment.caseNoDisplay,
+    })
+    .from(judgment)
+    .where(inArray(judgment.id, [...new Set(judgmentIds)]))
+    .all();
+}
+
 function findJudgmentRevision(db: CorpusDb, judgmentId: string, revisionId: string) {
   return db
     .select()
@@ -380,6 +396,33 @@ function findPublishedRendition(db: CorpusDb, judgmentId: string, level: Level) 
       ),
     )
     .get()?.rendition;
+}
+
+/** 신고가 현재 공개 중인 정확한 문장에서 왔는지 확인하고 불변 식별자를 함께 돌려준다. */
+function findPublishedSentenceContext(db: CorpusDb, sentenceId: string) {
+  return db
+    .select({
+      judgmentId: judgment.id,
+      sourceRevisionId: contentRelease.sourceRevisionId,
+      contentReleaseId: contentRelease.id,
+      renditionId: rendition.id,
+      sentenceId: renditionSentence.id,
+    })
+    .from(renditionSentence)
+    .innerJoin(rendition, eq(rendition.id, renditionSentence.renditionId))
+    .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
+    .innerJoin(contentReleaseRendition, eq(contentReleaseRendition.renditionId, rendition.id))
+    .innerJoin(contentRelease, eq(contentRelease.id, contentReleaseRendition.releaseId))
+    .where(
+      and(
+        eq(renditionSentence.id, sentenceId),
+        eq(judgment.currentContentReleaseId, contentRelease.id),
+        eq(judgment.currentRevisionId, contentRelease.sourceRevisionId),
+        eq(rendition.sourceRevisionId, contentRelease.sourceRevisionId),
+        eq(rendition.reviewState, "approved"),
+      ),
+    )
+    .get();
 }
 
 /** 현재 공개 릴리스에 든 문장의 음성만 돌려준다. */
@@ -945,6 +988,19 @@ function listSentences(db: CorpusDb, renditionId: string) {
     sourceSpanIds:
       sentence.structureNodeId === null ? [] : (spansByNode.get(sentence.structureNodeId) ?? []),
   }));
+}
+
+/** app DB 신고 행에 붙일 문장 본문과 레벨을 한 번에 읽는다. */
+function listReportedSentenceDetails(db: CorpusDb, sentenceIds: readonly string[]) {
+  if (sentenceIds.length === 0) {
+    return [];
+  }
+  return db
+    .select({ id: renditionSentence.id, text: renditionSentence.text, level: rendition.level })
+    .from(renditionSentence)
+    .innerJoin(rendition, eq(rendition.id, renditionSentence.renditionId))
+    .where(inArray(renditionSentence.id, sentenceIds))
+    .all();
 }
 
 function saveRendition(
@@ -2108,6 +2164,7 @@ export {
   findContentReleaseBundle,
   findPublishedAudio,
   findPublishedRendition,
+  findPublishedSentenceContext,
   findCurrentJudgmentRevisionId,
   findJudgmentByCaseNo,
   findJudgmentById,
@@ -2127,6 +2184,7 @@ export {
   listLawArticles,
   listJudgmentRevisions,
   listJudgmentRevisionSummaries,
+  listJudgmentIdentities,
   listContentReleases,
   listLawNameEntries,
   listLawSections,
@@ -2135,6 +2193,7 @@ export {
   countAudioOn,
   listRecentGenerationFailures,
   listRenditionReleaseOverview,
+  listReportedSentenceDetails,
   reserveAudioSlot,
   listStructureNodes,
   recordLookupMiss,

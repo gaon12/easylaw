@@ -6,6 +6,7 @@ import { LevelBody } from "./level-body";
 import type { ViewLevel } from "./levels";
 import styles from "./rendition-panel.module.css";
 import { renditionHeadingId } from "./rendition-toc";
+import { SentenceReport } from "./sentence-report";
 import { SpeechReader } from "./speech-reader";
 
 interface Sentence {
@@ -103,11 +104,13 @@ function RenditionPanel({
   sentences,
   needsCheckCount,
   media,
+  reportable = false,
 }: {
   level: ViewLevel;
   sentences: readonly Sentence[];
   needsCheckCount: number;
   media?: readonly CaseMediaPlacement[];
+  reportable?: boolean;
 }) {
   const mediaByHeading = new Map(media?.map((item) => [item.afterHeading, item]) ?? []);
   const blocks = groupExplanationBlocks(sentences);
@@ -172,6 +175,7 @@ function RenditionPanel({
                               <ConfidenceMark sentence={sentence} />
                             </a>
                           )}
+                          {reportable ? <SentenceReport sentenceId={sentence.id} /> : null}
                         </div>
                       );
                     })}

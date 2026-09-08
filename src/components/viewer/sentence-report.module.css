@@ -1,0 +1,33 @@
+.dialog {
+  max-width: 30rem;
+}
+
+.trigger {
+  min-height: var(--el-touch-target);
+}
+
+.form,
+.field {
+  display: grid;
+  gap: var(--el-space-2);
+}
+
+.form {
+  gap: var(--el-space-4);
+}
+
+.field > span {
+  font-weight: 700;
+}
+
+.done {
+  color: var(--el-success-70);
+}
+
+.problem {
+  color: var(--el-danger-70);
+}
+
+.footer {
+  margin-top: 0;
+}

@@ -939,6 +939,24 @@ export const setup = {
  *
  * 마법사에서 넣은 값을 나중에 못 고치면, 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
  */
+export const report = {
+  open: "문제 알리기",
+  title: "이 설명의 문제를 알려 주세요",
+  intro: "신고는 지금 보고 있는 설명판과 문장에 연결돼 검수자가 원문과 함께 확인합니다.",
+  reason: "어떤 문제인가요?",
+  reasons: {
+    incorrect: "내용이 사실 또는 법률과 달라요",
+    hard_to_understand: "설명이 이해하기 어려워요",
+    missing: "중요한 내용이 빠졌어요",
+    outdated: "지금 기준과 맞지 않는 것 같아요",
+    other: "그 밖의 문제예요",
+  },
+  detail: "자세한 내용 (선택)",
+  detailHint: "어느 부분이 왜 문제인지 적어 주세요.",
+  send: "보내기",
+  sending: "보내는 중…",
+} as const;
+
 export const admin = {
   title: "관리자",
   intro: "서비스 상태를 보고 설정을 바꾸실 수 있어요. 이 화면은 관리자만 볼 수 있어요.",
@@ -954,6 +972,7 @@ export const admin = {
     overview: "한눈에",
     audio: "설명 음성",
     content: "자료",
+    reports: "오류 신고",
     mediaRecipes: "이미지 레시피",
     log: "기록",
     settings: "설정",
@@ -1105,6 +1124,36 @@ export const admin = {
   releaseDiffSame: "두 릴리스에 들어 있는 설명이 같아요.",
   releaseLevelDiff: { added: "추가", removed: "철회", changed: "교체" },
   releaseDiffKinds: { same: "같은 문장", removed: "이전 문장", added: "새 문장" },
+
+  reportsTitle: "오류 신고",
+  reportsIntro:
+    "공개 설명에서 들어온 신고예요. 신고 당시 원문판·릴리스·문장 식별값이 그대로 남아 있어요.",
+  reportsEmpty: "아직 들어온 신고가 없어요.",
+  reportColumns: {
+    at: "받은 때",
+    document: "판결문",
+    reason: "문제",
+    sentence: "신고한 문장",
+    status: "처리",
+  },
+  reportReasons: {
+    incorrect: "사실·법률 오류",
+    hard_to_understand: "이해하기 어려움",
+    missing: "중요 내용 누락",
+    outdated: "기준 시점 문제",
+    other: "그 밖의 문제",
+  },
+  reportStatuses: {
+    open: "접수",
+    reviewing: "확인 중",
+    resolved: "수정 완료",
+    dismissed: "문제 없음",
+  },
+  reportStatusLabel: "신고 처리 상태",
+  reportSave: "상태 저장",
+  reportSaving: "저장 중…",
+  reportMissingDocument: "판결문을 찾을 수 없음",
+  reportMissingSentence: "문장을 찾을 수 없음",
 
   missTitle: "못 찾은 사건번호",
   missIntro: "찾으셨는데 우리가 가져오지 못한 사건번호예요. 자주 오르는 것부터 살펴볼 만해요.",

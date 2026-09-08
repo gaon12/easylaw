@@ -27,6 +27,14 @@ import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import { MASK_KINDS } from "@/lib/text/mask";
 
 const USER_ROLES = ["viewer", "contributor", "reviewer", "publisher", "admin"] as const;
+const CONTENT_REPORT_REASONS = [
+  "incorrect",
+  "hard_to_understand",
+  "missing",
+  "outdated",
+  "other",
+] as const;
+const CONTENT_REPORT_STATUSES = ["open", "reviewing", "resolved", "dismissed"] as const;
 
 /**
  * "지금" 기본값이 붙은 시각 컬럼. 컬럼 이름을 인자로 받는다 —
@@ -481,6 +489,31 @@ const uploadStructureGenerationJob = sqliteTable(
   ],
 );
 
+/** 공개 설명의 한 문장에서 시작한 오류 신고. 콘텐츠 DB의 불변 UUID를 복사해 역추적한다. */
+const contentReport = sqliteTable(
+  "content_report",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id").references(() => user.id, { onDelete: "set null" }),
+    /** 아래 다섯 값은 corpus DB 식별자다. DB 파일이 달라 외래 키 대신 UUID를 보존한다. */
+    judgmentId: text("judgment_id").notNull(),
+    sourceRevisionId: text("source_revision_id").notNull(),
+    contentReleaseId: text("content_release_id").notNull(),
+    renditionId: text("rendition_id").notNull(),
+    sentenceId: text("sentence_id").notNull(),
+    reason: text("reason", { enum: CONTENT_REPORT_REASONS }).notNull(),
+    detail: text("detail"),
+    status: text("status", { enum: CONTENT_REPORT_STATUSES }).notNull().default("open"),
+    createdAt: timestampNow("created_at"),
+    handledBy: text("handled_by").references(() => user.id, { onDelete: "set null" }),
+    handledAt: integer("handled_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("content_report_status_idx").on(table.status, table.createdAt),
+    index("content_report_sentence_idx").on(table.sentenceId, table.status),
+  ],
+);
+
 /**
  * 감사 로그.
  *
@@ -506,6 +539,7 @@ const auditLog = sqliteTable(
 const appSchema = {
   uploadRenditionAudio,
   auditLog,
+  contentReport,
   session,
   setting,
   upload,
@@ -525,6 +559,9 @@ export {
   uploadRenditionAudio,
   appSchema,
   auditLog,
+  contentReport,
+  CONTENT_REPORT_REASONS,
+  CONTENT_REPORT_STATUSES,
   CONFIDENCES,
   JOB_STAGES,
   JOB_STATUSES,

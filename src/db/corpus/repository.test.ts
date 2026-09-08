@@ -19,6 +19,7 @@ import {
   findLawVersionByMst,
   findPublishedAudio,
   findPublishedRendition,
+  findPublishedSentenceContext,
   findRendition,
   findRenditionAtRevision,
   finishGenerationJob,
@@ -454,6 +455,13 @@ describe("content release", () => {
       changed: true,
     });
     expect(publishRendition(db, { judgmentId, renditionId })).toMatchObject({ ok: true });
+    const sentenceId = listSentences(db, renditionId)[0]?.id;
+    expect(sentenceId).toBeDefined();
+    expect(findPublishedSentenceContext(db, sentenceId as string)).toMatchObject({
+      judgmentId,
+      renditionId,
+      sentenceId,
+    });
   });
 
   it("검수 요청 없이 승인하거나 승인된 설명을 작성 단계로 되돌리지 않는다", () => {
