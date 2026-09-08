@@ -7,6 +7,7 @@
 
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
@@ -270,6 +271,31 @@ function findLatestRendition(
     .get();
 }
 
+/** 현재 원문판에서 사람이 승인한 편집본. 자동 생성 설정이 바뀌어도 승인본은 유효하다. */
+function findApprovedRendition(
+  db: CorpusDb,
+  judgmentId: string,
+  level: Level,
+  pinnedRevisionId?: string | null,
+) {
+  const revisionId = sourceRevision(db, judgmentId, pinnedRevisionId);
+  return db
+    .select()
+    .from(rendition)
+    .where(
+      and(
+        eq(rendition.judgmentId, judgmentId),
+        eq(rendition.level, level),
+        eq(rendition.reviewState, "approved"),
+        revisionId === null
+          ? isNull(rendition.sourceRevisionId)
+          : eq(rendition.sourceRevisionId, revisionId),
+      ),
+    )
+    .orderBy(desc(rendition.generatedAt))
+    .get();
+}
+
 function listSentences(db: CorpusDb, renditionId: string) {
   const sentences = db
     .select()
@@ -315,6 +341,7 @@ function saveRendition(
     level: Level;
     model: string;
     promptVersion: string;
+    generationSnapshot?: GenerationSnapshot;
     reviewState?: ReviewState;
     sentences: readonly SentenceInput[];
     sourceRevisionId?: string | null;
@@ -331,6 +358,7 @@ function saveRendition(
         level: input.level,
         model: input.model,
         promptVersion: versionForRevision(input.promptVersion, revisionId),
+        generationSnapshot: input.generationSnapshot,
         reviewState: input.reviewState ?? "none",
       })
       .run();
@@ -374,6 +402,7 @@ function insertClaim(
     sourceRevisionId: string | null;
     level: Level;
     promptVersion: string;
+    generationSnapshot?: GenerationSnapshot;
     workerId: string;
     now: Date;
   },
@@ -386,6 +415,7 @@ function insertClaim(
       sourceRevisionId: input.sourceRevisionId,
       level: input.level,
       promptVersion: versionForRevision(input.promptVersion, input.sourceRevisionId),
+      generationSnapshot: input.generationSnapshot,
       status: "running",
       claimedBy: input.workerId,
       heartbeatAt: input.now,
@@ -428,23 +458,27 @@ function findJob(
 /** 실패했거나 heartbeat가 멈춘 작업만 회수한다. 조건을 UPDATE에 담아 경합을 DB가 판정하게 한다. */
 function reclaimJob(
   db: CorpusDb,
-  job: { id: string; attempts: number },
-  workerId: string,
-  now: Date,
+  input: {
+    job: { id: string; attempts: number };
+    workerId: string;
+    now: Date;
+    generationSnapshot?: GenerationSnapshot;
+  },
 ): boolean {
-  const staleBefore = new Date(now.getTime() - STALE_AFTER_MS);
+  const staleBefore = new Date(input.now.getTime() - STALE_AFTER_MS);
   const rows = db
     .update(generationJob)
     .set({
       status: "running",
-      claimedBy: workerId,
-      heartbeatAt: now,
-      attempts: job.attempts + 1,
+      claimedBy: input.workerId,
+      heartbeatAt: input.now,
+      generationSnapshot: input.generationSnapshot,
+      attempts: input.job.attempts + 1,
       error: null,
     })
     .where(
       and(
-        eq(generationJob.id, job.id),
+        eq(generationJob.id, input.job.id),
         or(eq(generationJob.status, "failed"), lt(generationJob.heartbeatAt, staleBefore)),
       ),
     )
@@ -467,6 +501,7 @@ function claimGenerationJob(
     judgmentId: string;
     level: Level;
     promptVersion: string;
+    generationSnapshot?: GenerationSnapshot;
     workerId: string;
     now?: Date;
     sourceRevisionId?: string | null;
@@ -493,7 +528,14 @@ function claimGenerationJob(
   if (existing.status === "done") {
     return { kind: "done", jobId: existing.id };
   }
-  if (reclaimJob(db, existing, input.workerId, now)) {
+  if (
+    reclaimJob(db, {
+      job: existing,
+      workerId: input.workerId,
+      now,
+      generationSnapshot: input.generationSnapshot,
+    })
+  ) {
     return { kind: "claimed", jobId: existing.id };
   }
   return { kind: "running", jobId: existing.id };
@@ -1299,6 +1341,7 @@ function recordLookupMiss(db: CorpusDb, caseNoCanonical: string, now: Date = new
 export {
   claimGenerationJob,
   countGenerationsOn,
+  findApprovedRendition,
   findCurrentJudgmentRevisionId,
   findJudgmentByCaseNo,
   findLatestLawVersion,

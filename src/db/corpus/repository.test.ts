@@ -1,11 +1,13 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
 import { createTestCorpusDb } from "../testing";
 import {
   claimGenerationJob,
   countGenerationsOn,
+  findApprovedRendition,
   findGenerationProgress,
   findJudgmentByCaseNo,
   findLatestRendition,
@@ -32,7 +34,14 @@ import {
   upsertJudgment,
   upsertLawVersions,
 } from "./repository";
-import { judgmentSpan, lookupMiss, rendition, renditionAudio, structureNode } from "./schema";
+import {
+  generationJob,
+  judgmentSpan,
+  lookupMiss,
+  rendition,
+  renditionAudio,
+  structureNode,
+} from "./schema";
 
 let db: CorpusDb;
 let close: () => void;
@@ -58,6 +67,19 @@ function seedJudgment(caseNo = "2019도12345"): string {
 
 /** 시험에서 쓰는 추출 프롬프트 판. 값이 무엇인지는 중요하지 않고, **같은 판인가**만 본다. */
 const PROMPT = "extract-test";
+
+const GENERATION_SNAPSHOT: GenerationSnapshot = {
+  schemaVersion: "generation-snapshot-v1",
+  providerId: "test-provider",
+  generationModel: "test-model",
+  verificationModel: "test-model",
+  extractPromptVersion: "extract-test",
+  renderPromptVersion: "render-test",
+  entailPromptVersion: "entail-test",
+  rulesVersion: "rules-test",
+  readerPerspective: "neutral-reader-v1",
+  safetyPolicyVersion: "grounded-output-v1",
+};
 
 describe("upsertJudgment", () => {
   it("같은 사건번호로 두 번 넣어도 하나만 남는다", () => {
@@ -150,6 +172,37 @@ describe("saveJudgmentText", () => {
 });
 
 describe("saveRendition", () => {
+  it("현재 자동 생성 키가 달라도 현재 원문판의 승인 편집본을 찾는다", () => {
+    const judgmentId = seedJudgment();
+    const approvedId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "editorial",
+      promptVersion: "editorial-v1",
+      reviewState: "approved",
+      sentences: [],
+    });
+
+    expect(findRendition(db, judgmentId, "L4", "runtime-v2")).toBeUndefined();
+    expect(findApprovedRendition(db, judgmentId, "L4")?.id).toBe(approvedId);
+  });
+
+  it("생성 설정 스냅샷을 결과와 함께 보존한다", () => {
+    const judgmentId = seedJudgment();
+    saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "test-model",
+      promptVersion: "v1",
+      generationSnapshot: GENERATION_SNAPSHOT,
+      sentences: [],
+    });
+
+    expect(findRendition(db, judgmentId, "L2", "v1")?.generationSnapshot).toEqual(
+      GENERATION_SNAPSHOT,
+    );
+  });
+
   it("편집 검수를 마친 설명의 상태를 보존한다", () => {
     const judgmentId = seedJudgment();
     saveRendition(db, {
@@ -330,6 +383,21 @@ describe("saveRendition", () => {
 
 describe("claimGenerationJob", () => {
   const base = { level: "L2" as const, promptVersion: "v1" };
+
+  it("선점 순간의 생성 설정을 작업에 고정한다", () => {
+    const judgmentId = seedJudgment();
+    const claim = claimGenerationJob(db, {
+      ...base,
+      judgmentId,
+      generationSnapshot: GENERATION_SNAPSHOT,
+      workerId: "w1",
+    });
+
+    expect(
+      db.select().from(generationJob).where(eq(generationJob.id, claim.jobId)).get()
+        ?.generationSnapshot,
+    ).toEqual(GENERATION_SNAPSHOT);
+  });
 
   it("첫 요청만 선점하고 나머지는 기존 작업에 붙는다", () => {
     const judgmentId = seedJudgment();

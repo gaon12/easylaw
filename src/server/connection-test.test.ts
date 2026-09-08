@@ -26,6 +26,7 @@ function fakeLawApi(overrides: Partial<LawApi>): LawApi {
 
 function fakeLlm(overrides: Partial<LlmClient>): LlmClient {
   return {
+    providerId: "test-provider",
     model: "test-model",
     complete: () =>
       Promise.resolve({

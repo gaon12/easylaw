@@ -17,6 +17,7 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 
 /** 판결 결과. "일부"를 숨기지 않으려고 별도 값으로 둔다(`PRODUCT.md` §4-A). */
 const OUTCOMES = [
@@ -258,6 +259,8 @@ const rendition = sqliteTable(
     level: text("level", { enum: LEVELS }).notNull(),
     model: text("model").notNull(),
     promptVersion: text("prompt_version").notNull(),
+    /** 이 결과를 만든 공급자·모델·프롬프트·검사 규칙. 비밀키와 원문은 담지 않는다. */
+    generationSnapshot: text("generation_snapshot", { mode: "json" }).$type<GenerationSnapshot>(),
     reviewState: text("review_state", { enum: ["none", "pending", "approved", "rejected"] })
       .notNull()
       .default("none"),
@@ -354,6 +357,8 @@ const generationJob = sqliteTable(
     }),
     level: text("level", { enum: LEVELS }).notNull(),
     promptVersion: text("prompt_version").notNull(),
+    /** 선점 순간 고정한 생성 설정. 결과 행과 같아야 작업 이력을 재현할 수 있다. */
+    generationSnapshot: text("generation_snapshot", { mode: "json" }).$type<GenerationSnapshot>(),
     status: text("status", { enum: JOB_STATUSES }).notNull().default("queued"),
     /** 지금 무엇을 하고 있나. 아직 시작 전이거나 끝난 작업은 null이다. */
     stage: text("stage", { enum: JOB_STAGES }),

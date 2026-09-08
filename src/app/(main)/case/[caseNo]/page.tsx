@@ -14,6 +14,7 @@ import { WikiDocument } from "@/components/wiki/document";
 import { TableOfContents } from "@/components/wiki/toc";
 import { corpusDb } from "@/db/client";
 import {
+  findApprovedRendition,
   findGenerationProgress,
   findJudgmentByCaseNo,
   findRendition,
@@ -27,7 +28,7 @@ import type { Citation } from "@/lib/law-citation/detect";
 import { braille as brailleStrings, viewer } from "@/lib/strings";
 import { compactHeadingLabel, detectHeadings, type HeadingSpan } from "@/lib/text/headings";
 import { findCitations } from "@/server/citations";
-import { generationBudget, PIPELINE_VERSION, REQUEST_LIMIT_REASON } from "@/server/generate";
+import { currentPipelineVersion, generationBudget, REQUEST_LIMIT_REASON } from "@/server/generate";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import { llmConfig, siteTimeZone } from "@/server/settings";
 import { requestGeneration } from "./actions";
@@ -63,7 +64,7 @@ function placeholderState(
   const progress = findGenerationProgress(corpusDb(), {
     judgmentId,
     level,
-    promptVersion: PIPELINE_VERSION,
+    promptVersion: currentPipelineVersion(),
   });
   if (progress?.status === "running" || progress?.status === "queued") {
     return { kind: "running", stage: progress.stage };
@@ -126,7 +127,8 @@ function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
   const rendition =
     row === undefined || level === "L0"
       ? undefined
-      : findRendition(db, row.id, level, PIPELINE_VERSION);
+      : (findApprovedRendition(db, row.id, level) ??
+        findRendition(db, row.id, level, currentPipelineVersion()));
 
   return {
     row,

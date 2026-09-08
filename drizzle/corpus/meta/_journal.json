@@ -99,6 +99,13 @@
       "when": 1788842008213,
       "tag": "0013_illegal_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1788845116816,
+      "tag": "0014_pink_harpoon",
+      "breakpoints": true
     }
   ]
 }

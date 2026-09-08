@@ -22,7 +22,7 @@ import { braille as brailleStrings, doc, upload, viewer } from "@/lib/strings";
 import { compactHeadingLabel, detectHeadings } from "@/lib/text/headings";
 import type { MaskKind } from "@/lib/text/mask";
 import { findCitations } from "@/server/citations";
-import { generationBudget, PIPELINE_VERSION } from "@/server/generate";
+import { currentPipelineVersion, generationBudget } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
 import { llmConfig, siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
@@ -80,7 +80,7 @@ function placeholderState(docId: string, level: Exclude<ViewLevel, "L0">): Place
   const progress = findUploadJobProgress(appDb(), {
     uploadId: docId,
     level,
-    promptVersion: PIPELINE_VERSION,
+    promptVersion: currentPipelineVersion(),
   });
   if (progress?.status === "running" || progress?.status === "queued") {
     return { kind: "running", stage: progress.stage };
@@ -100,7 +100,7 @@ function loadRendition(docId: string, level: ViewLevel) {
     return { sentences: [], outdatedAt: null };
   }
   const db = appDb();
-  const rendition = findUploadRendition(db, docId, level, PIPELINE_VERSION);
+  const rendition = findUploadRendition(db, docId, level, currentPipelineVersion());
   return {
     sentences: rendition === undefined ? [] : listUploadSentences(db, rendition.id),
     outdatedAt: null,

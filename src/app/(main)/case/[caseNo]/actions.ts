@@ -60,7 +60,7 @@ async function requestGeneration(formData: FormData): Promise<void> {
      * 끝이든 작업을 닫고, 화면은 그 작업 상태를 보고 말한다.
      */
     after(async () => {
-      await runGeneration(store, level, begun.jobId);
+      await runGeneration(store, level, begun.jobId, { runtime: begun.runtime });
     });
   }
 

@@ -10,6 +10,9 @@
 
 type Level = "L1" | "L2" | "L3" | "L4";
 
+/** 생성 결과를 바꿀 수 있는 기계 검사 규칙의 판. */
+const RENDITION_RULES_VERSION = "rendition-rules-2026-09-08-v1";
+
 type Severity =
   /** 렌더를 막는다. 사용자에게 보여선 안 되는 문제다. */
   | "error"
@@ -241,5 +244,5 @@ function hasBlockingIssue(issues: readonly LintIssue[]): boolean {
   return issues.some((issue) => issue.severity === "error");
 }
 
-export { hasBlockingIssue, lintRendition, RULES as LEVEL_RULES };
+export { hasBlockingIssue, lintRendition, RENDITION_RULES_VERSION, RULES as LEVEL_RULES };
 export type { Level, LintIssue, RenditionSentence, RuleId, Severity };

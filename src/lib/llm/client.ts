@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAi, { APIConnectionError, APIError, APIUserAbortError } from "openai";
+import { stableId } from "@/lib/stable-id";
 import { viewer } from "@/lib/strings";
 import { REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_SECONDS } from "@/lib/timing";
 import { type LlmConfig, llmConfig } from "@/server/settings";
@@ -41,6 +42,8 @@ import { type Completion, jsonCandidates, parseCompletion } from "./parse";
  * `stream…`을 더한다.
  */
 interface LlmClient {
+  /** API 키를 드러내지 않고 같은 연결 설정인지 구분하는 식별자. */
+  readonly providerId: string;
   readonly model: string;
   /** 텍스트 하나를 받는다. */
   complete(request: CompletionRequest, signal?: AbortSignal): Promise<Completion>;
@@ -484,6 +487,7 @@ function firstValid<T>(
 
 function createLlmClient(config: LlmConfig): LlmClient {
   return {
+    providerId: `openai-compatible:${stableId(trimBaseUrl(config.baseUrl))}`,
     model: config.model,
 
     complete(request, signal) {

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
@@ -16,7 +17,7 @@ import {
   setUploadJobStage,
 } from "./generation";
 import { createUser, listUploadSpans, saveUpload } from "./repository";
-import { uploadRendition } from "./schema";
+import { uploadGenerationJob, uploadRendition } from "./schema";
 
 let db: AppDb;
 let close: () => void;
@@ -61,6 +62,19 @@ function seedUpload(): { uploadId: string; spanIds: string[] } {
 
 /** 시험에서 쓰는 추출 프롬프트 판. 값이 무엇인지는 중요하지 않고, **같은 판인가**만 본다. */
 const PROMPT = "extract-test";
+
+const GENERATION_SNAPSHOT: GenerationSnapshot = {
+  schemaVersion: "generation-snapshot-v1",
+  providerId: "test-provider",
+  generationModel: "test-model",
+  verificationModel: "test-model",
+  extractPromptVersion: "extract-test",
+  renderPromptVersion: "render-test",
+  entailPromptVersion: "entail-test",
+  rulesVersion: "rules-test",
+  readerPerspective: "neutral-reader-v1",
+  safetyPolicyVersion: "grounded-output-v1",
+};
 
 describe("saveUploadStructure", () => {
   it("노드와 근거 연결을 함께 저장한다", () => {
@@ -160,6 +174,22 @@ describe("saveUploadStructure", () => {
 });
 
 describe("saveUploadRendition", () => {
+  it("생성 설정 스냅샷을 결과와 함께 보존한다", () => {
+    const { uploadId } = seedUpload();
+    saveUploadRendition(db, {
+      uploadId,
+      level: "L2",
+      model: "test-model",
+      promptVersion: "v1",
+      generationSnapshot: GENERATION_SNAPSHOT,
+      sentences: [],
+    });
+
+    expect(findUploadRendition(db, uploadId, "L2", "v1")?.generationSnapshot).toEqual(
+      GENERATION_SNAPSHOT,
+    );
+  });
+
   it("변환본과 문장을 저장하고 순서대로 읽는다", () => {
     const { uploadId, spanIds } = seedUpload();
     const [nodeId] = saveUploadStructure(db, uploadId, PROMPT, [
@@ -270,6 +300,21 @@ describe("saveUploadRendition", () => {
 
 describe("claimUploadJob", () => {
   const base = { level: "L2" as const, promptVersion: "v1" };
+
+  it("선점 순간의 생성 설정을 작업에 고정한다", () => {
+    const { uploadId } = seedUpload();
+    const claim = claimUploadJob(db, {
+      ...base,
+      uploadId,
+      generationSnapshot: GENERATION_SNAPSHOT,
+      workerId: "w1",
+    });
+
+    expect(
+      db.select().from(uploadGenerationJob).where(eq(uploadGenerationJob.id, claim.jobId)).get()
+        ?.generationSnapshot,
+    ).toEqual(GENERATION_SNAPSHOT);
+  });
 
   it("첫 요청만 선점하고 나머지는 기존 작업에 붙는다 — 탭 두 개로 두 번 눌러도 한 번만 만든다", () => {
     const { uploadId } = seedUpload();

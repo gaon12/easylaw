@@ -24,6 +24,7 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import { MASK_KINDS } from "@/lib/text/mask";
 
 /**
@@ -318,6 +319,8 @@ const uploadRendition = sqliteTable(
     level: text("level", { enum: LEVELS }).notNull(),
     model: text("model").notNull(),
     promptVersion: text("prompt_version").notNull(),
+    /** 이 결과를 만든 생성 설정. API 키와 업로드 원문은 담지 않는다. */
+    generationSnapshot: text("generation_snapshot", { mode: "json" }).$type<GenerationSnapshot>(),
     reviewState: text("review_state", { enum: ["none", "pending", "approved", "rejected"] })
       .notNull()
       .default("none"),
@@ -372,6 +375,8 @@ const uploadGenerationJob = sqliteTable(
       .references(() => upload.id, { onDelete: "cascade" }),
     level: text("level", { enum: LEVELS }).notNull(),
     promptVersion: text("prompt_version").notNull(),
+    /** 작업을 선점할 때 고정한 공급자·모델·규칙. */
+    generationSnapshot: text("generation_snapshot", { mode: "json" }).$type<GenerationSnapshot>(),
     status: text("status", { enum: JOB_STATUSES }).notNull().default("queued"),
     stage: text("stage", { enum: JOB_STAGES }),
     claimedBy: text("claimed_by"),

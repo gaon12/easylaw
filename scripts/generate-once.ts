@@ -29,7 +29,7 @@ import {
 import { generationJob, rendition } from "@/db/corpus/schema";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
-import { generateRendition, generationBudget, PIPELINE_VERSION } from "@/server/generate";
+import { currentPipelineVersion, generateRendition, generationBudget } from "@/server/generate";
 import { caseStore } from "@/server/pipeline-store";
 import { llmConfig } from "@/server/settings";
 
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   out(`사건    ${judgment.caseNoDisplay} (${judgment.id})`);
   out(`레벨    ${level}`);
   out(`모델    ${config.model} @ ${config.baseUrl}`);
-  out(`프롬프트 ${PIPELINE_VERSION}`);
+  out(`생성 판 ${currentPipelineVersion()}`);
   out(`원문    ${listSpans(db, judgment.id).length}문장`);
   out(`오늘 몫  ${JSON.stringify(generationBudget())}`);
 
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
   out(`결과    ${JSON.stringify(result)}  (${seconds}초)`);
   out(`구조    ${listStructureNodes(db, judgment.id, EXTRACT_VERSION).length}개 노드`);
 
-  const made = findRendition(db, judgment.id, level, PIPELINE_VERSION);
+  const made = findRendition(db, judgment.id, level, currentPipelineVersion());
   if (made === undefined) {
     out("문장    (저장된 변환본 없음)");
     process.exit(result.kind === "done" ? 0 : 1);

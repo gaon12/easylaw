@@ -12,6 +12,18 @@ import { createLlmClient, LlmError } from "./client";
 
 const CONFIG = { baseUrl: "https://ai.example.com/v1", apiKey: "sk-test", model: "test-model" };
 
+describe("provider 식별자", () => {
+  it("주소가 같으면 키가 달라도 같고, 주소가 바뀌면 달라진다", () => {
+    const first = createLlmClient(CONFIG);
+    const anotherKey = createLlmClient({ ...CONFIG, apiKey: "sk-another" });
+    const anotherProvider = createLlmClient({ ...CONFIG, baseUrl: "https://other.example.com/v1" });
+
+    expect(first.providerId).toBe(anotherKey.providerId);
+    expect(first.providerId).not.toContain(CONFIG.apiKey);
+    expect(first.providerId).not.toBe(anotherProvider.providerId);
+  });
+});
+
 interface SentRequest {
   readonly url: string;
   readonly headers: Record<string, string>;

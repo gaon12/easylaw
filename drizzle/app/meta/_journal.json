@@ -71,6 +71,13 @@
       "when": 1788659031375,
       "tag": "0009_unusual_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788845117665,
+      "tag": "0010_narrow_spot",
+      "breakpoints": true
     }
   ]
 }

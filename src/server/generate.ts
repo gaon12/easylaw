@@ -4,8 +4,13 @@ import { appDb, corpusDb } from "@/db/client";
 import { countGenerationsOn, reserveGenerationSlot } from "@/db/corpus/repository";
 import { dayKey } from "@/lib/format";
 import { type GenerationIdentity, GenerationLimiter } from "@/lib/generation-limit";
+import {
+  createGenerationSnapshot,
+  type GenerationSnapshot,
+  generationSnapshotId,
+} from "@/lib/generation-snapshot";
 import type { JobFailure } from "@/lib/job-outcome";
-import { LlmError, llm } from "@/lib/llm/client";
+import { type LlmClient, LlmError, llm } from "@/lib/llm/client";
 import { type Claim, checkEntailment, toConfidence } from "@/lib/pipeline/entail";
 import { extractStructure } from "@/lib/pipeline/extract";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
@@ -39,6 +44,34 @@ import {
  * 한쪽만 키에 넣으면 프롬프트를 고친 뒤에도 옛 결과가 그대로 나온다(§6.4).
  */
 const PIPELINE_VERSION = `${EXTRACT_VERSION}+${RENDER_PROMPT_VERSION}`;
+
+interface GenerationRuntime {
+  readonly client: LlmClient;
+  readonly snapshot: GenerationSnapshot;
+  readonly promptVersion: string;
+}
+
+/**
+ * 설정을 한 번만 읽어 이번 작업이 끝날 때까지 쓸 실행 묶음을 만든다.
+ * 스냅샷 해시는 작업 잠금과 결과 조회 키에도 들어가 모델·검사 설정이 바뀐 결과를 섞지 않는다.
+ */
+function generationRuntime(): GenerationRuntime | undefined {
+  const client = llm();
+  if (client === undefined) {
+    return;
+  }
+  const snapshot = createGenerationSnapshot(client);
+  return {
+    client,
+    snapshot,
+    promptVersion: `${PIPELINE_VERSION}::generation:${generationSnapshotId(snapshot)}`,
+  };
+}
+
+/** 지금 설정으로 생성하거나 조회할 캐시 키. AI가 꺼졌을 때는 기본 판을 돌려준다. */
+function currentPipelineVersion(): string {
+  return generationRuntime()?.promptVersion ?? PIPELINE_VERSION;
+}
 
 /**
  * 재생성 횟수.
@@ -97,7 +130,7 @@ function generationBudget(): { limit: number; used: number; remaining: number } 
 
 /** `beginGeneration`의 결과. `claimed`일 때만 뒤이어 `runGeneration`을 부른다. */
 type BeginResult =
-  | { readonly kind: "claimed"; readonly jobId: string }
+  | { readonly kind: "claimed"; readonly jobId: string; readonly runtime: GenerationRuntime }
   | { readonly kind: "running" }
   | { readonly kind: "cached" }
   | { readonly kind: "unavailable" }
@@ -122,6 +155,7 @@ type GenerateResult =
  */
 async function ensureStructure(
   store: PipelineStore,
+  client: LlmClient,
   signal?: AbortSignal,
 ): Promise<{ ok: true } | JobFailure> {
   /*
@@ -130,15 +164,6 @@ async function ensureStructure(
    */
   if (store.listNodes(EXTRACT_VERSION).length > 0) {
     return { ok: true };
-  }
-
-  const client = llm();
-  if (client === undefined) {
-    return {
-      ok: false,
-      reason: viewer.failedReasons.notConfigured,
-      detail: "AI 연결이 설정되지 않았습니다.",
-    };
   }
 
   const spans = store.listSpans();
@@ -351,13 +376,15 @@ function beginGeneration(
   level: Level,
   identity?: GenerationIdentity,
 ): BeginResult {
-  if (llm() === undefined) {
+  const runtime = generationRuntime();
+  if (runtime === undefined) {
     return { kind: "unavailable" };
   }
 
   const claim = store.claimJob({
     level,
-    promptVersion: PIPELINE_VERSION,
+    promptVersion: runtime.promptVersion,
+    generationSnapshot: runtime.snapshot,
     workerId: randomUUID(),
   });
   if (claim.kind === "running") {
@@ -396,7 +423,7 @@ function beginGeneration(
     return { kind: "limited" };
   }
 
-  return { kind: "claimed", jobId: claim.jobId };
+  return { kind: "claimed", jobId: claim.jobId, runtime };
 }
 
 /**
@@ -441,21 +468,14 @@ async function runGeneration(
   store: PipelineStore,
   level: Level,
   jobId: string,
-  signal?: AbortSignal,
+  options: { readonly runtime: GenerationRuntime; readonly signal?: AbortSignal },
 ): Promise<GenerateResult> {
-  const client = llm();
-  if (client === undefined) {
-    store.finishJob(jobId, {
-      ok: false,
-      reason: viewer.failedReasons.notConfigured,
-      detail: "AI 연결이 설정되지 않았습니다.",
-    });
-    return { kind: "unavailable" };
-  }
+  const { runtime, signal } = options;
+  const { client, snapshot, promptVersion } = runtime;
 
   try {
     const structure = await whileAlive(store, jobId, "structure", () =>
-      ensureStructure(store, signal),
+      ensureStructure(store, client, signal),
     );
     if (!structure.ok) {
       store.finishJob(jobId, structure);
@@ -472,7 +492,8 @@ async function runGeneration(
     const renditionId = store.saveRendition({
       level,
       model: client.model,
-      promptVersion: PIPELINE_VERSION,
+      promptVersion,
+      generationSnapshot: snapshot,
       sentences: tried.sentences,
     });
     store.finishJob(jobId, { ok: true });
@@ -516,13 +537,14 @@ async function generateRendition(
   if (begun.kind !== "claimed") {
     return begun;
   }
-  return await runGeneration(store, level, begun.jobId, signal);
+  return await runGeneration(store, level, begun.jobId, { runtime: begun.runtime, signal });
 }
 
 export {
   beginGeneration,
   generateRendition,
   generationBudget,
+  currentPipelineVersion,
   PIPELINE_VERSION,
   REQUEST_LIMIT_REASON,
   runGeneration,

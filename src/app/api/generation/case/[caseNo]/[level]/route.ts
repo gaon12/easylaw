@@ -2,7 +2,7 @@ import { corpusDb } from "@/db/client";
 import { findJudgmentByCaseNo } from "@/db/corpus/repository";
 import { LEVELS } from "@/db/corpus/schema";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
-import { PIPELINE_VERSION } from "@/server/generate";
+import { currentPipelineVersion } from "@/server/generate";
 import { caseStore } from "@/server/pipeline-store";
 import { eventStreamResponse, progressStream } from "@/server/progress-stream";
 
@@ -36,7 +36,8 @@ async function GET(
   const store = caseStore(judgment.id);
   return eventStreamResponse(
     progressStream({
-      readProgress: () => store.findProgress(level as (typeof LEVELS)[number], PIPELINE_VERSION),
+      readProgress: () =>
+        store.findProgress(level as (typeof LEVELS)[number], currentPipelineVersion()),
       signal: request.signal,
     }),
   );

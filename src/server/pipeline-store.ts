@@ -1,3 +1,4 @@
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import type { JobOutcome } from "@/lib/job-outcome";
 import "server-only";
 import {
@@ -111,7 +112,12 @@ interface PipelineStore {
   listNodes(extractVersion: string): readonly StoreNode[];
   saveNodes(extractVersion: string, nodes: readonly StoreNodeInput[]): void;
 
-  claimJob(input: { level: StoreLevel; promptVersion: string; workerId: string }): StoreClaim;
+  claimJob(input: {
+    level: StoreLevel;
+    promptVersion: string;
+    generationSnapshot: GenerationSnapshot;
+    workerId: string;
+  }): StoreClaim;
   setStage(jobId: string, stage: StoreStage): void;
   finishJob(jobId: string, result: JobOutcome): void;
   findProgress(level: StoreLevel, promptVersion: string): StoreProgress | undefined;
@@ -120,6 +126,7 @@ interface PipelineStore {
     level: StoreLevel;
     model: string;
     promptVersion: string;
+    generationSnapshot: GenerationSnapshot;
     sentences: readonly StoreSentence[];
   }): string;
   findRenditionId(level: StoreLevel, promptVersion: string): string | undefined;

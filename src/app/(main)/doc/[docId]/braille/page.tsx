@@ -5,7 +5,7 @@ import { findUploadRendition, listUploadSentences } from "@/db/app/generation";
 import { findUploadForOwner, listUploadSpans } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { braille as strings, viewer } from "@/lib/strings";
-import { PIPELINE_VERSION } from "@/server/generate";
+import { currentPipelineVersion } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
 import { purgeExpiredUploads } from "@/server/upload";
 
@@ -38,7 +38,7 @@ export default async function DocBraillePage(props: {
     level === "L0"
       ? { lines: listUploadSpans(db, docId).map((span) => span.text), outdatedAt: null }
       : (() => {
-          const rendition = findUploadRendition(db, docId, level, PIPELINE_VERSION);
+          const rendition = findUploadRendition(db, docId, level, currentPipelineVersion());
           return {
             lines:
               rendition === undefined

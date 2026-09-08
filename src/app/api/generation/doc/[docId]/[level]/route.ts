@@ -1,7 +1,7 @@
 import { findUploadForOwner } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import { LEVELS } from "@/db/corpus/schema";
-import { PIPELINE_VERSION } from "@/server/generate";
+import { currentPipelineVersion } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
 import { docStore } from "@/server/pipeline-store";
 import { eventStreamResponse, progressStream } from "@/server/progress-stream";
@@ -40,7 +40,8 @@ async function GET(
   const store = docStore(docId);
   return eventStreamResponse(
     progressStream({
-      readProgress: () => store.findProgress(level as (typeof LEVELS)[number], PIPELINE_VERSION),
+      readProgress: () =>
+        store.findProgress(level as (typeof LEVELS)[number], currentPipelineVersion()),
       signal: request.signal,
     }),
   );

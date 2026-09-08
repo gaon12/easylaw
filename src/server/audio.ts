@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, inArray, like, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import {
   upload,
   uploadRendition,
@@ -11,7 +11,7 @@ import { reserveAudioSlot } from "@/db/corpus/repository";
 import { judgment, rendition, renditionAudio, renditionSentence } from "@/db/corpus/schema";
 import { dayKey } from "@/lib/format";
 import { speak, TtsError } from "@/lib/tts/client";
-import { PIPELINE_VERSION } from "./generate";
+import { currentPipelineVersion } from "./generate";
 import { siteTimeZone, ttsAllowsUploads, ttsConfig, ttsDailyLimit } from "./settings";
 
 /**
@@ -303,7 +303,10 @@ function caseAudioStatus(limit: number): AudioStatusRow[] {
     .leftJoin(renditionAudio, eq(renditionAudio.sentenceId, renditionSentence.id))
     .where(
       and(
-        like(rendition.promptVersion, `${PIPELINE_VERSION}::source:%`),
+        or(
+          like(rendition.promptVersion, `${currentPipelineVersion()}::source:%`),
+          eq(rendition.reviewState, "approved"),
+        ),
         eq(rendition.sourceRevisionId, judgment.currentRevisionId),
       ),
     )
@@ -324,7 +327,10 @@ function findCaseAudio(sentenceId: string): { bytes: Buffer; format: string } | 
     .where(
       and(
         eq(renditionAudio.sentenceId, sentenceId),
-        like(rendition.promptVersion, `${PIPELINE_VERSION}::source:%`),
+        or(
+          like(rendition.promptVersion, `${currentPipelineVersion()}::source:%`),
+          eq(rendition.reviewState, "approved"),
+        ),
         eq(rendition.sourceRevisionId, judgment.currentRevisionId),
       ),
     )
@@ -344,7 +350,7 @@ function findDocAudio(sentenceId: string): { bytes: Buffer; format: string } | u
     .where(
       and(
         eq(uploadRenditionAudio.sentenceId, sentenceId),
-        eq(uploadRendition.promptVersion, PIPELINE_VERSION),
+        eq(uploadRendition.promptVersion, currentPipelineVersion()),
       ),
     )
     .all()
@@ -368,7 +374,7 @@ function ownsDocSentence(sentenceId: string, userId: string): boolean {
         and(
           eq(uploadRenditionSentence.id, sentenceId),
           eq(upload.userId, userId),
-          eq(uploadRendition.promptVersion, PIPELINE_VERSION),
+          eq(uploadRendition.promptVersion, currentPipelineVersion()),
         ),
       )
       .all().length > 0

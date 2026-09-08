@@ -6,6 +6,7 @@ import { checkEntailment, ENTAIL_INSTRUCTION, toConfidence } from "./entail";
 
 function fakeClient(answer: unknown): LlmClient & { lastRequest?: CompletionRequest } {
   const client = {
+    providerId: "test-provider",
     model: "test-model",
     complete: () => Promise.reject(new Error("쓰지 않는다")),
     completeJson: (request: CompletionRequest, validate: (value: unknown) => unknown) => {

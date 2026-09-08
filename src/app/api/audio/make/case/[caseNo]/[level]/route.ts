@@ -1,9 +1,9 @@
 import { corpusDb } from "@/db/client";
-import { findJudgmentByCaseNo, findRendition } from "@/db/corpus/repository";
+import { findApprovedRendition, findJudgmentByCaseNo, findRendition } from "@/db/corpus/repository";
 import { LEVELS } from "@/db/corpus/schema";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { caseAudioSentenceIds, makeCaseAudio } from "@/server/audio";
-import { PIPELINE_VERSION } from "@/server/generate";
+import { currentPipelineVersion } from "@/server/generate";
 
 /**
  * 공개 판례 설명 한 벌을 소리로 만든다. [F-11]
@@ -44,7 +44,8 @@ async function POST(
   const rendition =
     judgment === undefined
       ? undefined
-      : findRendition(db, judgment.id, level as (typeof LEVELS)[number], PIPELINE_VERSION);
+      : (findApprovedRendition(db, judgment.id, level as (typeof LEVELS)[number]) ??
+        findRendition(db, judgment.id, level as (typeof LEVELS)[number], currentPipelineVersion()));
   if (rendition === undefined) {
     return Response.json({ kind: "not_found" }, { status: NOT_FOUND });
   }

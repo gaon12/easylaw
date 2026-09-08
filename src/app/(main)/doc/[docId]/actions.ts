@@ -69,7 +69,7 @@ async function requestDocGeneration(formData: FormData): Promise<void> {
   const begun = beginGeneration(store, level);
   if (begun.kind === "claimed") {
     after(async () => {
-      await runGeneration(store, level, begun.jobId);
+      await runGeneration(store, level, begun.jobId, { runtime: begun.runtime });
     });
   }
 

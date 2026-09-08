@@ -18,6 +18,7 @@ const spans = [
 /** 마지막 요청을 들여다볼 수 있는 가짜 클라이언트. */
 function fakeClient(answer: unknown): LlmClient & { lastRequest?: CompletionRequest } {
   const client = {
+    providerId: "test-provider",
     model: "test-model",
     complete: () => Promise.reject(new Error("쓰지 않는다")),
     completeJson: (request: CompletionRequest, validate: (value: unknown) => unknown) => {

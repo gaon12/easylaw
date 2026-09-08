@@ -14,6 +14,7 @@
  */
 
 import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
@@ -238,6 +239,7 @@ function saveUploadRendition(
     level: Level;
     model: string;
     promptVersion: string;
+    generationSnapshot?: GenerationSnapshot;
     sentences: readonly SentenceInput[];
   },
 ): string {
@@ -250,6 +252,7 @@ function saveUploadRendition(
         level: input.level,
         model: input.model,
         promptVersion: input.promptVersion,
+        generationSnapshot: input.generationSnapshot,
       })
       .run();
 
@@ -343,7 +346,14 @@ type ClaimResult =
 
 function insertClaim(
   db: AppDb,
-  input: { uploadId: string; level: Level; promptVersion: string; workerId: string; now: Date },
+  input: {
+    uploadId: string;
+    level: Level;
+    promptVersion: string;
+    generationSnapshot?: GenerationSnapshot;
+    workerId: string;
+    now: Date;
+  },
 ): string | undefined {
   const rows = db
     .insert(uploadGenerationJob)
@@ -352,6 +362,7 @@ function insertClaim(
       uploadId: input.uploadId,
       level: input.level,
       promptVersion: input.promptVersion,
+      generationSnapshot: input.generationSnapshot,
       status: "running",
       claimedBy: input.workerId,
       heartbeatAt: input.now,
@@ -380,23 +391,27 @@ function findJob(db: AppDb, uploadId: string, level: Level, promptVersion: strin
 /** 실패했거나 heartbeat가 멈춘 작업만 회수한다. 조건을 UPDATE에 담아 경합을 DB가 판정하게 한다. */
 function reclaimJob(
   db: AppDb,
-  job: { id: string; attempts: number },
-  workerId: string,
-  now: Date,
+  input: {
+    job: { id: string; attempts: number };
+    workerId: string;
+    now: Date;
+    generationSnapshot?: GenerationSnapshot;
+  },
 ): boolean {
-  const staleBefore = new Date(now.getTime() - STALE_AFTER_MS);
+  const staleBefore = new Date(input.now.getTime() - STALE_AFTER_MS);
   const rows = db
     .update(uploadGenerationJob)
     .set({
       status: "running",
-      claimedBy: workerId,
-      heartbeatAt: now,
-      attempts: job.attempts + 1,
+      claimedBy: input.workerId,
+      heartbeatAt: input.now,
+      generationSnapshot: input.generationSnapshot,
+      attempts: input.job.attempts + 1,
       error: null,
     })
     .where(
       and(
-        eq(uploadGenerationJob.id, job.id),
+        eq(uploadGenerationJob.id, input.job.id),
         or(
           eq(uploadGenerationJob.status, "failed"),
           lt(uploadGenerationJob.heartbeatAt, staleBefore),
@@ -420,6 +435,7 @@ function claimUploadJob(
     uploadId: string;
     level: Level;
     promptVersion: string;
+    generationSnapshot?: GenerationSnapshot;
     workerId: string;
     now?: Date;
   },
@@ -438,7 +454,14 @@ function claimUploadJob(
   if (existing.status === "done") {
     return { kind: "done", jobId: existing.id };
   }
-  if (reclaimJob(db, existing, input.workerId, now)) {
+  if (
+    reclaimJob(db, {
+      job: existing,
+      workerId: input.workerId,
+      now,
+      generationSnapshot: input.generationSnapshot,
+    })
+  ) {
     return { kind: "claimed", jobId: existing.id };
   }
   return { kind: "running", jobId: existing.id };
