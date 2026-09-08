@@ -4,16 +4,13 @@ import { toLevel } from "@/components/viewer/levels";
 import { corpusDb } from "@/db/client";
 import {
   findJudgmentByCaseNo,
-  findLatestRendition,
   findRendition,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
-import { formatDate } from "@/lib/format";
 import { braille as strings, viewer } from "@/lib/strings";
 import { PIPELINE_VERSION } from "@/server/generate";
-import { siteTimeZone } from "@/server/settings";
 
 /**
  * 점자로 보기. `PAGES.md` §5 · `FEATURES.md` [F-11] 계열
@@ -52,17 +49,13 @@ export default async function BraillePage(props: {
     level === "L0"
       ? { lines: listSpans(db, judgment.id).map((span) => span.text), outdatedAt: null }
       : (() => {
-          const current = findRendition(db, judgment.id, level, PIPELINE_VERSION);
-          const rendition = current ?? findLatestRendition(db, judgment.id, level);
+          const rendition = findRendition(db, judgment.id, level, PIPELINE_VERSION);
           return {
             lines:
               rendition === undefined
                 ? []
                 : listSentences(db, rendition.id).map((sentence) => sentence.text),
-            outdatedAt:
-              current === undefined && rendition !== undefined
-                ? formatDate(rendition.generatedAt, siteTimeZone())
-                : null,
+            outdatedAt: null,
           };
         })();
 

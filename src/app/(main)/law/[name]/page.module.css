@@ -41,6 +41,21 @@
   line-height: var(--el-leading-body);
 }
 
+.metaLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--el-space-3);
+}
+
+.currentLink {
+  color: var(--el-action);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /*
  * 목차 + 본문 2단.
  *

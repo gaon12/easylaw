@@ -19,7 +19,12 @@ interface RowProps {
   citations: readonly Citation[];
   decidedAt: Date | null;
   level: ViewLevel;
+  outlineDepth: HeadingSpan["depth"];
 }
+
+const HEADING_TAG = { 1: "h3", 2: "h4", 3: "h5", 4: "h6", 5: "h6" } as const;
+const ROOT_HEADING_DEPTH = 1;
+const MINOR_HEADING_DEPTH = 3;
 
 /** 제목 접두사를 떼어 낸 뒤에도 인용 좌표가 본문 글자와 맞도록 옮긴다. */
 function citationsAfter(citations: readonly Citation[], offset: number): Citation[] {
@@ -39,10 +44,16 @@ function bodyStartAfter(text: string, prefixLength: number): number {
 }
 
 /** 그냥 문장. */
-function Sentence({ span, citations, decidedAt, level }: RowProps) {
+function Sentence({ span, citations, decidedAt, level, outlineDepth }: RowProps) {
   return (
-    <p className={styles.sentence} id={span.id}>
-      <CitedText citations={citations} decidedAt={decidedAt} level={level} text={span.text} />
+    <p
+      className={`${styles.sentence} ${styles.outlineRow}`}
+      data-outline-depth={outlineDepth}
+      id={span.id}
+    >
+      <span className={styles.sentenceContent}>
+        <CitedText citations={citations} decidedAt={decidedAt} level={level} text={span.text} />
+      </span>
     </p>
   );
 }
@@ -60,11 +71,16 @@ function Field({
   level,
   label,
   contentStart,
+  outlineDepth,
 }: RowProps & { label: string; contentStart: number }) {
   const start = bodyStartAfter(span.text, contentStart);
 
   return (
-    <dl className={styles.field} id={span.id}>
+    <dl
+      className={`${styles.field} ${styles.outlineRow}`}
+      data-outline-depth={outlineDepth}
+      id={span.id}
+    >
       <dt className={styles.fieldLabel}>{label}</dt>
       <dd className={styles.fieldValue}>
         <CitedText
@@ -91,16 +107,31 @@ function Heading({
   decidedAt,
   level,
   heading,
+  outlineDepth,
 }: RowProps & { heading: HeadingSpan }) {
   const start = bodyStartAfter(span.text, heading.contentStart);
   const remainder = span.text.slice(start);
+  const HeadingTag = HEADING_TAG[heading.depth];
+  const className = [
+    styles.sentenceHeading,
+    styles.outlineRow,
+    heading.depth > ROOT_HEADING_DEPTH ? styles.subheading : "",
+    heading.depth > MINOR_HEADING_DEPTH ? styles.minorHeading : "",
+  ].join(" ");
 
   return (
     <>
-      <h3 className={styles.sentenceHeading} id={heading.id}>
-        <span className={styles.headingNumber}>
-          {wiki.sectionNumber(heading.id.replace("s-", ""))}
-        </span>
+      <HeadingTag
+        className={className}
+        data-depth={heading.depth}
+        data-outline-depth={outlineDepth}
+        id={heading.id}
+      >
+        {heading.depth === ROOT_HEADING_DEPTH ? (
+          <span className={styles.headingNumber}>
+            {wiki.sectionNumber(heading.id.replace("s-", ""))}
+          </span>
+        ) : null}
         <span className={styles.headingText} id={remainder.length === 0 ? span.id : undefined}>
           {heading.label}
         </span>
@@ -115,15 +146,21 @@ function Heading({
         >
           <Icon name="link" size={16} />
         </a>
-      </h3>
+      </HeadingTag>
       {remainder.length === 0 ? null : (
-        <p className={styles.sentence} id={span.id}>
-          <CitedText
-            citations={citationsAfter(citations, start)}
-            decidedAt={decidedAt}
-            level={level}
-            text={remainder}
-          />
+        <p
+          className={`${styles.sentence} ${styles.outlineRow}`}
+          data-outline-depth={outlineDepth}
+          id={span.id}
+        >
+          <span className={styles.sentenceContent}>
+            <CitedText
+              citations={citationsAfter(citations, start)}
+              decidedAt={decidedAt}
+              level={level}
+              text={remainder}
+            />
+          </span>
         </p>
       )}
     </>
@@ -173,6 +210,17 @@ function OriginalPanel({
     paragraphs.set(span.paraIdx, bucket);
   }
 
+  /* 같은 원문 문단 안에 여러 표제가 들어올 수 있으므로 문장별로 현재 깊이를 기록한다. */
+  let activeDepth: HeadingSpan["depth"] = 1;
+  const outlineDepths = new Map<string, HeadingSpan["depth"]>();
+  for (const span of spans) {
+    const heading = anchors.get(span.id);
+    if (heading !== undefined) {
+      activeDepth = heading.depth;
+    }
+    outlineDepths.set(span.id, activeDepth);
+  }
+
   return (
     // 원문은 L0 규격이다 — 76ch, 17px / 1.55(`DESIGN.md` §7).
     <LevelBody level="L0">
@@ -184,6 +232,7 @@ function OriginalPanel({
               citations: citations?.get(span.id) ?? [],
               decidedAt: decidedAt ?? null,
               level,
+              outlineDepth: outlineDepths.get(span.id) ?? 1,
             };
 
             const heading = anchors.get(span.id);

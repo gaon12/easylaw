@@ -43,8 +43,8 @@ interface LevelRules {
   readonly maxSentenceLength: number | undefined;
   /** 문서에 반드시 있어야 하는 섹션 제목. 하나라도 없으면 error다. */
   readonly requiredSections: readonly string[];
-  /** 2인칭 호칭을 고정하는가. L4는 "당신"으로 고정한다. */
-  readonly fixedSecondPerson: boolean;
+  /** 독자를 사건 당사자로 가정하는 2인칭 호칭을 금지하는가. */
+  readonly banAssumedReaderRole: boolean;
   /** 비유·은유를 금지하는가. */
   readonly banFigurative: boolean;
 }
@@ -53,25 +53,25 @@ const RULES: Readonly<Record<Level, LevelRules>> = {
   L1: {
     maxSentenceLength: undefined,
     requiredSections: [],
-    fixedSecondPerson: false,
+    banAssumedReaderRole: false,
     banFigurative: false,
   },
   L2: {
     maxSentenceLength: 60,
     requiredSections: ["다음 절차"],
-    fixedSecondPerson: false,
+    banAssumedReaderRole: true,
     banFigurative: false,
   },
   L3: {
     maxSentenceLength: 35,
     requiredSections: ["다음에는 어떻게 되나요"],
-    fixedSecondPerson: false,
+    banAssumedReaderRole: true,
     banFigurative: false,
   },
   L4: {
     maxSentenceLength: 20,
     requiredSections: ["그래서 어떻게 되나요", "이해 확인"],
-    fixedSecondPerson: true,
+    banAssumedReaderRole: true,
     banFigurative: true,
   },
 };
@@ -93,9 +93,6 @@ const ASSERTIVE_PATTERNS: readonly { pattern: RegExp; hint: string }[] = [
 
 /** 비유 표지. 완전하지 않지만 흔한 형태는 잡는다. */
 const FIGURATIVE_PATTERNS: readonly RegExp[] = [/처럼/u, /같이\s/u, /마치/u, /비유하면/u];
-
-/** L4에서 쓰면 안 되는 3인칭 호칭. 2인칭("당신")과 섞이면 누구 얘기인지 흐려진다. */
-const THIRD_PERSON_TERMS: readonly string[] = ["원고", "피고", "피고인", "신청인", "청구인"];
 
 const SECOND_PERSON = "당신";
 
@@ -147,28 +144,23 @@ function checkFigurative(sentence: RenditionSentence): LintIssue | undefined {
 /**
  * 호칭 일관성.
  *
- * 조사 문서에서 지적된 실제 결함이다 — 한 문서 안에서 "A씨"와 "당신"이 섞였다.
- * L4는 2인칭으로 고정하므로, 3인칭 호칭이 나오면 그 자체가 문제다.
+ * 공개 판례나 업로드 문서의 독자가 실제 당사자라고 단정할 수 없다. 가족·조력자·연구자가
+ * 읽을 수도 있으므로, 기본 설명은 확인된 사건 역할로만 부르고 독자를 "당신"으로 사건에
+ * 집어넣지 않는다.
  */
 function checkAddressConsistency(sentences: readonly RenditionSentence[]): LintIssue[] {
-  const issues: LintIssue[] = [];
-  const usesSecondPerson = sentences.some((sentence) => sentence.text.includes(SECOND_PERSON));
-
-  for (const sentence of sentences) {
-    const third = THIRD_PERSON_TERMS.find((term) => sentence.text.includes(term));
-    if (third === undefined) {
-      continue;
-    }
-    issues.push({
-      rule: "inconsistent_address",
-      severity: usesSecondPerson ? "error" : "warning",
-      message: usesSecondPerson
-        ? `"${SECOND_PERSON}"과 "${third}"이 한 문서에 섞였습니다. 읽는 사람이 누구 얘기인지 놓칩니다.`
-        : `"${third}" 대신 "${SECOND_PERSON}"으로 부릅니다.`,
-      orderIdx: sentence.orderIdx,
-    });
-  }
-  return issues;
+  return sentences.flatMap((sentence) =>
+    sentence.text.includes(SECOND_PERSON)
+      ? [
+          {
+            rule: "inconsistent_address" as const,
+            severity: "error" as const,
+            message: `독자가 사건 당사자인지 알 수 없습니다. "${SECOND_PERSON}" 대신 원고·피고처럼 확인된 역할을 씁니다.`,
+            orderIdx: sentence.orderIdx,
+          },
+        ]
+      : [],
+  );
 }
 
 /**
@@ -236,7 +228,7 @@ function lintRendition(level: Level, sentences: readonly RenditionSentence[]): L
     }
   }
 
-  if (rules.fixedSecondPerson) {
+  if (rules.banAssumedReaderRole) {
     issues.push(...checkAddressConsistency(sentences));
   }
   issues.push(...checkRequiredSections(sentences, rules.requiredSections));

@@ -60,7 +60,11 @@ function toArticle(
   return {
     key: `${citation.articleNo}-${citation.branchNo ?? ""}`,
     label: articleLabel(citation),
-    href: `/law/${encodeURIComponent(law.name)}?${withReadingLevel(query, level)}`,
+    href: `/law/${encodeURIComponent(law.name)}?${withReadingLevel(query, level)}#${
+      citation.branchNo === undefined
+        ? `조${citation.articleNo}`
+        : `조${citation.articleNo}의${citation.branchNo}`
+    }`,
   };
 }
 

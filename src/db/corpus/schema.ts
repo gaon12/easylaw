@@ -27,6 +27,7 @@ const OUTCOMES = [
   "criminal_guilty",
   "criminal_not_guilty",
   "criminal_appeal_dismissed",
+  "reversed_and_remanded",
   "unknown",
 ] as const;
 

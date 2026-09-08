@@ -286,7 +286,7 @@ export const cases = {
  * 장애정도 판정에 불복해 취소를 구한 행정 사건으로, 국내 이지리드 판결서가 처음 나온 자리다.
  *
  * 각 단계의 문장은 우리 린터(`rendition/lint.ts`)의 규칙을 그대로 지킨다 —
- * L4는 공백을 뺀 20자 이하, 2인칭 고정, 단정적 승패 표현 없음.
+ * L4는 공백을 뺀 20자 이하, 중립 역할, 단정적 승패 표현 없음.
  */
 export const demo = {
   title: "같은 판결, 다섯 가지 말",
@@ -316,7 +316,7 @@ export const demo = {
     ],
     L4: [
       "구청 결정을 없앴어요.",
-      "당신은 판결문을 확인해 보세요.",
+      "판결문에서 확인해요.",
       "항소는 다시 재판해 달라는 뜻이에요.",
       "구청이 다시 다투면 재판을 또 해요.",
     ],
@@ -518,7 +518,7 @@ export const settings = {
   },
 
   previewLabel: "이렇게 보여요",
-  previewSentences: ["구청의 결정은 잘못됐어요.", "당신은 다시 신청할 수 있어요."],
+  previewSentences: ["구청의 결정은 잘못됐어요.", "다시 신청할 수 있어요."],
   previewNote: "쉬운말 단계의 글자 크기예요. 가장 크게 보여 드리는 단계예요.",
 
   reset: "처음 설정으로 되돌리기",
@@ -936,6 +936,7 @@ export const admin = {
     overview: "한눈에",
     audio: "설명 음성",
     content: "자료",
+    mediaRecipes: "이미지 레시피",
     log: "기록",
     settings: "설정",
     users: "계정",
@@ -943,6 +944,12 @@ export const admin = {
     test: "연결 시험",
   },
   navLabel: "관리자 메뉴",
+  consoleTitle: "관리자 콘솔",
+  consoleSubtitle: "EasyLaw 운영과 콘텐츠 상태",
+  returnToService: "서비스 화면",
+  brandMark: "EL",
+  brandName: "EasyLaw",
+  navGroups: { operate: "운영", content: "콘텐츠", manage: "관리" },
 
   /* 한눈에. 숫자만 크게 놓고, 문제가 없으면 조용하다. */
   overviewTitle: "한눈에",
@@ -957,6 +964,16 @@ export const admin = {
   metricFailures: "최근 실패",
   metricUnit: { times: "번", cases: "건", clips: "개", people: "명" },
   seeMore: "자세히 보기",
+
+  mediaRecipesTitle: "이미지 레시피",
+  mediaRecipesIntro:
+    "새 그림을 만들기 전에 같은 의미의 그림이 있는지 확인하세요. 법률 용어는 합치지 않고, 공통 행위와 관계만 재사용합니다.",
+  mediaRecipeIntent: "전달할 의미",
+  mediaRecipeAssets: "승인 자산",
+  mediaRecipePlacements: "현재 배치",
+  mediaRecipeVersion: (version: number) => `레시피 ${version}판`,
+  mediaRecipeCount: (count: number) => `${count}개`,
+  mediaRecipeUses: (count: number) => `${count}곳`,
 
   /** 자료. 무엇을 얼마나 들고 있나. */
   contentTitle: "자료",
@@ -1216,6 +1233,7 @@ export const law = {
     "이 판결이 선고될 때 시행 중이던 법이에요. 지금 시행 중인 법과 다를 수 있으니, 현재 상황에 적용하시려면 최신 법을 다시 확인해 주세요.",
   currentNote:
     "오늘 시행 중인 법이에요. 지난 판결을 읽고 계시다면 그때는 다른 내용이었을 수 있어요.",
+  currentVersion: "현재 시행 중인 법령 보기",
   /** 올린 문서에서 온 경우. 선고일을 모르니 오늘 기준으로 보여 준다는 것을 밝힌다. */
   unknownDateNote:
     "선고일을 알 수 없어 오늘 시행 중인 법을 보여 드려요. 판결문에 적힌 선고일을 확인하시면 그때 법과 비교해 보세요.",
@@ -1257,7 +1275,10 @@ export const viewer = {
   citationLoading: "조문을 불러오고 있어요.",
   citationFailed: "조문을 불러오지 못했어요. 상세 보기로 열어 보세요.",
   citationUnavailable: "이 조문을 지금 보여 드릴 수 없어요. 상세 보기로 열어 보세요.",
-  citationDetail: "상세 보기",
+  citationDetail: "법령 전체 보기",
+  citationDetailAsOf: "당시 조문 전체 보기",
+  citationCurrent: "현재 조문 보기",
+  citationBack: "앞 조문으로",
   citationClose: "닫기",
 
   /**
@@ -1289,20 +1310,12 @@ export const viewer = {
     L3: "무슨 일이 있었고 왜 그렇게 됐는지 풀어서 이야기해요.",
     L4: "짧은 문장으로, 다음에 할 일까지 알려 드려요.",
   },
-  /** 문장을 읽기 전에도 단계마다 무엇이 달라지는지 훑어볼 수 있는 표지. */
-  levelTraitsLabel: "이 단계의 읽는 방식",
-  levelTraits: {
-    L0: ["법원의 표현", "내용 그대로"],
-    L1: ["쟁점과 법리", "근거 중심", "법률 용어 유지"],
-    L2: ["결론 먼저", "법적 효과", "다음 절차"],
-    L3: ["짧은 문장", "등장인물 이야기", "차근차근 설명"],
-    L4: ["한 문장 한 가지", "어려운 말 바로 풀이", "읽기 도움"],
-  },
   levelGroupLabel: "설명 단계 고르기",
   levelChanged: (label: string) => `${label} 단계로 바꿨어요.`,
   originalPanel: "원문",
   /** 원문 목차. `【주 문】` 같은 표제로 만든다. */
   originalToc: "원문 목차",
+  levelToc: (level: "L1" | "L2" | "L3" | "L4") => `${viewer.levels[level]} 목차`,
   renditionPanel: "쉬운 설명",
   evidence: "근거 보기",
   evidenceOf: (order: number) => `${order}번째 문장의 근거 보기`,
@@ -1339,7 +1352,7 @@ export const viewer = {
    * 우리가 깎은 셈이고, 가장 쉬워야 할 단계에 경고가 제일 많이 붙는 이유였다.
    */
   glossLabel: "낱말 뜻",
-  glossSource: (source: string) => `출처: ${source}`,
+  glossSource: (source: string) => `뜻 출처: ${source} · 쉬운 말로 바꿈`,
   generateCta: "설명 만들기",
   generateHint: "아직 아무도 만들지 않았어요",
   generateBody: "이 판결의 설명을 만들면 다음에 오는 사람도 바로 볼 수 있어요.",
@@ -1453,6 +1466,7 @@ export const outcomes = {
   criminal_guilty: "유죄로 판단했어요",
   criminal_not_guilty: "무죄로 판단했어요",
   criminal_appeal_dismissed: "항소를 받아들이지 않았어요",
+  reversed_and_remanded: "파기환송 (앞선 판결을 파기하고 다시 심리하게 했어요)",
   unknown: "결과를 아직 확인하지 못했어요",
 } as const;
 

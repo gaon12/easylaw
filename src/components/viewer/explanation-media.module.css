@@ -1,0 +1,30 @@
+.figure {
+  margin: var(--el-space-4) 0 var(--el-space-5);
+  overflow: hidden;
+  border: 1px solid var(--el-border-subtle);
+  border-radius: var(--el-radius-m);
+  background: #f5f9ff;
+}
+
+.imageWrap {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: clamp(var(--el-space-3), 3vw, var(--el-space-6));
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.caption {
+  padding: var(--el-space-3) var(--el-space-4);
+  border-top: 1px solid var(--el-border-subtle);
+  background: var(--el-bg-canvas);
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  line-height: 1.6;
+}

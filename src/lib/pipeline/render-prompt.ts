@@ -53,10 +53,10 @@ const LEVEL_BRIEF: Readonly<Record<Level, LevelBrief>> = {
     ],
   },
   L4: {
-    reader: "발달장애인",
-    question: "나에게 무슨 일이 일어났나",
+    reader: "쉬운 정보를 필요로 하는 성인",
+    question: "이 사건에서 무슨 일이 일어났나",
     shape:
-      '한 문장에 한 가지 정보만 담습니다. 읽는 사람을 "당신"이라고 부릅니다. 마지막에는 이해 확인 질문을 넣습니다.',
+      "결론과 사건 흐름을 쉬운 일상 낱말로 다시 설명합니다. 한 문장에 한 가지 정보만 담고, 누가 무엇을 했는지 분명히 씁니다. 마지막에는 이해 확인 질문을 넣습니다.",
     plan: [
       "먼저 알아둘 것",
       "무슨 일이 있었나요",
@@ -83,13 +83,21 @@ function ruleLines(level: Level): string[] {
         .join(", ")}`,
     );
   }
-  if (rules.fixedSecondPerson) {
+  if (rules.banAssumedReaderRole) {
     lines.push(
-      '- 읽는 사람을 **"당신"** 이라고 부릅니다. "원고"·"피고"·"피고인" 같은 말을 쓰지 않습니다.',
+      '- 읽는 사람을 사건 당사자로 가정하지 않습니다. **"당신"** 이라고 부르지 않고, 구조에서 확인된 원고·피고·신청인 또는 구체적인 역할명을 일관되게 씁니다.',
     );
   }
   if (rules.banFigurative) {
     lines.push('- 비유를 쓰지 않습니다. "~처럼", "마치", "비유하면" 같은 표현을 쓰지 않습니다.');
+  }
+  if (level === "L4") {
+    lines.push(
+      "- 법률 문장을 짧게 자르는 데서 끝내지 않습니다. 어려운 표현을 뜻이 같은 일상 낱말로 다시 씁니다.",
+      '- "그해", "그때", "두 곳", "앞 판단", "이 계획"만 쓰지 않습니다. 날짜·사람·법원·계획을 다시 밝혀 씁니다.',
+      "- 원고·피고처럼 꼭 필요한 법률 용어는 처음 나올 때 바로 뜻을 설명합니다.",
+      "- 한 문장에 주체와 행동을 함께 적습니다. 행동만 적어 누가 한 일인지 추측하게 하지 않습니다.",
+    );
   }
   return lines;
 }
@@ -118,6 +126,19 @@ function styleLine(level: Level): string {
     return "- 일반 성인에게 설명하는 단계입니다. 정중한 **-합니다**체로 씁니다.";
   }
   return "- **-어요**체로 씁니다.";
+}
+
+function coverageLines(level: Level): string[] {
+  if (level === "L4") {
+    return [
+      "- 모든 세부 사실을 나열하지 않습니다. 재판의 결론, 결론을 이해하는 데 필요한 사건, 핵심 쟁점과 판단 이유를 먼저 고릅니다.",
+      "- 반복되는 날짜·금액·주장·절차는 결과를 이해하는 데 꼭 필요하지 않으면 생략합니다.",
+      "- 생략한 내용을 추측하여 채우지 않습니다. 자세한 내용은 원문 근거에서 확인할 수 있게 연결합니다.",
+    ];
+  }
+  return [
+    "- 결론 몇 문장만 쓰고 끝내지 않습니다. 입력의 모든 노드를 본문에서 최소 한 번씩 다룹니다.",
+  ];
 }
 
 /**
@@ -166,6 +187,7 @@ function glossSection(glosses: readonly PromptGloss[]): string[] {
   return [
     "- 아래 낱말이 본문에 나오면, 그 낱말을 쓴 **바로 다음 문장**에서 뜻을 풀어 줍니다.",
     '  그 문장은 `"role": "gloss"`로 적고 `from`은 적지 않습니다.',
+    '- 풀이 문장에도 낱말을 다시 적습니다. 예: `"피고"는 재판을 요청받은 쪽이에요.`',
     "- **여기 적힌 뜻만 씁니다.** 목록에 없는 낱말은 풀이하지 않고, 여기 적힌 뜻을",
     "  이 단계의 말투로 짧게 옮깁니다. 뜻을 새로 지어내지 않습니다.",
     "- **이 판결문에서 쓰인 뜻과 다르면 그 낱말은 풀이하지 않습니다.** 사전은 글자만 보고",
@@ -207,7 +229,7 @@ function renderInstruction(level: Level, glosses: readonly PromptGloss[] = []): 
     `- 권장 흐름: ${brief.plan.map((section) => `\`${section}\``).join(" → ")}`,
     "- 구조에 해당 정보가 있으면 권장 흐름의 제목을 달아 충분히 설명합니다.",
     "  해당 정보가 전혀 없으면 내용을 지어내거나 빈 제목을 만들지 않습니다.",
-    "- 결론 몇 문장만 쓰고 끝내지 않습니다. 입력의 모든 노드를 본문에서 최소 한 번씩 다룹니다.",
+    ...coverageLines(level),
     "- 서로 다른 쟁점과 판단 이유를 한 문장으로 뭉개지 않습니다. 한 노드가 복잡하면",
     "  같은 `from`을 단 여러 문장으로 나누어 배경, 판단 이유, 효과를 차례로 설명합니다.",
     "- 같은 말을 늘여 쓰거나 근거 없는 일반론으로 분량을 채우지 않습니다.",
@@ -236,7 +258,7 @@ function renderInstruction(level: Level, glosses: readonly PromptGloss[] = []): 
  * 프롬프트 버전. **문장을 고치면 반드시 올린다.**
  * `rendition`·`generation_job`의 유일 키에 들어간다(§6.4).
  */
-const RENDER_PROMPT_VERSION = "render-2026-09-05-v9";
+const RENDER_PROMPT_VERSION = "render-2026-09-08-v13";
 
 export { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction };
 export type { PromptGloss };

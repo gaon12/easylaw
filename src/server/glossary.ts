@@ -52,6 +52,57 @@ const MAX_TERMS = 12;
 /** 한 질의에 실을 낱말 수. SQLite의 바인딩 개수 한도에 여유를 둔다. */
 const QUERY_CHUNK = 400;
 
+/** 표준 사전에서 법률 분류가 빠졌지만 판결문에서 뜻이 고정적인 핵심 용어. */
+const SAFE_GENERAL_DICTIONARY_TERMS = new Set(["변제"]);
+
+type DictionaryDb = ReturnType<typeof dictDb>;
+
+function addStandardLegalGlosses(
+  db: DictionaryDb,
+  forms: readonly string[],
+  found: Map<string, Gloss>,
+): void {
+  for (const row of db
+    .select({ word: dictEntry.word, definition: dictEntry.definition })
+    .from(dictEntry)
+    .where(and(inArray(dictEntry.word, forms), eq(dictEntry.category, "법률")))
+    .orderBy(desc(dictEntry.senseOrder))
+    .all()) {
+    found.set(row.word, {
+      term: row.word,
+      definition: row.definition,
+      source: "표준국어대사전",
+      legal: true,
+    });
+  }
+}
+
+function addSafeGeneralGlosses(
+  db: DictionaryDb,
+  forms: readonly string[],
+  found: Map<string, Gloss>,
+): void {
+  const safeForms = forms.filter((form) => SAFE_GENERAL_DICTIONARY_TERMS.has(form));
+  if (safeForms.length === 0) {
+    return;
+  }
+  for (const row of db
+    .select({ word: dictEntry.word, definition: dictEntry.definition })
+    .from(dictEntry)
+    .where(inArray(dictEntry.word, safeForms))
+    .orderBy(dictEntry.senseOrder)
+    .all()) {
+    if (!found.has(row.word)) {
+      found.set(row.word, {
+        term: row.word,
+        definition: row.definition,
+        source: "표준국어대사전",
+        legal: false,
+      });
+    }
+  }
+}
+
 function fromLegalCache(term: string): Gloss | undefined {
   const row = dictDb()
     .select()
@@ -213,27 +264,23 @@ function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
   for (let at = 0; at < forms.length; at += QUERY_CHUNK) {
     const chunk = forms.slice(at, at + QUERY_CHUNK);
 
-    /* 표준국어대사전을 먼저 담고 법령용어로 덮는다 — 법령이 내린 정의가 근거가 더 세다. */
-    for (const row of db
-      .select({ word: dictEntry.word, definition: dictEntry.definition })
-      .from(dictEntry)
-      .where(and(inArray(dictEntry.word, chunk), eq(dictEntry.category, "법률")))
-      .orderBy(desc(dictEntry.senseOrder))
-      .all()) {
-      found.set(row.word, {
-        term: row.word,
-        definition: row.definition,
-        source: "표준국어대사전",
-        legal: true,
-      });
-    }
+    /* 문서 맥락 없이도 쓸 수 있는 표준국어대사전의 법률 뜻을 먼저 담는다. */
+    addStandardLegalGlosses(db, chunk, found);
+    addSafeGeneralGlosses(db, chunk, found);
 
     for (const row of db
       .select({ term: legalTerm.term, definition: legalTerm.definition, source: legalTerm.source })
       .from(legalTerm)
       .where(inArray(legalTerm.term, chunk))
       .all()) {
-      /* 법령이 스스로 내린 정의다. 다른 뜻과 헷갈릴 일이 가장 적으므로 맨 앞에 둔다. */
+      /*
+       * 특정 법령의 정의는 그 법령 안에서만 맞을 수 있다. 예를 들어 `원고`를 간행물 파일로
+       * 정의한 행정지침이 민사 판결의 `원고` 뜻을 덮으면 안 된다. 표준 사전에 법률 뜻이
+       * 없고, 특정 법령 출처도 아니며, 한국어 정의인 경우에만 보충 자료로 쓴다.
+       */
+      if (found.has(row.term) || !isSafeAutomaticLegalTerm(row)) {
+        continue;
+      }
       found.set(row.term, {
         term: row.term,
         definition: row.definition,
@@ -244,6 +291,14 @@ function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
   }
 
   return found;
+}
+
+const KOREAN_DEFINITION = /[가-힣]{2,}/u;
+
+function isSafeAutomaticLegalTerm(input: { definition: string; source: string | null }): boolean {
+  const fromSpecificLaw = input.source?.includes("[") === true;
+  const hasKoreanDefinition = KOREAN_DEFINITION.test(input.definition);
+  return !fromSpecificLaw && hasKoreanDefinition;
 }
 
 /**
@@ -288,5 +343,5 @@ function glossesInText(text: string): Gloss[] {
   return found;
 }
 
-export { glossesFor, glossesInText, glossFor };
+export { glossesFor, glossesInText, glossFor, isSafeAutomaticLegalTerm };
 export type { Gloss };

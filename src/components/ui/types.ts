@@ -54,8 +54,8 @@ interface TocEntry {
   /** 앵커 id. 이 값이 `#` 뒤에 붙는다. */
   readonly id: string;
   readonly label: string;
-  /** 1이면 큰 항목(장), 2면 그 안의 항목(조). */
-  readonly depth: 1 | 2;
+  /** 판결서·법령이 가진 실제 제목 깊이. 화면 제목은 HTML h3~h6 범위로 제한한다. */
+  readonly depth: 1 | 2 | 3 | 4 | 5;
 }
 
 export type { AlertTone, BadgeTone, CardTone, IconName, InfoRow, StructuredRow, TocEntry };

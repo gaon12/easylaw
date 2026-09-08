@@ -13,7 +13,7 @@ function heading(text: string, orderIdx: number): RenditionSentence {
 function validL4(): RenditionSentence[] {
   return [
     heading("결과", 0),
-    { orderIdx: 1, role: "body", text: "당신이 신청한 대로 되었어요." },
+    { orderIdx: 1, role: "body", text: "법원은 신청을 받아들였어요." },
     heading("그래서 어떻게 되나요", 2),
     { orderIdx: 3, role: "body", text: "구청에 다시 신청할 수 있어요." },
     heading("이해 확인", 4),
@@ -102,9 +102,9 @@ describe("lintRendition", () => {
   });
 
   describe("호칭 일관성", () => {
-    it("L4에서 '당신'과 '원고'가 섞이면 막는다", () => {
+    it("L4에서 독자를 '당신'으로 사건에 넣으면 막는다", () => {
       const sentences = validL4();
-      sentences.push({ orderIdx: 6, role: "body", text: "원고의 청구를 받아들였어요." });
+      sentences.push({ orderIdx: 6, role: "body", text: "당신의 청구를 받아들였어요." });
 
       const issues = lintRendition("L4", sentences);
       const mixed = issues.find((issue) => issue.rule === "inconsistent_address");
@@ -112,12 +112,20 @@ describe("lintRendition", () => {
       expect(mixed?.orderIdx).toBe(6);
     });
 
-    it("L2에서는 3인칭을 그대로 둔다", () => {
+    it("L2에서는 확인된 3인칭 역할을 그대로 둔다", () => {
       const issues = lintRendition("L2", [
         ...body("원고의 청구를 받아들였어요."),
         heading("다음 절차", 1),
       ]);
       expect(issues.filter((issue) => issue.rule === "inconsistent_address")).toEqual([]);
+    });
+
+    it("L2에서도 독자를 사건 당사자로 가정하면 막는다", () => {
+      const issues = lintRendition("L2", [
+        ...body("당신의 청구를 받아들였어요."),
+        heading("다음 절차", 1),
+      ]);
+      expect(issues.find((issue) => issue.rule === "inconsistent_address")?.severity).toBe("error");
     });
   });
 

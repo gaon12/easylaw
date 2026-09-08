@@ -20,8 +20,17 @@ function lawNameIndex() {
 }
 
 /** 문장 하나에서 법령 인용을 찾는다. 사전에 없는 법은 이름이 비어 온다(링크하지 않는다). */
-function findCitations(text: string): Citation[] {
-  return detectCitations(text, lawNameIndex());
+function findCitations(
+  text: string,
+  context?: { readonly lawId: string; readonly name: string },
+): Citation[] {
+  return detectCitations(
+    text,
+    lawNameIndex(),
+    context === undefined
+      ? undefined
+      : { lawId: context.lawId, name: context.name, matched: context.name },
+  );
 }
 
 export { findCitations };

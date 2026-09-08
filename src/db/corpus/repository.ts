@@ -30,6 +30,7 @@ type JobStage = (typeof generationJob.stage.enumValues)[number];
 type JobStatus = (typeof generationJob.status.enumValues)[number];
 type StructureKind = (typeof structureNode.kind.enumValues)[number];
 type Confidence = (typeof renditionSentence.confidence.enumValues)[number];
+type ReviewState = (typeof rendition.reviewState.enumValues)[number];
 type Outcome = (typeof judgment.outcome.enumValues)[number];
 
 interface JudgmentInput {
@@ -191,6 +192,7 @@ function saveRendition(
     level: Level;
     model: string;
     promptVersion: string;
+    reviewState?: ReviewState;
     sentences: readonly SentenceInput[];
   },
 ): string {
@@ -203,6 +205,7 @@ function saveRendition(
         level: input.level,
         model: input.model,
         promptVersion: input.promptVersion,
+        reviewState: input.reviewState ?? "none",
       })
       .run();
 
@@ -612,6 +615,8 @@ function assertNodesGrounded(nodes: readonly StructureNodeInput[], valid: Readon
   }
 }
 
+// 캐시 검증과 교체는 같은 즉시 트랜잭션 안에서 이뤄져야 동시 생성 작업의 id가 끊기지 않는다.
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: 트랜잭션 경계를 쪼개지 않는다.
 function saveStructure(
   db: CorpusDb,
   judgmentId: string,
@@ -645,7 +650,32 @@ function saveStructure(
         .all()
         .map((row) => row.id);
       if (existing.length > 0) {
-        return existing;
+        const linkedNodeIds = new Set(
+          tx
+            .select({ id: nodeSpan.structureNodeId })
+            .from(nodeSpan)
+            .where(inArray(nodeSpan.structureNodeId, existing))
+            .all()
+            .map((row) => row.id),
+        );
+
+        if (existing.every((id) => linkedNodeIds.has(id))) {
+          return existing;
+        }
+
+        /*
+         * 원문을 갱신하면 span은 새 id로 교체되고 node_span은 FK cascade로 지워진다.
+         * 그때 남은 구조 노드는 더 이상 원문으로 되짚을 수 없는 캐시이므로 새 추출 결과로
+         * 교체한다. 여기서 지우면 옛 변환 문장의 structureNodeId는 FK 규칙에 따라 null이 된다.
+         */
+        tx.delete(structureNode)
+          .where(
+            and(
+              eq(structureNode.judgmentId, judgmentId),
+              eq(structureNode.promptVersion, promptVersion),
+            ),
+          )
+          .run();
       }
       if (nodes.length === 0) {
         return [];
@@ -702,13 +732,18 @@ function listStructureNodes(
     }
   }
 
+  // 근거가 하나라도 끊긴 추출본은 일부만 모델에 넘기지 않고 전체 캐시를 무효화한다.
+  if (nodes.some((node) => !byNode.has(node.id))) {
+    return [];
+  }
+
   return nodes.map((node) => ({
     id: node.id,
     kind: node.kind,
     payload: node.payload,
     occurredOn: node.occurredOn,
     orderIdx: node.orderIdx,
-    spanIds: byNode.get(node.id) ?? [],
+    spanIds: byNode.get(node.id) as string[],
   }));
 }
 
@@ -1106,6 +1141,7 @@ export type {
   LawVersionInput,
   Level,
   Outcome,
+  ReviewState,
   SentenceInput,
   SpanInput,
   StructureKind,

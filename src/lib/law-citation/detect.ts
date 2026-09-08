@@ -206,6 +206,53 @@ function createLawNameIndex(sources: Iterable<LawNameSource>): LawNameIndex {
  * 다른 법의 조문을 가리키게 되므로, 없는 링크보다 나쁘다 — 그럴듯하게 틀린다.
  */
 const SAME_LAW = /같은\s*법(?:\s*(시행령|시행규칙))?\s*$/u;
+const SELF_LAW = /(?:이|본)\s*법\s*$/u;
+
+/** 사전에 없거나 동명이어서 못 고른 이름이 바로 앞에 적혔는지 판정한다. */
+const EXPLICIT_LAW_NAME =
+  /(?:「|『)?[가-힣A-Za-z0-9·ㆍ ]{1,60}(?:법률|시행령|시행규칙|법|령|규칙|예규|조례)\s*$/u;
+
+/** `상법 제339조(…) 및 제340조`처럼 같은 외부 법을 이어 쓰는 사이 글자. */
+const CITATION_LINKER =
+  /^(?:\s|[·ㆍ・,、]|및|또는|내지|부터|까지|와|과|\([^()]*\)|（[^（）]*）)*$/u;
+
+function resolveCitationLaw({
+  text,
+  start,
+  head,
+  index,
+  initialLaw,
+  carried,
+  previous,
+}: {
+  text: string;
+  start: number;
+  head: string;
+  index: LawNameIndex;
+  initialLaw: LawRef | undefined;
+  carried: LawRef | undefined;
+  previous: Citation | undefined;
+}): { law: LawRef | undefined; carried: LawRef | undefined; named: boolean } {
+  const sameLaw = resolveSameLaw(head, carried, index);
+  const namedLaw = sameLaw.law ?? index.longestEndingAt(text, head.length);
+  const selfLaw = initialLaw !== undefined && SELF_LAW.test(head);
+  const unresolvedName =
+    namedLaw === undefined && !sameLaw.asked && !selfLaw && EXPLICIT_LAW_NAME.test(head);
+  const continuesPrevious =
+    previous !== undefined && CITATION_LINKER.test(text.slice(previous.end, start));
+  const nextCarried = namedLaw ?? carried;
+  const contextual =
+    initialLaw !== undefined && !continuesPrevious ? initialLaw : (nextCarried ?? initialLaw);
+
+  if ((sameLaw.asked && sameLaw.law === undefined) || unresolvedName) {
+    return { law: undefined, carried: initialLaw, named: false };
+  }
+  return {
+    law: namedLaw ?? (selfLaw ? initialLaw : contextual),
+    carried: nextCarried,
+    named: namedLaw !== undefined,
+  };
+}
 
 /**
  * `같은 법 …`이 가리키는 법을 찾는다.
@@ -307,9 +354,13 @@ function readContinuations(
   return cursor;
 }
 
-function detectCitations(text: string, index: LawNameIndex): Citation[] {
+function detectCitations(text: string, index: LawNameIndex, initialLaw?: LawRef): Citation[] {
   const found: Citation[] = [];
-  let carried: LawRef | undefined;
+  /*
+   * 법령 본문 안의 `제8조`는 그 법 자체를 가리킨다. 판결문에는 이런 기본값을 주지 않는다.
+   * 같은 파서를 쓰되, 문서가 이미 어느 법인지 확정된 법령 화면·API에서만 문맥을 넘긴다.
+   */
+  let carried: LawRef | undefined = initialLaw;
 
   CITATION.lastIndex = 0;
   let matched = CITATION.exec(text);
@@ -322,24 +373,24 @@ function detectCitations(text: string, index: LawNameIndex): Citation[] {
      * `같은 법 시행령`을 먼저 본다. 이름 사전으로 먼저 찾으면 `법`에서 끝나는 다른 법에
      * 걸릴 수 있고, 무엇보다 시행령을 놓친다.
      */
-    const sameLaw = resolveSameLaw(head, carried, index);
-    const named = sameLaw.law ?? index.longestEndingAt(text, head.length);
-    if (named !== undefined) {
-      carried = named;
-    }
-    /*
-     * `같은 법 시행령`이라고 적혀 있었는데 그 시행령을 못 찾은 경우다. 이어받기로
-     * 되돌아가면 모법을 가리키게 되므로, 이 인용은 모른다고 둔다.
-     */
-    const law = sameLaw.asked && sameLaw.law === undefined ? undefined : (named ?? carried);
+    const resolved = resolveCitationLaw({
+      text,
+      start,
+      head,
+      index,
+      initialLaw,
+      carried,
+      previous: found.at(-1),
+    });
+    carried = resolved.carried;
 
     if (articleNo !== undefined) {
       const citation: Citation = {
         start,
         end: start + whole.length,
         text: whole,
-        law,
-        named: named !== undefined,
+        law: resolved.law,
+        named: resolved.named,
         articleNo,
         branchNo,
         clauseNo,

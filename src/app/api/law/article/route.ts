@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { law as strings } from "@/lib/strings";
+import { findCitations } from "@/server/citations";
 import { verifyCitation } from "@/server/law";
 
 /**
@@ -55,12 +56,21 @@ async function GET(request: Request): Promise<Response> {
   }
 
   const { article } = check;
+  const context = { lawId: check.lawId, name: check.lawName };
   return NextResponse.json({
     kind: "exists",
+    lawId: check.lawId,
+    lawName: check.lawName,
+    lawVersionId: check.lawVersionId,
     heading: strings.articleLabel(article.articleNo, article.branchNo),
     title: article.title,
-    clauses: article.clauses.map((clause) => ({ number: clause.number, text: clause.text })),
+    clauses: article.clauses.map((clause) => ({
+      number: clause.number,
+      text: clause.text,
+      citations: findCitations(clause.text, context),
+    })),
     body: article.body,
+    bodyCitations: article.body === null ? [] : findCitations(article.body, context),
   });
 }
 

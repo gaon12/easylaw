@@ -56,8 +56,48 @@ interface HeadingSpan {
   /** 이 표제를 담고 있는 원문 문장의 id. 화면이 그 문장에 앵커를 걸 때 쓴다. */
   readonly spanId: string;
   readonly label: string;
+  /** `【이유】`가 1이고 그 아래 `1.` → `가.` → `1)` → `가)` 순서로 깊어진다. */
+  readonly depth: 1 | 2 | 3 | 4 | 5;
   /** 닫는 `】` 바로 뒤의 위치. 같은 줄에 붙은 본문을 제목과 나눌 때 쓴다. */
   readonly contentStart: number;
+}
+
+const TOC_LABEL_LIMIT = 30;
+
+/** 원문은 그대로 두고 목차에서만 긴 하위 표제를 한 줄로 줄인다. */
+function compactHeadingLabel(heading: HeadingSpan): string {
+  if (heading.depth === 1 || heading.label.length <= TOC_LABEL_LIMIT) {
+    return heading.label;
+  }
+
+  return `${heading.label.slice(0, TOC_LABEL_LIMIT - 1).trimEnd()}…`;
+}
+
+/** 판결 이유 안에서 쓰는 법원 문서의 열거 계층. 연도(2006.)는 숫자 네 자리라 걸리지 않는다. */
+const OUTLINE_HEADINGS = [
+  { pattern: /^\s*([0-9]{1,2})\.\s+(.+)$/u, depth: 2 as const },
+  { pattern: /^\s*([가-하])\.\s+(.+)$/u, depth: 3 as const },
+  { pattern: /^\s*([0-9]{1,2})\)\s+(.+)$/u, depth: 4 as const },
+  { pattern: /^\s*([가-하])\)\s+(.+)$/u, depth: 5 as const },
+] as const;
+
+/** 주문의 번호는 명령 항목이지 제목이 아니다. 논증을 담는 구간 안에서만 하위 제목을 찾는다. */
+const OUTLINE_ROOTS = new Set([
+  "이유",
+  "판단",
+  "판결요지",
+  "청구원인",
+  "항소이유",
+  "상고이유",
+  "재항고이유",
+]);
+
+function parseOutlineHeading(text: string): { label: string; depth: 2 | 3 | 4 | 5 } | undefined {
+  for (const candidate of OUTLINE_HEADINGS) {
+    if (candidate.pattern.test(text)) {
+      return { label: text.trim(), depth: candidate.depth };
+    }
+  }
 }
 
 function parseHeading(text: string): { label: string; contentStart: number } | undefined {
@@ -146,14 +186,42 @@ function sectionAnchor(index: number): string {
  */
 function detectHeadings(spans: readonly { id: string; text: string }[]): HeadingSpan[] {
   const headings: HeadingSpan[] = [];
+  const counters = [0, 0, 0, 0, 0];
+  let activeRoot: string | undefined;
+
   for (const span of spans) {
     const heading = parseHeading(span.text);
     if (heading !== undefined) {
+      counters[0] = (counters[0] ?? 0) + 1;
+      counters.fill(0, 1);
+      activeRoot = heading.label;
       headings.push({
-        id: sectionAnchor(headings.length),
+        id: sectionAnchor((counters[0] ?? 1) - 1),
         spanId: span.id,
         label: heading.label,
+        depth: 1,
         contentStart: heading.contentStart,
+      });
+      continue;
+    }
+
+    if (activeRoot === undefined || !OUTLINE_ROOTS.has(activeRoot)) {
+      continue;
+    }
+
+    const outline = parseOutlineHeading(span.text);
+    if (outline !== undefined) {
+      const counterIndex = outline.depth - 1;
+      counters[counterIndex] = (counters[counterIndex] ?? 0) + 1;
+      counters.fill(0, counterIndex + 1);
+      const id = `s-${counters.slice(0, counterIndex + 1).join(".")}`;
+      headings.push({
+        id,
+        spanId: span.id,
+        label: outline.label,
+        depth: outline.depth,
+        /* 번호식 제목은 줄 전체가 제목이다. 0이면 같은 문장을 제목 아래 본문으로 또 그린다. */
+        contentStart: span.text.length,
       });
     }
   }
@@ -165,5 +233,12 @@ function isHeading(text: string): boolean {
   return parseHeading(text) !== undefined;
 }
 
-export { detectHeadings, isHeading, parseFieldLabel, sectionAnchor, tidyHeading };
+export {
+  compactHeadingLabel,
+  detectHeadings,
+  isHeading,
+  parseFieldLabel,
+  sectionAnchor,
+  tidyHeading,
+};
 export type { HeadingSpan };

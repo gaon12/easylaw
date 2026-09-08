@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lintRendition, type RenditionSentence } from "@/lib/rendition/lint";
-import { demo, help, law, viewer } from "./strings";
+import { demo, help, law } from "./strings";
 
 /**
  * 랜딩 데모의 예시 문장이 **우리가 만든 작성 규칙을 스스로 지키는지** 검사한다.
@@ -20,9 +20,8 @@ describe("랜딩 데모 예시", () => {
     expect(issues.filter((issue) => issue.rule !== "missing_section")).toEqual([]);
   });
 
-  it("L4 예시는 2인칭으로 말한다", () => {
-    // 호칭이 섞이면 읽는 사람이 누구 얘기인지 놓친다(`EASY-READ.md` §5).
-    expect(demo.bodies.L4.some((line) => line.includes("당신"))).toBe(true);
+  it("L4 예시는 독자를 사건 당사자로 가정하지 않는다", () => {
+    expect(demo.bodies.L4.some((line) => line.includes("당신"))).toBe(false);
   });
 
   it("원문 예시는 실제 판결문 문체 그대로다", () => {
@@ -30,16 +29,13 @@ describe("랜딩 데모 예시", () => {
     expect(demo.bodies.L0.join(" ")).toContain("피고");
   });
 
-  it("일반 단계는 합니다체, 어린이 단계는 이야기체, 쉬운말은 직접 안내한다", () => {
+  it("일반 단계는 합니다체, 어린이 단계는 이야기체, 쉬운말은 짧게 안내한다", () => {
     expect(demo.bodies.L2.every((line) => /(?:합니다|입니다)\.$/u.test(line))).toBe(true);
     expect(demo.bodies.L3.join(" ")).toContain("A씨");
-    expect(demo.bodies.L4.join(" ")).toContain("당신");
+    expect(demo.bodies.L4.join(" ")).toContain("확인해요");
   });
 
   it("일반·어린이·쉬운말의 읽는 방식을 서로 다른 말로 안내한다", () => {
-    expect(viewer.levelTraits.L2).toEqual(["결론 먼저", "법적 효과", "다음 절차"]);
-    expect(viewer.levelTraits.L3).toEqual(["짧은 문장", "등장인물 이야기", "차근차근 설명"]);
-    expect(viewer.levelTraits.L4).toEqual(["한 문장 한 가지", "어려운 말 바로 풀이", "읽기 도움"]);
     expect(demo.bodies.L4).toContain("항소는 다시 재판해 달라는 뜻이에요.");
   });
 });

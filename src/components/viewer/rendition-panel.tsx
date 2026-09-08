@@ -1,8 +1,11 @@
 import { Badge } from "@/components/ui/badge";
+import type { CaseMediaPlacement } from "@/lib/case-media";
 import { viewer } from "@/lib/strings";
+import { ExplanationMedia } from "./explanation-media";
 import { LevelBody } from "./level-body";
 import type { ViewLevel } from "./levels";
 import styles from "./rendition-panel.module.css";
+import { renditionHeadingId } from "./rendition-toc";
 import { SpeechReader } from "./speech-reader";
 
 interface Sentence {
@@ -16,6 +19,38 @@ interface Sentence {
   readonly source?: string | null;
   /** 이 설명이 나온 원문 span. 첫 span으로 이동하되, 근거가 없으면 액션을 내지 않는다. */
   readonly sourceSpanIds?: readonly string[];
+}
+
+interface IndexedSentence extends Sentence {
+  readonly speechIndex: number;
+}
+
+interface ExplanationBlock {
+  readonly id: string;
+  readonly heading: IndexedSentence | null;
+  readonly content: readonly IndexedSentence[];
+}
+
+/** 제목부터 다음 제목 직전까지를 하나의 이지리드 설명 블록으로 묶는다. */
+function groupExplanationBlocks(sentences: readonly Sentence[]): ExplanationBlock[] {
+  const blocks: { id: string; heading: IndexedSentence | null; content: IndexedSentence[] }[] = [];
+  let current: (typeof blocks)[number] | undefined;
+
+  sentences.forEach((sentence, speechIndex) => {
+    const indexed = { ...sentence, speechIndex };
+    if (sentence.role === "heading") {
+      current = { id: sentence.id, heading: indexed, content: [] };
+      blocks.push(current);
+      return;
+    }
+    if (current === undefined) {
+      current = { id: `intro-${sentence.id}`, heading: null, content: [] };
+      blocks.push(current);
+    }
+    current.content.push(indexed);
+  });
+
+  return blocks;
 }
 
 /**
@@ -67,11 +102,16 @@ function RenditionPanel({
   level,
   sentences,
   needsCheckCount,
+  media,
 }: {
   level: ViewLevel;
   sentences: readonly Sentence[];
   needsCheckCount: number;
+  media?: readonly CaseMediaPlacement[];
 }) {
+  const mediaByHeading = new Map(media?.map((item) => [item.afterHeading, item]) ?? []);
+  const blocks = groupExplanationBlocks(sentences);
+
   return (
     <SpeechReader texts={sentences.map((sentence) => sentence.text)}>
       <LevelBody level={level}>
@@ -82,37 +122,65 @@ function RenditionPanel({
         {needsCheckCount > 0 ? (
           <p className={styles.summary}>{viewer.needsCheckSummary(needsCheckCount)}</p>
         ) : null}
-
-        {sentences.map((sentence, index) => {
-          if (sentence.role === "heading") {
+        <div className={styles.blocks}>
+          {blocks.map((block) => {
+            const blockMedia =
+              block.heading === null ? undefined : mediaByHeading.get(block.heading.text);
             return (
-              <h3 className={styles.heading} data-speech-index={index} key={sentence.id}>
-                {sentence.text}
-              </h3>
+              <section className={styles.block} key={block.id}>
+                <div className={styles.blockContent}>
+                  {block.heading === null ? null : (
+                    <h3
+                      className={styles.heading}
+                      data-speech-index={block.heading.speechIndex}
+                      id={renditionHeadingId(block.heading.id)}
+                    >
+                      {block.heading.text}
+                    </h3>
+                  )}
+                  {blockMedia === undefined ? null : <ExplanationMedia media={blockMedia} />}
+                  <div className={styles.blockText}>
+                    {block.content.map((sentence) => {
+                      if (sentence.role === "gloss") {
+                        return (
+                          <GlossRow
+                            index={sentence.speechIndex}
+                            key={sentence.id}
+                            sentence={sentence}
+                          />
+                        );
+                      }
+                      return (
+                        <div className={styles.sentenceRow} key={sentence.id}>
+                          {sentence.sourceSpanIds?.[0] === undefined ? (
+                            <p className={styles.sentence} data-speech-index={sentence.speechIndex}>
+                              {sentence.text}
+                              <ConfidenceMark sentence={sentence} />
+                            </p>
+                          ) : (
+                            <a
+                              className={styles.sentenceLink}
+                              href={`#${sentence.sourceSpanIds[0]}`}
+                            >
+                              <span
+                                className={styles.sentenceText}
+                                data-speech-index={sentence.speechIndex}
+                              >
+                                {sentence.text}
+                              </span>
+                              <span className={styles.evidenceAction}>{viewer.evidence}</span>
+                              <ConfidenceMark sentence={sentence} />
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
             );
-          }
-          if (sentence.role === "gloss") {
-            return <GlossRow index={index} key={sentence.id} sentence={sentence} />;
-          }
-          return (
-            <div className={styles.sentenceRow} key={sentence.id}>
-              {sentence.sourceSpanIds?.[0] === undefined ? (
-                <p className={styles.sentence} data-speech-index={index}>
-                  {sentence.text}
-                  <ConfidenceMark sentence={sentence} />
-                </p>
-              ) : (
-                <a className={styles.sentenceLink} href={`#${sentence.sourceSpanIds[0]}`}>
-                  <span className={styles.sentenceText} data-speech-index={index}>
-                    {sentence.text}
-                  </span>
-                  <span className={styles.evidenceAction}>{viewer.evidence}</span>
-                  <ConfidenceMark sentence={sentence} />
-                </a>
-              )}
-            </div>
-          );
-        })}
+          })}
+        </div>
       </LevelBody>
     </SpeechReader>
   );

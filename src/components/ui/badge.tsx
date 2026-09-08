@@ -26,14 +26,19 @@ const ICONS: Readonly<Record<BadgeTone, IconName>> = {
 function Badge({
   tone = "neutral",
   variant = "outlined",
+  wrap = false,
   children,
 }: {
   tone?: BadgeTone;
   variant?: "outlined" | "solid";
+  /** 긴 설명형 상태에서만 여러 줄을 허용한다. */
+  wrap?: boolean;
   children: string;
 }) {
   return (
-    <span className={`${styles.badge} ${styles[tone]} ${styles[variant]}`}>
+    <span
+      className={`${styles.badge} ${styles[tone]} ${styles[variant]} ${wrap ? styles.wrap : ""}`}
+    >
       <Icon name={ICONS[tone]} size={16} />
       {children}
     </span>

@@ -1,8 +1,7 @@
 /*
  * 목차. `DESIGN.md` §11.5 — 나무위키의 목차 박스
  *
- * 작고 촘촘한 상자다. 문서 맨 앞에서 자리를 조금만 차지하고, 항목은 번호로 읽힌다.
- * 카드가 아니라 **틀**이라 그림자도 둥근 모서리도 크지 않다.
+ * 작고 촘촘한 문서 목록이다. 별도 카드처럼 꾸미지 않고 제목과 얇은 구분선만 둔다.
  */
 
 .toc {
@@ -16,9 +15,7 @@
 }
 
 .box {
-  border: 1px solid var(--el-border-default);
-  border-radius: var(--el-radius-xs);
-  background: var(--el-bg-canvas);
+  border: 0;
   padding: 0;
 }
 
@@ -26,8 +23,8 @@
 .summary {
   padding: var(--el-space-2) var(--el-space-3);
   border-bottom: 1px solid var(--el-border-subtle);
-  background: var(--el-brand-surface);
-  color: var(--el-brand-fg);
+  background: transparent;
+  color: var(--el-fg-1);
   font-weight: 700;
   font-size: var(--el-text-body-s);
   cursor: pointer;
@@ -58,13 +55,22 @@
 
 .sub {
   padding-left: var(--el-space-4);
-  counter-increment: toc-sub;
 }
 
-.sub > .link::before {
-  content: counter(toc-top) "." counter(toc-sub) " ";
-  color: var(--el-fg-link);
-  font-variant-numeric: tabular-nums;
+.sub > .link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub[data-depth="3"] {
+  padding-left: calc(var(--el-space-4) * 2);
+}
+
+.sub[data-depth="4"],
+.sub[data-depth="5"] {
+  padding-left: calc(var(--el-space-4) * 3);
+  font-size: var(--el-text-body-xs);
 }
 
 /*

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { admin } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
@@ -33,7 +34,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className={styles.shell}>
       <AdminNav />
-      {children}
+      <div className={styles.workspace}>
+        <header className={styles.toolbar}>
+          <div>
+            <strong>{admin.consoleTitle}</strong>
+            <span>{admin.consoleSubtitle}</span>
+          </div>
+          <Link className={styles.serviceLink} href="/">
+            {admin.returnToService}
+          </Link>
+        </header>
+        <main className={styles.content}>{children}</main>
+      </div>
     </div>
   );
 }

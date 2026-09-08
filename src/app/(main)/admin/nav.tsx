@@ -1,5 +1,16 @@
 "use client";
 
+import {
+  AudioLines,
+  FlaskConical,
+  Images,
+  LayoutDashboard,
+  LibraryBig,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { admin } from "@/lib/strings";
@@ -16,15 +27,31 @@ import styles from "./admin.module.css";
  * 표시되지 않는다.
  */
 
-const ITEMS = [
-  { href: "/admin", label: admin.nav.overview },
-  { href: "/admin/audio", label: admin.nav.audio },
-  { href: "/admin/content", label: admin.nav.content },
-  { href: "/admin/log", label: admin.nav.log },
-  { href: "/admin/settings", label: admin.nav.settings },
-  { href: "/admin/users", label: admin.nav.users },
-  { href: "/admin/system", label: admin.nav.system },
-  { href: "/admin/test", label: admin.nav.test },
+const GROUPS = [
+  {
+    label: admin.navGroups.operate,
+    items: [
+      { href: "/admin", label: admin.nav.overview, icon: LayoutDashboard },
+      { href: "/admin/log", label: admin.nav.log, icon: ScrollText },
+    ],
+  },
+  {
+    label: admin.navGroups.content,
+    items: [
+      { href: "/admin/content", label: admin.nav.content, icon: LibraryBig },
+      { href: "/admin/media/recipes", label: admin.nav.mediaRecipes, icon: Images },
+      { href: "/admin/audio", label: admin.nav.audio, icon: AudioLines },
+    ],
+  },
+  {
+    label: admin.navGroups.manage,
+    items: [
+      { href: "/admin/users", label: admin.nav.users, icon: Users },
+      { href: "/admin/settings", label: admin.nav.settings, icon: Settings },
+      { href: "/admin/system", label: admin.nav.system, icon: ShieldCheck },
+      { href: "/admin/test", label: admin.nav.test, icon: FlaskConical },
+    ],
+  },
 ] as const;
 
 function AdminNav() {
@@ -32,24 +59,37 @@ function AdminNav() {
 
   return (
     <nav aria-label={admin.navLabel} className={styles.nav}>
-      <ul className={styles.navList}>
-        {ITEMS.map((item) => {
-          // "/admin"은 모든 하위 경로의 앞부분이라 앞자리 비교로는 늘 켜진다. 정확히 같을 때만.
-          const here = pathname === item.href;
+      <div className={styles.navBrand} aria-hidden="true">
+        <span>{admin.brandMark}</span>
+        <strong>{admin.brandName}</strong>
+      </div>
+      {GROUPS.map((group) => (
+        <section className={styles.navGroup} key={group.label}>
+          <h2 className={styles.navGroupLabel}>{group.label}</h2>
+          <ul className={styles.navList}>
+            {group.items.map((item) => {
+              // "/admin"은 모든 하위 경로의 앞부분이라 정확히 같을 때만 켠다.
+              const here =
+                item.href === "/admin"
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-          return (
-            <li key={item.href}>
-              <Link
-                aria-current={here ? "page" : undefined}
-                className={styles.navLink}
-                href={item.href}
-              >
-                {item.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+              return (
+                <li key={item.href}>
+                  <Link
+                    aria-current={here ? "page" : undefined}
+                    className={styles.navLink}
+                    href={item.href}
+                  >
+                    <item.icon aria-hidden="true" className={styles.navGlyph} />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
     </nav>
   );
 }

@@ -47,6 +47,9 @@ interface LawSectionText {
 }
 
 interface LawAtResult {
+  readonly lawId: string;
+  /** 내부의 불변 시행판 식별자. 화면 주소에는 안정적인 lawId와 기준일을 쓴다. */
+  readonly versionId: string;
   readonly lawName: string;
   readonly mst: string;
   readonly effectiveAt: Date | null;
@@ -147,6 +150,8 @@ async function lawAsOf(
   return {
     kind: "ok",
     law: {
+      lawId: version.lawId,
+      versionId: version.id,
       lawName: version.name,
       mst: version.mst,
       effectiveAt: version.effectiveAt,
@@ -166,7 +171,14 @@ async function lawAsOf(
  * `unverifiable` 우리가 확인하지 못했다. **`missing`과 반드시 구분한다.**
  */
 type CitationCheck =
-  | { readonly kind: "exists"; readonly article: ArticleText; readonly mst: string }
+  | {
+      readonly kind: "exists";
+      readonly article: ArticleText;
+      readonly lawId: string;
+      readonly lawName: string;
+      readonly lawVersionId: string;
+      readonly mst: string;
+    }
   | { readonly kind: "missing" }
   | { readonly kind: "unknown_law" }
   | { readonly kind: "not_in_force" }
@@ -225,7 +237,14 @@ async function verifyCitation(
     return { kind: "not_in_force" };
   }
 
-  return { kind: "exists", article: toArticleText(article), mst: found.law.mst };
+  return {
+    kind: "exists",
+    article: toArticleText(article),
+    lawId: found.law.lawId,
+    lawName: found.law.lawName,
+    lawVersionId: found.law.versionId,
+    mst: found.law.mst,
+  };
 }
 
 export { lawAsOf, verifyCitation };

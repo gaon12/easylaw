@@ -41,6 +41,8 @@
 }
 
 .hitName {
+  /* 사건명도 길게 이어지는 것이 있다. 같은 이유로 끊을 수 있게 둔다. */
+  overflow-wrap: anywhere;
   font-size: var(--el-text-heading-xs);
 }
 
@@ -108,6 +110,12 @@
   font-weight: 700;
   display: block;
   min-height: var(--el-touch-target);
+  /*
+   * 법령명은 띄어쓰기 없이 길게 이어진다 — `조선민사령제1조의규정에의하여의용된민법`.
+   * `keep-all`이 걸린 채로는 이 한 낱말이 끊기지 않아 320px 화면을 밖으로 밀어냈다.
+   * `anywhere`는 `break-word`와 달리 **상자의 최소 폭 계산에도 반영된다.**
+   */
+  overflow-wrap: anywhere;
 }
 
 .hitMeta {

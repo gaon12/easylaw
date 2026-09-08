@@ -87,7 +87,13 @@ function SiteShell({ children }: { children: ReactNode }) {
         <div className={styles.headerInner}>
           <Link className={styles.brand} href="/">
             <span aria-hidden="true" className={styles.brandMark} />
-            {site.name}
+            {/*
+              아주 좁은 화면(≤360px)에서는 글자를 감추고 표식만 남긴다. 320px 기기에서
+              브랜드(114px)와 계정(171px)이 한 줄에 못 들어가 **문서 전체가 옆으로
+              밀렸다** — 머리띠 하나 때문에 모든 화면에 가로 스크롤이 생겼다.
+              감추되 지우지는 않는다. 낭독기는 여기서도 서비스 이름을 읽는다.
+            */}
+            <span className={styles.brandText}>{site.name}</span>
           </Link>
 
           <nav aria-label={site.nav.menuLabel} className={styles.nav}>

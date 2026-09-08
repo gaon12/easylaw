@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { Card, CardContent } from "@/components/shadcn/ui/card";
 import { Alert } from "@/components/ui/alert";
-import { Card } from "@/components/ui/card";
 import { listRecentUploadFailures } from "@/db/app/generation";
 import { listUsersForAdmin } from "@/db/app/repository";
 import { appDb, corpusDb } from "@/db/client";
@@ -35,21 +35,23 @@ function Metric({
   href?: string;
 }) {
   return (
-    <Card as="li" padding="tight">
-      <div className={styles.metric}>
-        <span className={styles.metricLabel}>{label}</span>
-        <span className={styles.metricValue}>
-          {value.toLocaleString()}
-          <span className={styles.metricUnit}>{unit}</span>
-        </span>
-        {note === undefined ? null : <span className={styles.metricNote}>{note}</span>}
-        {href === undefined ? null : (
-          <Link className={styles.link} href={href}>
-            {admin.seeMore}
-          </Link>
-        )}
-      </div>
-    </Card>
+    <li>
+      <Card className={styles.metricCard} size="sm">
+        <CardContent className={styles.metric}>
+          <span className={styles.metricLabel}>{label}</span>
+          <span className={styles.metricValue}>
+            {value.toLocaleString()}
+            <span className={styles.metricUnit}>{unit}</span>
+          </span>
+          {note === undefined ? null : <span className={styles.metricNote}>{note}</span>}
+          {href === undefined ? null : (
+            <Link className={styles.link} href={href}>
+              {admin.seeMore}
+            </Link>
+          )}
+        </CardContent>
+      </Card>
+    </li>
   );
 }
 
@@ -101,7 +103,9 @@ export default function AdminPage() {
       ) : null}
       {!blocked && failures === 0 ? (
         <Card>
-          <p className={styles.sectionBody}>{admin.overviewHealthy}</p>
+          <CardContent>
+            <p className={styles.sectionBody}>{admin.overviewHealthy}</p>
+          </CardContent>
         </Card>
       ) : null}
 

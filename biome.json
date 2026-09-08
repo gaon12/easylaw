@@ -25,6 +25,11 @@
     "indentWidth": 2,
     "lineWidth": 100
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -53,6 +58,12 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["src/lib/case-media.ts"],
+      "formatter": {
+        "lineWidth": 190
+      }
+    },
     {
       "includes": ["**"],
       "linter": {
@@ -108,7 +119,7 @@
       }
     },
     {
-      "includes": ["*.config.ts", "*.config.mts", "next.config.ts", "scripts/**"],
+      "includes": ["*.config.ts", "*.config.mts", "*.config.mjs", "next.config.ts", "scripts/**"],
       "linter": {
         "rules": {
           "style": {

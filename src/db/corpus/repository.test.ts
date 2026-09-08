@@ -100,6 +100,20 @@ describe("saveJudgmentText", () => {
 });
 
 describe("saveRendition", () => {
+  it("편집 검수를 마친 설명의 상태를 보존한다", () => {
+    const judgmentId = seedJudgment();
+    saveRendition(db, {
+      judgmentId,
+      level: "L1",
+      model: "editorial",
+      promptVersion: "v1",
+      reviewState: "approved",
+      sentences: [],
+    });
+
+    expect(findRendition(db, judgmentId, "L1", "v1")?.reviewState).toBe("approved");
+  });
+
   it("문장에 연결된 구조 노드의 원문 span을 함께 돌려준다", () => {
     const judgmentId = seedJudgment();
     saveJudgmentText(db, judgmentId, [
@@ -503,6 +517,35 @@ describe("saveStructure", () => {
     const nodes = listStructureNodes(db, judgmentId, PROMPT);
     expect(nodes).toHaveLength(1);
     expect(nodes[0]?.payload).toEqual({ text: "먼저 것" });
+  });
+
+  it("원문 갱신으로 근거 연결이 끊긴 구조는 무효화하고 새 span에 다시 연결한다", () => {
+    const { judgmentId, spanIds } = seedWithSpans();
+    const old = saveStructure(db, judgmentId, PROMPT, [
+      { kind: "issue", payload: { text: "옛 분석" }, orderIdx: 0, spanIds: [spanIds[0] as string] },
+    ]);
+
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 12, text: "새로 받은 원문" },
+    ]);
+    const refreshedSpanId = listSpans(db, judgmentId)[0]?.id as string;
+
+    // structure_node 자체가 남아 있어도 원문 근거가 없으면 재사용할 수 없다.
+    expect(listStructureNodes(db, judgmentId, PROMPT)).toEqual([]);
+
+    const fresh = saveStructure(db, judgmentId, PROMPT, [
+      {
+        kind: "holding",
+        payload: { text: "새 분석" },
+        orderIdx: 0,
+        spanIds: [refreshedSpanId],
+      },
+    ]);
+
+    expect(fresh).not.toEqual(old);
+    expect(listStructureNodes(db, judgmentId, PROMPT)).toMatchObject([
+      { kind: "holding", payload: { text: "새 분석" }, spanIds: [refreshedSpanId] },
+    ]);
   });
 
   /*

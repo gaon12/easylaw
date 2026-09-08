@@ -49,8 +49,16 @@ function TocLinks({ entries }: { entries: readonly TocEntry[] }) {
   return (
     <ol className={styles.list}>
       {entries.map((entry) => (
-        <li className={entry.depth === 1 ? styles.top : styles.sub} key={entry.id}>
-          <a className={styles.link} href={`#${entry.id}`}>
+        <li
+          className={entry.depth === 1 ? styles.top : styles.sub}
+          data-depth={entry.depth}
+          key={entry.id}
+        >
+          <a
+            className={styles.link}
+            href={`#${entry.id}`}
+            title={entry.depth === 1 ? undefined : entry.label}
+          >
             {entry.label}
           </a>
         </li>

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { detectHeadings, isHeading, parseFieldLabel, tidyHeading } from "./headings";
+import {
+  compactHeadingLabel,
+  detectHeadings,
+  isHeading,
+  parseFieldLabel,
+  tidyHeading,
+} from "./headings";
 
 /** 예문은 실제 판결문(서울고법 2023나2014894)의 문장을 그대로 가져왔다. */
 const spans = [
@@ -61,6 +67,52 @@ describe("detectHeadings", () => {
 
     expect(detectHeadings(twice).map((h) => h.id)).toEqual(["s-1", "s-2"]);
   });
+
+  it("이유 아래의 법원 문서 열거를 실제 하위 제목 계층으로 보존한다", () => {
+    const outline = [
+      { id: "reason", text: "【이 유】" },
+      { id: "intro", text: "상고이유를 판단한다." },
+      { id: "one", text: "1. 사안의 개요" },
+      { id: "body", text: "원심판결 이유와 기록에 의하면 다음과 같은 사실을 알 수 있다." },
+      { id: "ga", text: "가. 원고와 피고의 근저당권 취득 등" },
+      { id: "item", text: "1) △△△은행은 다음과 같이 근저당권을 설정하였다." },
+      { id: "subitem", text: "가) 2006. 6. 27. 토지에 관하여 근저당권을 설정하였다." },
+    ];
+
+    const found = detectHeadings(outline);
+    expect(found.map((heading) => heading.label)).toEqual([
+      "이유",
+      "1. 사안의 개요",
+      "가. 원고와 피고의 근저당권 취득 등",
+      "1) △△△은행은 다음과 같이 근저당권을 설정하였다.",
+      "가) 2006. 6. 27. 토지에 관하여 근저당권을 설정하였다.",
+    ]);
+    expect(found.map((heading) => heading.depth)).toEqual([1, 2, 3, 4, 5]);
+    expect(found.map((heading) => heading.id)).toEqual([
+      "s-1",
+      "s-1.1",
+      "s-1.1.1",
+      "s-1.1.1.1",
+      "s-1.1.1.1.1",
+    ]);
+    expect(found.slice(1).map((heading) => heading.contentStart)).toEqual(
+      outline
+        .slice(2)
+        .filter((span) => span.id !== "body")
+        .map((span) => span.text.length),
+    );
+  });
+
+  it("주문의 번호와 본문 속 연도를 하위 제목으로 오인하지 않는다", () => {
+    const found = detectHeadings([
+      { id: "order", text: "【주 문】" },
+      { id: "order-item", text: "1. 피고의 항소를 기각한다." },
+      { id: "reason", text: "【이 유】" },
+      { id: "date", text: "2006. 6. 27. 토지에 근저당권을 설정하였다." },
+    ]);
+
+    expect(found.map((heading) => heading.spanId)).toEqual(["order", "reason"]);
+  });
 });
 
 describe("tidyHeading", () => {
@@ -68,6 +120,28 @@ describe("tidyHeading", () => {
     // 판결문은 `【주 문】`처럼 글자 사이를 벌려 적는다. 세로쓰기 시절의 관습이다.
     expect(tidyHeading("주    문")).toBe("주문");
     expect(tidyHeading("이 유")).toBe("이유");
+  });
+});
+
+describe("compactHeadingLabel", () => {
+  it("긴 하위 표제만 목차에서 줄인다", () => {
+    const long = "가. 앞서 본 사실관계를 위 법리에 비추어 살펴보면 다음과 같은 사정을 알 수 있다.";
+    expect(
+      compactHeadingLabel({
+        id: "s-2.1",
+        spanId: "x",
+        label: long,
+        depth: 3,
+        contentStart: long.length,
+      }),
+    ).toBe("가. 앞서 본 사실관계를 위 법리에 비추어 살펴보면…");
+  });
+
+  it("최상위 표제는 줄이지 않는다", () => {
+    const label = "아주 긴 최상위 표제도 원문 목차에서는 그대로 유지한다";
+    expect(
+      compactHeadingLabel({ id: "s-2", spanId: "x", label, depth: 1, contentStart: label.length }),
+    ).toBe(label);
   });
 });
 

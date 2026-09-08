@@ -16,6 +16,13 @@
   white-space: nowrap;
 }
 
+.wrap {
+  max-width: 100%;
+  align-items: flex-start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* ── outlined: 파스텔 배경 + 동색 보더 ─────────────────── */
 
 .outlined.grounded {

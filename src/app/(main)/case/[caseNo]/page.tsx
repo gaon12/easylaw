@@ -11,25 +11,29 @@ import { RenditionSection } from "@/components/viewer/rendition-section";
 import type { PlaceholderState, Sentence } from "@/components/viewer/rendition-state";
 import { SummaryCard } from "@/components/viewer/summary-card";
 import { WikiDocument } from "@/components/wiki/document";
+import { TableOfContents } from "@/components/wiki/toc";
 import { corpusDb } from "@/db/client";
 import {
   findGenerationProgress,
   findJudgmentByCaseNo,
-  findLatestRendition,
   findRendition,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
+import { findCaseMedia } from "@/lib/case-media";
+import { splitCaseName } from "@/lib/case-name";
 import { formatDate } from "@/lib/format";
 import type { Citation } from "@/lib/law-citation/detect";
 import { braille as brailleStrings, viewer } from "@/lib/strings";
-import { detectHeadings } from "@/lib/text/headings";
+import { compactHeadingLabel, detectHeadings, type HeadingSpan } from "@/lib/text/headings";
 import { findCitations } from "@/server/citations";
 import { generationBudget, PIPELINE_VERSION, REQUEST_LIMIT_REASON } from "@/server/generate";
 import { ensureJudgmentText, lookupCase } from "@/server/lookup";
 import { llmConfig, siteTimeZone } from "@/server/settings";
 import { requestGeneration } from "./actions";
 import styles from "./page.module.css";
+
+const MAX_TOC_DEPTH = 3;
 
 /**
  * 만들기 버튼 자리가 무엇을 말해야 하나.
@@ -81,8 +85,7 @@ function placeholderState(
 /**
  * 원문 칸.
  *
- * 목차는 여기 있지 않다 — 문서 앞으로 올렸다(위키식). 2단 대조에서 원문 칸 안에 두면
- * 설명을 읽는 사람에게는 목차가 없는 것과 같다.
+ * 원문 내용만 그린다. 원문 목차는 같은 칸의 바로 위에서 별도로 그린다.
  */
 function OriginalSection({
   spans,
@@ -117,24 +120,20 @@ function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
   const spans = row === undefined ? [] : listSpans(db, row.id);
 
   /*
-   * 현재 파이프라인 버전을 먼저 찾는다. 아직 새 버전을 만들지 않았다면 가장 최근 과거
-   * 설명을 버리지 않고 보여 주되 `outdatedAt`으로 구분한다([F-44]).
+   * 현재 안전성 규칙을 통과한 파이프라인 버전만 공개한다. 예전 결과는 관리·감사를 위해
+   * DB에 남기되 새 검사를 통과한 것처럼 본문, 점자, 음성으로 다시 전달하지 않는다.
    */
-  const currentRendition =
+  const rendition =
     row === undefined || level === "L0"
       ? undefined
       : findRendition(db, row.id, level, PIPELINE_VERSION);
-  const rendition =
-    currentRendition ??
-    (row === undefined || level === "L0" ? undefined : findLatestRendition(db, row.id, level));
 
   return {
     row,
     spans,
     citations: new Map(spans.map((span) => [span.id, findCitations(span.text)])),
     sentences: rendition === undefined ? [] : listSentences(db, rendition.id),
-    outdatedAt:
-      currentRendition === undefined && rendition !== undefined ? rendition.generatedAt : null,
+    outdatedAt: null,
     /*
      * 원문의 `【주 문】` 같은 표제가 목차의 뼈대다(`DESIGN.md` §11.5).
      * 판결문은 짧아도 수십 문장이고, 읽는 사람이 찾는 것은 대개 한 구간이다.
@@ -201,6 +200,7 @@ function ViewerPanels({
   citations,
   textReason,
   judgmentId,
+  headings,
 }: {
   caseNoCanonical: string;
   decidedAt: Date | null;
@@ -213,7 +213,10 @@ function ViewerPanels({
   /** 원문을 못 가져왔으면 그 이유. */
   textReason: string | null;
   judgmentId: string | null;
+  headings: readonly HeadingSpan[];
 }) {
+  const caseMedia = level === "L0" ? [] : findCaseMedia(caseNoCanonical, level);
+
   return (
     <EvidencePanes className={styles.panels}>
       {level === "L0" ? null : (
@@ -222,6 +225,7 @@ function ViewerPanels({
           basePath={basePath}
           fields={{ caseNo: caseNoCanonical }}
           level={level}
+          media={caseMedia}
           outdatedAt={outdatedAt}
           progressPath={`/api/generation/case/${encodeURIComponent(caseNoCanonical)}/${level}`}
           sentences={sentences}
@@ -236,6 +240,18 @@ function ViewerPanels({
           바로 보이고, 보이지 않는 사람에게는 이 이름이 필요하다.
         */}
         <h2 className="sr-only">{viewer.originalPanel}</h2>
+        {headings.length > 1 ? (
+          <TableOfContents
+            entries={headings
+              .filter((heading) => heading.depth <= MAX_TOC_DEPTH)
+              .map((heading) => ({
+                id: heading.id,
+                label: compactHeadingLabel(heading),
+                depth: heading.depth,
+              }))}
+            label={viewer.originalToc}
+          />
+        ) : null}
         <OriginalSection
           citations={citations}
           decidedAt={decidedAt}
@@ -254,6 +270,8 @@ function ViewerPanels({
  * 원문(L0)은 언제나 바로 보여 준다. 설명은 캐시가 있으면 즉시, 없으면 사용자가 요청할 때
  * 만든다(`PRODUCT.md` §5.1) — 아무도 안 볼 판례를 미리 만들지 않는다.
  */
+// 판례 머리·목차·두 패널·인용 목록이 한 문서 경계를 이루므로 이 자리에서 함께 조립한다.
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: 페이지의 문서 구조를 한눈에 유지한다.
 export default async function CasePage(props: {
   params: Promise<{ caseNo: string }>;
   searchParams: Promise<{ level?: string | string[] }>;
@@ -272,6 +290,7 @@ export default async function CasePage(props: {
   }
 
   const { summary } = result;
+  const caseName = splitCaseName(summary.caseName);
   const basePath = `/case/${encodeURIComponent(summary.caseNoCanonical)}`;
   const timeZone = siteTimeZone();
   const textResult = await ensureJudgmentText(summary.caseNoCanonical);
@@ -290,19 +309,26 @@ export default async function CasePage(props: {
       info={
         <SummaryCard
           {...summary}
+          caseName={caseName?.name ?? null}
           outcome={row?.outcome ?? "unknown"}
           sourceUrl={row?.sourceUrl ?? null}
           timeZone={timeZone}
         />
       }
       meta={<ViewerNav basePath={basePath} level={level} />}
-      title={<h1 className={styles.docTitle}>{summary.caseName ?? summary.caseNoDisplay}</h1>}
-      toc={headings.map((heading) => ({
-        id: heading.id,
-        label: heading.label,
-        depth: 1 as const,
-      }))}
-      tocLabel={viewer.originalToc}
+      title={
+        <>
+          {/*
+            사건명은 `부당이득금[선순위 회생담보권자가 …]`처럼 **이름과 쟁점**이 붙어 온다.
+            통째로 제목에 쓰면 390px 화면에서 제목만 열 줄이 된다(`lib/case-name.ts`).
+          */}
+          <h1 className={styles.docTitle}>{caseName?.name ?? summary.caseNoDisplay}</h1>
+          {caseName?.issue === undefined ? null : (
+            <p className={styles.docIssue}>{caseName.issue}</p>
+          )}
+        </>
+      }
+      toc={[]}
     >
       <ViewerPanels
         basePath={basePath}
@@ -310,6 +336,7 @@ export default async function CasePage(props: {
         citations={citations}
         decidedAt={summary.decidedAt}
         judgmentId={row?.id ?? null}
+        headings={headings}
         level={level}
         outdatedAt={outdatedAt === null ? null : formatDate(outdatedAt, timeZone)}
         sentences={sentences}

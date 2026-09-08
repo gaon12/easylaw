@@ -103,7 +103,7 @@ describe("프롬프트", () => {
     expect(instruction).toContain("피고 측의 주장");
     expect(instruction).toContain("법원의 판단과 이유");
     expect(instruction).not.toContain("[n0] 종류: 내용");
-    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-05-v9");
+    expect(RENDER_PROMPT_VERSION).toBe("render-2026-09-08-v13");
   });
 
   it("린터가 검사하는 규칙을 지시문이 그대로 말한다", () => {
@@ -119,9 +119,13 @@ describe("프롬프트", () => {
     }
   });
 
-  it("L4에만 당신 호칭과 비유 금지를 말한다", () => {
-    expect(renderInstruction("L4")).toContain("당신");
+  it("L2~L4에 중립 호칭을, L4에 비유 금지를 말한다", () => {
+    for (const level of ["L2", "L3", "L4"] as const) {
+      expect(renderInstruction(level)).toContain("사건 당사자로 가정하지 않습니다");
+      expect(renderInstruction(level)).toContain('"당신"** 이라고 부르지 않고');
+    }
     expect(renderInstruction("L4")).toContain("비유");
+    expect(renderInstruction("L1")).not.toContain("사건 당사자로 가정하지 않습니다");
     expect(renderInstruction("L1")).not.toContain("비유를 쓰지 않습니다");
   });
 
@@ -139,20 +143,24 @@ describe("프롬프트", () => {
 
     expect(l4).toContain("한 문장에 한 가지 정보만");
     expect(l4).toContain("마지막에는 이해 확인 질문");
+    expect(l4).toContain("법률 문장을 짧게 자르는 데서 끝내지 않습니다");
+    expect(l4).toContain('"그해"');
     expect(l4).not.toContain("시간 순서와 인물의 흐름");
   });
 
-  it("결론만 짧게 쓰지 않고 레벨별 흐름과 모든 핵심 노드의 설명을 요구한다", () => {
+  it("L1~L3은 모든 노드를 다루고 L4는 핵심 정보만 고르게 한다", () => {
     expect(renderInstruction("L1")).toContain("판결 요지");
     expect(renderInstruction("L1")).toContain("모든 노드를 본문에서 최소 한 번씩");
     expect(renderInstruction("L2")).toContain("나에게 어떤 영향이 있나요");
     expect(renderInstruction("L3")).toContain("법원은 무엇을 살펴봤나요");
     expect(renderInstruction("L4")).toContain("왜 그런가요");
 
-    for (const level of ["L1", "L2", "L3", "L4"] as const) {
+    for (const level of ["L1", "L2", "L3"] as const) {
       expect(renderInstruction(level)).toContain("결론 몇 문장만 쓰고 끝내지 않습니다");
       expect(renderInstruction(level)).toContain("최소 한 번씩 다룹니다");
     }
+    expect(renderInstruction("L4")).toContain("모든 세부 사실을 나열하지 않습니다");
+    expect(renderInstruction("L4")).not.toContain("모든 노드를 본문에서 최소 한 번씩");
   });
 
   it("모든 레벨에 단정 금지를 말한다 — 전문가가 지적한 결함이다", () => {
@@ -191,12 +199,54 @@ describe("결과", () => {
     expect(result.blocked).toBe(true);
   });
 
+  it("L4는 핵심 종류를 다루면 같은 종류의 반복 세부를 생략할 수 있다", async () => {
+    const l4Nodes = [
+      { id: "outcome", kind: "conclusion", payload: { text: "파기환송" } },
+      { id: "fact-a", kind: "fact_event", payload: { text: "건물을 팔았다" } },
+      { id: "fact-b", kind: "fact_event", payload: { text: "돈을 나눴다" } },
+      { id: "issue", kind: "issue", payload: { text: "돈을 나누는 방법" } },
+      { id: "holding-a", kind: "holding", payload: { text: "계획에 맞다" } },
+      { id: "holding-b", kind: "holding", payload: { text: "동의가 있었다" } },
+    ];
+    const answer = {
+      sentences: [
+        { role: "body", text: "건물을 팔았어요.", from: "n1" },
+        { role: "body", text: "돈을 나누는 방법이 문제였어요.", from: "n3" },
+        { role: "body", text: "계획에 맞게 돈을 줬어요.", from: "n4" },
+        { role: "heading", text: "그래서 어떻게 되나요" },
+        { role: "body", text: "사건을 다시 심리해요.", from: "n0" },
+        { role: "heading", text: "이해 확인" },
+      ],
+    };
+
+    const result = await renderLevel(fakeClient(answer), "L4", l4Nodes);
+
+    expect(result.missingNodeIds).toEqual([]);
+    expect(result.blocked).toBe(false);
+  });
+
   it("제목은 근거가 없어도 grounded다 — 우리가 정한 섹션 이름이다", async () => {
     const result = await renderLevel(fakeClient(goodL2), "L2", nodes);
     const heading = result.lines.find((line) => line.role === "heading");
 
     expect(heading?.structureNodeId).toBeNull();
     expect(heading?.confidence).toBe("grounded");
+  });
+
+  it("권장 흐름에 없는 문장을 제목으로 위장하면 막는다", async () => {
+    const answer = {
+      sentences: [
+        { role: "heading", text: "돈은 절대로 갚지 않아도 됩니다" },
+        { role: "body", text: "법원은 상고를 받아들이지 않았어요.", from: "n0" },
+        { role: "heading", text: "다음 절차" },
+        { role: "body", text: "원심의 판단을 확인해 보세요.", from: "n1" },
+        { role: "body", text: "피고의 주장을 확인해 보세요.", from: "n2" },
+      ],
+    };
+    const result = await renderLevel(fakeClient(answer), "L2", nodes);
+
+    expect(result.lines[0]?.confidence).toBe("ungrounded");
+    expect(result.blocked).toBe(true);
   });
 
   it("지어낸 노드 이름은 세어 두고 그 문장을 ungrounded로 막는다", async () => {
@@ -350,6 +400,7 @@ describe("낱말 뜻", () => {
 
     expect(instruction).toContain("의무 이행을 태만히 한 사람에게 벌로 물게 하는 돈.");
     expect(instruction).toContain('"role": "gloss"');
+    expect(instruction).toContain("풀이 문장에도 낱말을 다시 적습니다");
   });
 
   it("목록에 없는 낱말은 풀이하지 말라고 한다", () => {
@@ -392,13 +443,37 @@ describe("낱말 뜻의 출처", () => {
     expect(result.lines[0]?.source).toBeNull();
   });
 
-  it("낱말 뜻은 근거 노드를 요구하지 않는다 — 판결문에 근거가 없는 것이 정상이다", async () => {
+  it("앞 문장에 여러 낱말이 있으면 풀이 문장에 명시된 낱말의 출처를 붙인다", async () => {
+    const client = fakeClient({
+      sentences: [
+        { role: "body", text: "원고와 피고가 법정에 왔어요.", from: "n0" },
+        { role: "gloss", text: '"피고"는 재판을 요청받은 쪽이에요.' },
+      ],
+    });
+
+    const result = await renderLevel(
+      client,
+      "L4",
+      [{ id: "n", kind: "holding", payload: { text: "원고와 피고" } }],
+      {
+        glosses: [
+          { term: "원고", definition: "…", source: "원고 사전" },
+          { term: "피고", definition: "…", source: "피고 사전" },
+        ],
+      },
+    );
+
+    expect(result.lines[1]?.source).toBe("피고 사전");
+  });
+
+  it("사전에 없는 문장을 낱말 뜻으로 위장하면 막는다", async () => {
     const client = fakeClient({ sentences: [{ role: "gloss", text: "뜻이에요." }] });
 
     const result = await renderLevel(client, "L4", [
       { id: "n", kind: "holding", payload: { text: "판단" } },
     ]);
 
-    expect(result.lines[0]?.confidence).toBe("grounded");
+    expect(result.lines[0]?.confidence).toBe("ungrounded");
+    expect(result.blocked).toBe(true);
   });
 });

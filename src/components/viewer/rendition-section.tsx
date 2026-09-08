@@ -3,10 +3,12 @@ import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
 import { GenerationProgress } from "@/components/viewer/generation-progress";
-import { LevelTraits } from "@/components/viewer/level-traits";
 import type { ViewLevel } from "@/components/viewer/levels";
 import { RenditionPanel } from "@/components/viewer/rendition-panel";
 import type { PlaceholderState, Sentence } from "@/components/viewer/rendition-state";
+import { renditionTocEntries } from "@/components/viewer/rendition-toc";
+import { TableOfContents } from "@/components/wiki/toc";
+import type { CaseMediaPlacement } from "@/lib/case-media";
 import { viewer } from "@/lib/strings";
 import styles from "./rendition-section.module.css";
 
@@ -45,6 +47,8 @@ interface SectionProps {
   readonly action: (formData: FormData) => Promise<void>;
   /** 액션에 함께 보낼 값. `{ caseNo }` 또는 `{ docId }`. */
   readonly fields: Readonly<Record<string, string>>;
+  /** 설명 흐름 안에 놓을 개념 그림. 사건·단계 선택은 화면에서 정한다. */
+  readonly media?: readonly CaseMediaPlacement[];
 }
 
 /** 다시 눌러 볼 수 있는 자리. 처음 만들 때와 실패한 뒤가 같은 폼을 쓴다. */
@@ -85,7 +89,7 @@ function OutdatedNotice({
   level,
   progressPath,
   basePath,
-}: Omit<SectionProps, "sentences"> & { outdatedAt: string }) {
+}: Omit<SectionProps, "sentences" | "media"> & { outdatedAt: string }) {
   let body: string = viewer.outdatedBody;
   let actions: ReactNode;
 
@@ -146,7 +150,7 @@ function RenditionPlaceholder({
   state,
   action,
   fields,
-}: Omit<SectionProps, "sentences" | "outdatedAt">) {
+}: Omit<SectionProps, "sentences" | "outdatedAt" | "media">) {
   if (state.kind === "running") {
     return (
       <div className={styles.empty}>
@@ -189,17 +193,22 @@ function RenditionPlaceholder({
 }
 
 /** 만들어진 것이 있으면 그것을, 없으면 상태에 맞는 빈 자리를 그린다. */
-function RenditionSection({ sentences, outdatedAt, ...rest }: SectionProps) {
+function RenditionSection({ sentences, outdatedAt, media, ...rest }: SectionProps) {
+  const toc = renditionTocEntries(sentences);
+
   return (
     <section className={styles.panel} data-viewer-pane={true}>
       {/* 칸 이름표는 스크린리더에만. 위키 문서에는 칸 제목이 없다. */}
       <h2 className="sr-only">{viewer.renditionPanel}</h2>
-      <LevelTraits level={rest.level} />
+      {toc.length > 1 ? (
+        <TableOfContents entries={toc} label={viewer.levelToc(rest.level)} />
+      ) : null}
       {sentences.length > 0 ? (
         <>
           {outdatedAt === null ? null : <OutdatedNotice {...rest} outdatedAt={outdatedAt} />}
           <RenditionPanel
             level={rest.level}
+            media={media}
             needsCheckCount={
               sentences.filter((sentence) => sentence.confidence === "needs_check").length
             }

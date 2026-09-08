@@ -159,7 +159,24 @@ async function ensureStructure(
   return { ok: true };
 }
 
-/** 문장에 매달린 원문을 모은다. 함의 검사가 볼 근거다. */
+function sourcesForClaim(
+  line: { role: string; structureNodeId: string | null },
+  nodeSpans: ReadonlyMap<string, readonly string[]>,
+  spanText: ReadonlyMap<string, string>,
+  glossDefinitions: readonly string[],
+): string[] | readonly string[] {
+  if (line.role === "gloss") {
+    return glossDefinitions;
+  }
+  if (line.structureNodeId === null) {
+    return [];
+  }
+  return (nodeSpans.get(line.structureNodeId) ?? [])
+    .map((spanId) => spanText.get(spanId))
+    .filter((text): text is string => text !== undefined);
+}
+
+/** 문장에 매달린 원문 또는 사전 정의를 모은다. 함의 검사가 볼 근거다. */
 function claimsFor(
   lines: readonly {
     orderIdx: number;
@@ -169,19 +186,29 @@ function claimsFor(
   }[],
   nodeSpans: ReadonlyMap<string, readonly string[]>,
   spanText: ReadonlyMap<string, string>,
+  glossDefinitions: readonly string[],
 ): Claim[] {
   return lines
-    .filter((line) => line.role === "body")
+    .filter((line) => line.role === "body" || line.role === "gloss")
     .map((line) => ({
       orderIdx: line.orderIdx,
       text: line.text,
-      sources:
-        line.structureNodeId === null
-          ? []
-          : (nodeSpans.get(line.structureNodeId) ?? [])
-              .map((spanId) => spanText.get(spanId))
-              .filter((text): text is string => text !== undefined),
+      sources: sourcesForClaim(line, nodeSpans, spanText, glossDefinitions),
     }));
+}
+
+function confidenceAfterCheck(
+  line: { role: string; confidence: "grounded" | "needs_check" | "ungrounded" },
+  verdict: Parameters<typeof toConfidence>[0],
+): "grounded" | "needs_check" | "ungrounded" {
+  if (line.role === "heading") {
+    return line.confidence;
+  }
+  const checked = toConfidence(verdict);
+  if (line.role === "gloss" && checked !== "grounded") {
+    return "ungrounded";
+  }
+  return checked;
 }
 
 /**
@@ -233,9 +260,9 @@ async function tryUntilGrounded(input: {
  *
  * 순서: 작업 선점(§5.3) → 구조 확보 → 렌더 → 함의 검사 → 신뢰도 확정 → 저장.
  *
- * **`ungrounded` 문장이 남으면 다시 만든다**(최대 2회). 그래도 남으면 실패로 끝낸다 —
- * 근거 없는 문장을 배지만 붙여 내보내지 않는다(P2). 반면 `needs_check`는 내보낸다.
- * "확인이 필요하다"와 "근거가 없다"는 다른 말이다.
+ * **검사를 통과하지 못한 문장이 남으면 다시 만든다**(최대 2회). 그래도 남으면 실패로
+ * 끝낸다. `needs_check`도 검증이 끝난 공개 설명이 아니므로 새 결과에는 섞어 내보내지
+ * 않는다. 운영자가 과거 결과를 살펴볼 때만 상태 구분을 유지한다.
  */
 /** 한 번의 시도. 렌더 → 함의 검사 → 신뢰도 확정까지가 한 덩어리다. */
 async function attemptOnce(input: {
@@ -269,20 +296,23 @@ async function attemptOnce(input: {
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
   const checks = await whileAlive(store, jobId, "verify", () =>
-    checkEntailment(client, claimsFor(rendered.lines, nodeSpans, spanText), signal),
+    checkEntailment(
+      client,
+      claimsFor(
+        rendered.lines,
+        nodeSpans,
+        spanText,
+        glosses.map((gloss) => gloss.definition),
+      ),
+      signal,
+    ),
   );
   const byOrder = new Map(checks.map((check) => [check.orderIdx, check]));
 
   const sentences = rendered.lines.map((line) => {
     const check = byOrder.get(line.orderIdx);
-    /*
-     * 제목과 낱말 뜻은 함의 검사를 하지 않는다 — 판결문에 근거가 없는 것이 **정상이다.**
-     * 제목은 우리가 정한 이름이고, 낱말 뜻은 사전에서 왔다(출처를 함께 적는다).
-     * 예전에는 낱말 뜻도 검사에 걸려 전부 "확인 필요"가 됐다. 우리가 시켜서 쓴 문장을
-     * 우리가 깎은 셈이고, 가장 쉬워야 할 L4에 경고가 제일 많이 붙는 이유였다.
-     */
-    const confidence =
-      line.role === "body" ? toConfidence(check?.verdict ?? "unsupported") : line.confidence;
+    /* 제목은 허용 목록으로 검사하고, 본문은 원문, 낱말 뜻은 사전 정의와 함의를 검사한다. */
+    const confidence = confidenceAfterCheck(line, check?.verdict ?? "unsupported");
 
     return {
       orderIdx: line.orderIdx,
@@ -295,16 +325,16 @@ async function attemptOnce(input: {
     };
   });
 
-  const ungrounded = sentences.filter((sentence) => sentence.confidence === "ungrounded").length;
+  const unverified = sentences.filter((sentence) => sentence.confidence !== "grounded").length;
   let reason = rendered.issues[0]?.message ?? "규칙 검사를 통과하지 못했습니다.";
   if (rendered.missingNodeIds.length > 0) {
     reason = `구조에 있는 핵심 내용 ${rendered.missingNodeIds.length}개를 설명하지 않았습니다.`;
   }
-  if (ungrounded > 0) {
-    reason = `근거 없는 문장이 ${ungrounded}개 남았습니다.`;
+  if (unverified > 0) {
+    reason = `근거 검사를 통과하지 못한 문장이 ${unverified}개 남았습니다.`;
   }
 
-  return { sentences, ok: ungrounded === 0 && !rendered.blocked, reason };
+  return { sentences, ok: unverified === 0 && !rendered.blocked, reason };
 }
 
 /**
@@ -312,9 +342,9 @@ async function attemptOnce(input: {
  *
  * 순서: 작업 선점(§5.3) → 구조 확보 → 렌더 → 함의 검사 → 신뢰도 확정 → 저장.
  *
- * **`ungrounded` 문장이 남으면 다시 만든다**(최대 2회). 그래도 남으면 실패로 끝낸다 —
- * 근거 없는 문장을 배지만 붙여 내보내지 않는다(P2). 반면 `needs_check`는 내보낸다.
- * "확인이 필요하다"와 "근거가 없다"는 다른 말이다.
+ * **검사를 통과하지 못한 문장이 남으면 다시 만든다**(최대 2회). 그래도 남으면 실패로
+ * 끝낸다. `needs_check`도 검증이 끝난 공개 설명이 아니므로 새 결과에는 섞어 내보내지
+ * 않는다. 운영자가 과거 결과를 살펴볼 때만 상태 구분을 유지한다.
  */
 function beginGeneration(
   store: PipelineStore,

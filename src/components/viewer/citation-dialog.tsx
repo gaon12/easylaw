@@ -1,86 +1,270 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ButtonLink } from "@/components/ui/button";
+import type { Citation } from "@/lib/law-citation/detect";
 import { law, viewer } from "@/lib/strings";
 import styles from "./citation-dialog.module.css";
+import { type CitationTarget, citationTarget, currentCitationHref } from "./citation-target";
 import { isSimplifiedLevel, type ViewLevel } from "./levels";
 
-/**
- * 인용을 누르면 그 조문을 **그 자리에서** 보여 준다. `PAGES.md` §5
- *
- * 판결문을 읽다가 「민사소송법 제420조」가 무슨 말인지 보려고 법령 화면으로 떠나면,
- * 돌아왔을 때 읽던 자리를 다시 찾아야 한다. 위키가 각주를 띄워 보여 주는 이유가 그것이다.
- * 조문 전체를 읽고 싶으면 **상세 보기**로 그때 옮겨 간다.
- *
- * **자바스크립트가 없으면 그냥 링크다.** 마크업은 `<a href>`이고, 스크립트가 있을 때만
- * 기본 이동을 막고 창을 연다. 이 서비스의 다른 화면이 모두 스크립트 없이 도는데
- * 인용만 스크립트를 요구하면 앞뒤가 맞지 않는다.
- *
- * 창은 브라우저의 `<dialog>`다 — 포커스 가두기와 Esc 닫기를 브라우저가 이미 한다.
- * 직접 만들면 그 둘을 빠뜨리기 쉽고, 빠뜨리면 키보드로 창에서 빠져나올 수 없다.
- *
- * **창은 문서 끝(`body`)에 그린다.** 인용은 판결문 문장(`<p>`) 안에 있는데, `<p>` 안에는
- * `<dialog>`·`<footer>` 같은 블록을 넣을 수 없다. 그대로 두면 브라우저가 마크업을 고쳐
- * 세우고 하이드레이션이 깨진다 — 실제로 그 오류를 봤다. 포털이 그 문제를 없앤다.
- */
-
-/** 항의 key로 쓸 앞글자 길이. 같은 조문 안에서 항끼리 구분되면 충분하다. */
 const KEY_LENGTH = 12;
 
 interface ArticleClause {
   readonly number: string | undefined;
   readonly text: string;
+  readonly citations: readonly Citation[];
 }
 
 type ArticleResponse =
   | {
       readonly kind: "exists";
+      readonly lawId: string;
+      readonly lawName: string;
+      readonly lawVersionId: string;
       readonly heading: string;
       readonly title: string | null;
       readonly clauses: readonly ArticleClause[];
       readonly body: string | null;
+      readonly bodyCitations: readonly Citation[];
     }
-  | { readonly kind: string };
+  | {
+      readonly kind: "bad_request" | "missing" | "not_in_force" | "unknown_law" | "unverifiable";
+    };
 
-/** 창 안에 그릴 것. 불러오는 중과 실패를 구분한다 — 둘을 섞으면 영영 기다리게 된다. */
 type DialogState =
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | { readonly status: "loaded"; readonly article: ArticleResponse }
   | { readonly status: "failed" };
 
-function ArticleView({ article }: { article: ArticleResponse }) {
+function followsLink(event: React.MouseEvent<HTMLAnchorElement>): boolean {
+  return event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0;
+}
+
+/** 모달 안의 인용은 새 창을 겹치지 않고 현재 창의 탐색 기록에 조문을 더한다. */
+function ArticleCitedText({
+  text,
+  citations,
+  at,
+  level,
+  onNavigate,
+}: {
+  text: string;
+  citations: readonly Citation[];
+  at: string | undefined;
+  level: ViewLevel;
+  onNavigate: (target: CitationTarget) => void;
+}) {
+  if (citations.length === 0) {
+    return text;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const citation of citations) {
+    if (citation.start < cursor || citation.end > text.length) {
+      continue;
+    }
+    if (citation.start > cursor) {
+      parts.push(text.slice(cursor, citation.start));
+    }
+
+    const target = citationTarget(citation, at, level);
+    if (target === undefined) {
+      parts.push(citation.text);
+    } else {
+      parts.push(
+        <a
+          className={styles.link}
+          href={target.href}
+          key={`${citation.start}-${citation.end}`}
+          onClick={(event) => {
+            if (followsLink(event)) {
+              return;
+            }
+            event.preventDefault();
+            onNavigate(target);
+          }}
+          title={target.title}
+        >
+          {citation.text}
+        </a>,
+      );
+    }
+    cursor = citation.end;
+  }
+  if (cursor < text.length) {
+    parts.push(text.slice(cursor));
+  }
+  return parts;
+}
+
+function ArticleView({
+  article,
+  at,
+  level,
+  onNavigate,
+}: {
+  article: ArticleResponse;
+  at: string | undefined;
+  level: ViewLevel;
+  onNavigate: (target: CitationTarget) => void;
+}) {
   if (article.kind !== "exists") {
     return <p className={styles.notice}>{viewer.citationUnavailable}</p>;
   }
 
-  const loaded = article as Extract<ArticleResponse, { kind: "exists" }>;
   return (
     <>
       <p className={styles.articleHead}>
-        {loaded.heading}
-        {loaded.title === null ? null : <span className={styles.articleTitle}>{loaded.title}</span>}
+        {article.heading}
+        {article.title === null ? null : (
+          <span className={styles.articleTitle}>{article.title}</span>
+        )}
       </p>
-      {loaded.clauses.length > 0 ? (
+      {article.clauses.length > 0 ? (
         <ol className={styles.clauses}>
-          {loaded.clauses.map((clause) => (
+          {article.clauses.map((clause) => (
             <li
               className={styles.clause}
               key={`${clause.number ?? ""}${clause.text.slice(0, KEY_LENGTH)}`}
             >
-              {clause.text}
+              <ArticleCitedText
+                at={at}
+                citations={clause.citations}
+                level={level}
+                onNavigate={onNavigate}
+                text={clause.text}
+              />
             </li>
           ))}
         </ol>
       ) : (
-        <p className={styles.body}>{loaded.body ?? ""}</p>
+        <p className={styles.body}>
+          <ArticleCitedText
+            at={at}
+            citations={article.bodyCitations}
+            level={level}
+            onNavigate={onNavigate}
+            text={article.body ?? ""}
+          />
+        </p>
       )}
     </>
   );
 }
 
+function useArticleLoader() {
+  const requestId = useRef(0);
+  const cache = useRef(new Map<string, ArticleResponse>());
+  const [state, setState] = useState<DialogState>({ status: "idle" });
+
+  const load = useCallback((target: CitationTarget) => {
+    const cached = cache.current.get(target.query);
+    if (cached !== undefined) {
+      setState({ status: "loaded", article: cached });
+      return;
+    }
+    const ownRequest = requestId.current + 1;
+    requestId.current = ownRequest;
+    setState({ status: "loading" });
+    fetch(`/api/law/article?${target.query}`)
+      .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
+      .then((article: ArticleResponse) => {
+        if (requestId.current === ownRequest) {
+          cache.current.set(target.query, article);
+          setState({ status: "loaded", article });
+        }
+      })
+      .catch(() => {
+        if (requestId.current === ownRequest) {
+          setState({ status: "failed" });
+        }
+      });
+  }, []);
+
+  const reset = useCallback((initial: CitationTarget) => {
+    requestId.current += 1;
+    const first = cache.current.get(initial.query);
+    setState(first === undefined ? { status: "idle" } : { status: "loaded", article: first });
+  }, []);
+  return { load, reset, state };
+}
+
+function DialogHeader({
+  active,
+  canGoBack,
+  onBack,
+  onClose,
+}: {
+  active: CitationTarget;
+  canGoBack: boolean;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <header className={styles.head}>
+      <div className={styles.headingGroup}>
+        {canGoBack ? (
+          <button className={styles.back} onClick={onBack} type="button">
+            {viewer.citationBack}
+          </button>
+        ) : null}
+        <h2 className={styles.title}>{active.title}</h2>
+      </div>
+      <button className={styles.close} onClick={onClose} type="button">
+        {viewer.citationClose}
+      </button>
+    </header>
+  );
+}
+
+function DialogContent({
+  state,
+  at,
+  level,
+  onNavigate,
+}: {
+  state: DialogState;
+  at: string | undefined;
+  level: ViewLevel;
+  onNavigate: (target: CitationTarget) => void;
+}) {
+  return (
+    <div className={styles.content}>
+      {isSimplifiedLevel(level) ? (
+        <p className={styles.originalNote}>{law.originalTextNotice(viewer.levels[level])}</p>
+      ) : null}
+      {state.status === "loaded" ? (
+        <ArticleView article={state.article} at={at} level={level} onNavigate={onNavigate} />
+      ) : null}
+      {state.status === "loading" ? (
+        <p className={styles.notice}>{viewer.citationLoading}</p>
+      ) : null}
+      {state.status === "failed" ? <p className={styles.notice}>{viewer.citationFailed}</p> : null}
+    </div>
+  );
+}
+
+function DialogFooter({ active }: { active: CitationTarget }) {
+  const currentHref = currentCitationHref(active);
+  return (
+    <footer className={styles.foot}>
+      {currentHref === undefined ? null : (
+        <ButtonLink href={currentHref} size="s" variant="tertiary">
+          {viewer.citationCurrent}
+        </ButtonLink>
+      )}
+      <ButtonLink href={active.href} size="s" variant="secondary">
+        {currentHref === undefined ? viewer.citationDetail : viewer.citationDetailAsOf}
+      </ButtonLink>
+    </footer>
+  );
+}
+
+/** 조문을 그 자리에서 열고, 그 조문이 인용한 다른 조문까지 같은 기준일로 따라간다. */
 function CitationDialog({
   href,
   query,
@@ -88,21 +272,19 @@ function CitationDialog({
   level,
   title,
 }: {
-  /** 상세 보기가 가는 곳. 스크립트가 없으면 이 링크가 그대로 동작한다. */
   href: string;
-  /** 조문을 불러올 질의(`id`·`조`·`의`·`때`). */
   query: string;
-  /** 원문에 적힌 인용 글자. */
   label: string;
-  /** 인용을 연 판결문 화면의 읽기 단계. API 조회에는 보내지 않는다. */
   level: ViewLevel;
-  /** 링크 설명(스크린리더·툴팁). */
   title: string;
 }) {
+  const initial = useMemo<CitationTarget>(() => ({ href, query, title }), [href, query, title]);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [state, setState] = useState<DialogState>({ status: "idle" });
-  /* 포털은 브라우저에만 있다. 서버 렌더에서는 링크만 그리고, 붙은 뒤에 창을 단다. */
+  const [trail, setTrail] = useState<readonly CitationTarget[]>([initial]);
   const [mounted, setMounted] = useState(false);
+  const { load, reset: resetArticle, state } = useArticleLoader();
+  const active = trail.at(-1) ?? initial;
+  const at = new URLSearchParams(active.query).get("때") ?? undefined;
 
   useEffect(() => {
     setMounted(true);
@@ -110,69 +292,53 @@ function CitationDialog({
 
   const open = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
-      // 새 탭으로 열려는 조작(⌘/Ctrl·가운데 클릭)은 가로채지 않는다.
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+      if (followsLink(event)) {
         return;
       }
       event.preventDefault();
       dialogRef.current?.showModal();
-
-      if (state.status !== "idle") {
-        return;
+      if (state.status === "idle") {
+        load(initial);
       }
-      setState({ status: "loading" });
-      fetch(`/api/law/article?${query}`)
-        .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
-        .then((article: ArticleResponse) => {
-          setState({ status: "loaded", article });
-        })
-        .catch(() => {
-          setState({ status: "failed" });
-        });
     },
-    [query, state.status],
+    [initial, load, state.status],
   );
+
+  const navigate = useCallback(
+    (target: CitationTarget) => {
+      setTrail((current) => [...current, target]);
+      load(target);
+    },
+    [load],
+  );
+
+  const back = useCallback(() => {
+    const previous = trail.at(-2);
+    if (previous === undefined) {
+      return;
+    }
+    setTrail((current) => current.slice(0, -1));
+    load(previous);
+  }, [load, trail]);
+
+  const reset = useCallback(() => {
+    setTrail([initial]);
+    resetArticle(initial);
+  }, [initial, resetArticle]);
 
   const close = useCallback(() => {
     dialogRef.current?.close();
   }, []);
 
   const dialog = (
-    <dialog className={styles.dialog} ref={dialogRef}>
-      {/*
-        바깥을 눌러 닫는 일은 `<dialog>`에 맡긴다 — `form method="dialog"`를 배경으로 두면
-        클릭 핸들러 없이도 닫힌다. Esc 닫기와 포커스 가두기는 브라우저가 이미 한다.
-      */}
+    <dialog className={styles.dialog} onClose={reset} ref={dialogRef}>
       <form className={styles.backdrop} method="dialog">
         <button aria-label={viewer.citationClose} className={styles.backdropButton} type="submit" />
       </form>
       <div className={styles.panel}>
-        <header className={styles.head}>
-          <h2 className={styles.title}>{title}</h2>
-          <button className={styles.close} onClick={close} type="button">
-            {viewer.citationClose}
-          </button>
-        </header>
-
-        <div className={styles.content}>
-          {isSimplifiedLevel(level) ? (
-            <p className={styles.originalNote}>{law.originalTextNotice(viewer.levels[level])}</p>
-          ) : null}
-          {state.status === "loaded" ? <ArticleView article={state.article} /> : null}
-          {state.status === "loading" ? (
-            <p className={styles.notice}>{viewer.citationLoading}</p>
-          ) : null}
-          {state.status === "failed" ? (
-            <p className={styles.notice}>{viewer.citationFailed}</p>
-          ) : null}
-        </div>
-
-        <footer className={styles.foot}>
-          {/* 전체를 읽고 싶으면 그때 옮겨 간다. 창은 맛보기고 문서는 저쪽에 있다. */}
-          <ButtonLink href={href} size="s" variant="secondary">
-            {viewer.citationDetail}
-          </ButtonLink>
-        </footer>
+        <DialogHeader active={active} canGoBack={trail.length > 1} onBack={back} onClose={close} />
+        <DialogContent at={at} level={level} onNavigate={navigate} state={state} />
+        <DialogFooter active={active} />
       </div>
     </dialog>
   );
@@ -187,4 +353,4 @@ function CitationDialog({
   );
 }
 
-export { CitationDialog };
+export { ArticleCitedText, CitationDialog };

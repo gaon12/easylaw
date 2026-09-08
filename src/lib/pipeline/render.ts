@@ -10,7 +10,7 @@
 
 import type { LlmClient } from "@/lib/llm/client";
 import { hasBlockingIssue, type Level, type LintIssue, lintRendition } from "@/lib/rendition/lint";
-import { RENDER_PROMPT_VERSION, renderInstruction } from "./render-prompt";
+import { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction } from "./render-prompt";
 import { parseRendition } from "./render-schema";
 import { normalizeSpanLabel } from "./span-label";
 
@@ -198,14 +198,34 @@ function glossSource(
   previous: string | undefined,
   glosses: readonly RenderGloss[],
 ): string | null {
-  const near = `${previous ?? ""} ${text}`;
-  return glosses.find((gloss) => near.includes(gloss.term))?.source ?? null;
+  /* 풀이 문장에 용어가 적혀 있으면 그것을 우선한다. 앞 문장에 여러 용어가 있을 수 있다. */
+  const named = glosses.find((gloss) => text.includes(gloss.term));
+  if (named !== undefined) {
+    return named.source;
+  }
+  return glosses.find((gloss) => previous?.includes(gloss.term) === true)?.source ?? null;
+}
+
+function isGroundedRole(input: {
+  role: "heading" | "body" | "gloss";
+  nodeId: string | undefined;
+  source: string | null;
+  allowedHeading: boolean;
+}): boolean {
+  if (input.role === "body") {
+    return input.nodeId !== undefined;
+  }
+  if (input.role === "heading") {
+    return input.allowedHeading;
+  }
+  return input.source !== null;
 }
 
 function toLines(
   sentences: readonly { role: "heading" | "body" | "gloss"; text: string; from?: string }[],
   labels: { resolve: (label: string) => string | undefined },
   glosses: readonly RenderGloss[],
+  level: Level,
 ): { lines: RenderedLine[]; unknown: string[] } {
   const unknown: string[] = [];
   const lines: RenderedLine[] = [];
@@ -220,20 +240,49 @@ function toLines(
      * 제목과 낱말 뜻은 판결문에 근거가 없는 것이 **정상이다.** 제목은 우리가 정한 이름이고,
      * 낱말 뜻은 사전에서 왔다(출처는 `source`에 적힌다). 본문만 노드에 매여야 한다.
      */
-    const needsNode = sentence.role === "body";
+    const isAllowedHeading =
+      sentence.role !== "heading" || LEVEL_BRIEF[level].plan.includes(sentence.text);
+    const source =
+      sentence.role === "gloss" ? glossSource(sentence.text, lines.at(-1)?.text, glosses) : null;
+    const groundedRole = isGroundedRole({
+      role: sentence.role,
+      nodeId,
+      source,
+      allowedHeading: isAllowedHeading,
+    });
 
     lines.push({
       orderIdx: lines.length,
       role: sentence.role,
       text: sentence.text,
       structureNodeId: nodeId ?? null,
-      source:
-        sentence.role === "gloss" ? glossSource(sentence.text, lines.at(-1)?.text, glosses) : null,
-      confidence: needsNode && nodeId === undefined ? "ungrounded" : "grounded",
+      source,
+      confidence: groundedRole ? "grounded" : "ungrounded",
     });
   }
 
   return { lines, unknown };
+}
+
+const L4_REQUIRED_KINDS = ["conclusion", "fact_event", "issue", "holding"] as const;
+
+/** L4는 반복 세부를 생략하되 결론·사건·쟁점·판단 중 존재하는 핵심 종류는 빠뜨리지 않는다. */
+function missingNodeIdsFor(
+  level: Level,
+  nodes: readonly RenderableNode[],
+  coveredNodeIds: ReadonlySet<string>,
+): string[] {
+  if (level !== "L4") {
+    return nodes.filter((node) => !coveredNodeIds.has(node.id)).map((node) => node.id);
+  }
+
+  return L4_REQUIRED_KINDS.flatMap((kind) => {
+    const ofKind = nodes.filter((node) => node.kind === kind);
+    if (ofKind.length === 0 || ofKind.some((node) => coveredNodeIds.has(node.id))) {
+      return [];
+    }
+    return ofKind[0]?.id === undefined ? [] : [ofKind[0].id];
+  });
 }
 
 /**
@@ -274,15 +323,13 @@ async function renderLevel(
     signal,
   );
 
-  const { lines, unknown } = toLines(rendition.sentences, labels, glosses);
+  const { lines, unknown } = toLines(rendition.sentences, labels, glosses, level);
 
   const issues = lintRendition(level, lines);
   const coveredNodeIds = new Set(
     lines.flatMap((line) => (line.structureNodeId === null ? [] : [line.structureNodeId])),
   );
-  const missingNodeIds = nodes
-    .filter((node) => !coveredNodeIds.has(node.id))
-    .map((node) => node.id);
+  const missingNodeIds = missingNodeIdsFor(level, nodes, coveredNodeIds);
 
   return {
     level,

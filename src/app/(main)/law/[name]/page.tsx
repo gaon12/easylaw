@@ -1,13 +1,21 @@
+import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import type { TocEntry } from "@/components/ui/types";
-import { isSimplifiedLevel, toLevel } from "@/components/viewer/levels";
+import { LawCitedText } from "@/components/viewer/law-cited-text";
+import {
+  isSimplifiedLevel,
+  toLevel,
+  type ViewLevel,
+  withReadingLevel,
+} from "@/components/viewer/levels";
 import { WikiDocument } from "@/components/wiki/document";
 import { WikiInfobox } from "@/components/wiki/infobox";
 import { WikiSection } from "@/components/wiki/section";
 import { formatDate } from "@/lib/format";
 import { asOfNote, readAsOf } from "@/lib/law-citation/as-of";
 import { law as strings, viewer, wiki } from "@/lib/strings";
-import { type ArticleText, lawAsOf } from "@/server/law";
+import { findCitations } from "@/server/citations";
+import { type ArticleText, type LawAtResult, lawAsOf } from "@/server/law";
 import { siteTimeZone } from "@/server/settings";
 import styles from "./page.module.css";
 
@@ -57,7 +65,42 @@ function buildToc(
 }
 
 /** 조문 본문. 항이 있으면 항을, 없으면 조문 본문을 그린다. */
-function ArticleBody({ article }: { article: ArticleText }) {
+function ArticleTextWithLinks({
+  text,
+  lawContext,
+  referenceAt,
+  level,
+}: {
+  text: string;
+  lawContext: { readonly lawId: string; readonly name: string };
+  referenceAt: Date | null;
+  level: ViewLevel;
+}) {
+  const citations = findCitations(text, lawContext);
+  return citations.length === 0 ? (
+    text
+  ) : (
+    <LawCitedText
+      at={referenceAt?.toISOString().slice(0, 10)}
+      citations={citations}
+      level={level}
+      text={text}
+    />
+  );
+}
+
+/** 조문 본문 안의 다른 법령·조문도 같은 기준일로 탐색한다. */
+function ArticleBody({
+  article,
+  lawContext,
+  referenceAt,
+  level,
+}: {
+  article: ArticleText;
+  lawContext: { readonly lawId: string; readonly name: string };
+  referenceAt: Date | null;
+  level: ViewLevel;
+}) {
   if (article.clauses.length > 0) {
     return (
       <>
@@ -66,13 +109,27 @@ function ArticleBody({ article }: { article: ArticleText }) {
             className={styles.body}
             key={`${clause.number ?? ""}-${clause.text.slice(0, CLAUSE_KEY_LENGTH)}`}
           >
-            {clause.text}
+            <ArticleTextWithLinks
+              lawContext={lawContext}
+              level={level}
+              referenceAt={referenceAt}
+              text={clause.text}
+            />
           </p>
         ))}
       </>
     );
   }
-  return article.body === null ? null : <p className={styles.body}>{article.body}</p>;
+  return article.body === null ? null : (
+    <p className={styles.body}>
+      <ArticleTextWithLinks
+        lawContext={lawContext}
+        level={level}
+        referenceAt={referenceAt}
+        text={article.body}
+      />
+    </p>
+  );
 }
 
 /**
@@ -86,11 +143,17 @@ function ArticleEntry({
   section,
   sectionNumber,
   highlighted,
+  lawContext,
+  referenceAt,
+  level,
 }: {
   article: ArticleText;
   section: { title: string; beforeArticleNo: string } | undefined;
   sectionNumber: string | undefined;
   highlighted: boolean;
+  lawContext: { readonly lawId: string; readonly name: string };
+  referenceAt: Date | null;
+  level: ViewLevel;
 }) {
   const anchor = articleAnchor(article.articleNo, article.branchNo);
 
@@ -110,10 +173,129 @@ function ArticleEntry({
           level={3}
           meta={article.title === null ? undefined : strings.articleTitle(article.title)}
         >
-          <ArticleBody article={article} />
+          <ArticleBody
+            article={article}
+            lawContext={lawContext}
+            level={level}
+            referenceAt={referenceAt}
+          />
         </WikiSection>
       </div>
     </div>
+  );
+}
+
+function currentLawHref(law: LawAtResult, query: LawSearchParams, level: ViewLevel): string {
+  const currentQuery = new URLSearchParams({ id: law.lawId });
+  if (query.조 !== undefined) {
+    currentQuery.set("조", query.조);
+  }
+  const targetBranch = query.의 ?? "";
+  if (targetBranch.length > 0) {
+    currentQuery.set("의", targetBranch);
+  }
+  const anchor = query.조 === undefined ? "" : `#${articleAnchor(query.조, targetBranch)}`;
+  return `/law/${encodeURIComponent(law.lawName)}?${withReadingLevel(currentQuery, level)}${anchor}`;
+}
+
+function LawPageMeta({
+  dated,
+  law,
+  level,
+  query,
+}: {
+  dated: boolean;
+  law: LawAtResult;
+  level: ViewLevel;
+  query: LawSearchParams;
+}) {
+  if (!(isSimplifiedLevel(level) || dated)) {
+    return null;
+  }
+  return (
+    <div className={styles.metaLinks}>
+      {isSimplifiedLevel(level) ? (
+        <p className={styles.originalNote}>{strings.originalTextNotice(viewer.levels[level])}</p>
+      ) : null}
+      {dated ? (
+        <Link className={styles.currentLink} href={currentLawHref(law, query, level)}>
+          {strings.currentVersion}
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function LawArticles({
+  law,
+  level,
+  query,
+  referenceAt,
+}: {
+  law: LawAtResult;
+  level: ViewLevel;
+  query: LawSearchParams;
+  referenceAt: Date | null;
+}) {
+  const sectionAt = new Map(law.sections.map((section) => [section.beforeArticleNo, section]));
+  const sectionNumber = new Map(
+    law.sections.map((section, index) => [section.beforeArticleNo, String(index + 1)]),
+  );
+  const targetBranch = query.의 ?? "";
+  const lawContext = { lawId: law.lawId, name: law.lawName };
+  return law.articles.map((article) => (
+    <ArticleEntry
+      article={article}
+      highlighted={article.articleNo === query.조 && article.branchNo === targetBranch}
+      key={articleAnchor(article.articleNo, article.branchNo)}
+      lawContext={lawContext}
+      level={level}
+      referenceAt={referenceAt}
+      section={sectionAt.get(article.articleNo)}
+      sectionNumber={sectionNumber.get(article.articleNo)}
+    />
+  ));
+}
+
+function LoadedLawPage({
+  at,
+  dated,
+  law,
+  level,
+  query,
+}: {
+  at: Date;
+  dated: boolean;
+  law: LawAtResult;
+  level: ViewLevel;
+  query: LawSearchParams;
+}) {
+  const zone = siteTimeZone();
+  return (
+    <WikiDocument
+      bodyBesideInfo={true}
+      info={
+        <WikiInfobox
+          footer={asOfNote(query.때, dated)}
+          rows={[
+            {
+              label: strings.effectiveAt,
+              value: law.effectiveAt === null ? "-" : formatDate(law.effectiveAt, zone),
+            },
+            { label: strings.articleCount, value: strings.articles(law.articles.length) },
+            { label: strings.source, value: strings.sourceName },
+          ]}
+          title={law.lawName}
+        />
+      }
+      meta={<LawPageMeta dated={dated} law={law} level={level} query={query} />}
+      title={<h1 className={styles.title}>{law.lawName}</h1>}
+      toc={buildToc(law.articles, law.sections)}
+    >
+      <div className={styles.articles}>
+        <LawArticles law={law} level={level} query={query} referenceAt={dated ? at : null} />
+      </div>
+    </WikiDocument>
   );
 }
 
@@ -157,58 +339,7 @@ export default async function LawPage(props: {
       </div>
     );
   }
-
-  const { law } = found;
-  const zone = siteTimeZone();
-  const target = query.조;
-  const targetBranch = query.의 ?? "";
-
-  /** 장 제목이 어느 조문 앞에 오는지. 조문을 그리면서 그 자리에 끼워 넣는다. */
-  const sectionAt = new Map(law.sections.map((section) => [section.beforeArticleNo, section]));
-
-  /** 장이 문서의 몇 번째 구간인가. 위키처럼 제목 앞에 번호를 붙인다. */
-  const sectionNumber = new Map(
-    law.sections.map((section, index) => [section.beforeArticleNo, String(index + 1)]),
-  );
-
-  return (
-    <WikiDocument
-      bodyBesideInfo={true}
-      info={
-        <WikiInfobox
-          footer={asOfNote(query.때, dated)}
-          rows={[
-            {
-              label: strings.effectiveAt,
-              value: law.effectiveAt === null ? "-" : formatDate(law.effectiveAt, zone),
-            },
-            { label: strings.articleCount, value: strings.articles(law.articles.length) },
-            { label: strings.source, value: strings.sourceName },
-          ]}
-          title={law.lawName}
-        />
-      }
-      meta={
-        isSimplifiedLevel(level) ? (
-          <p className={styles.originalNote}>{strings.originalTextNotice(viewer.levels[level])}</p>
-        ) : undefined
-      }
-      title={<h1 className={styles.title}>{law.lawName}</h1>}
-      toc={buildToc(law.articles, law.sections)}
-    >
-      <div className={styles.articles}>
-        {law.articles.map((article) => (
-          <ArticleEntry
-            article={article}
-            highlighted={article.articleNo === target && article.branchNo === targetBranch}
-            key={articleAnchor(article.articleNo, article.branchNo)}
-            section={sectionAt.get(article.articleNo)}
-            sectionNumber={sectionNumber.get(article.articleNo)}
-          />
-        ))}
-      </div>
-    </WikiDocument>
-  );
+  return <LoadedLawPage at={at} dated={dated} law={found.law} level={level} query={query} />;
 }
 
 export const dynamic = "force-dynamic";

@@ -57,7 +57,7 @@ function SummaryCard(props: SummaryCardProps) {
     {
       label: viewer.outcomeLabel,
       value: (
-        <Badge tone="neutral" variant="solid">
+        <Badge tone="neutral" variant="solid" wrap={true}>
           {outcomes[props.outcome]}
         </Badge>
       ),
@@ -77,6 +77,11 @@ function SummaryCard(props: SummaryCardProps) {
     rows.push({ label: viewer.fields.caseType, value: props.caseType });
   }
 
+  /*
+   * 정보 틀의 제목은 **짧은 사건명**이다. 화면 제목과 같은 글이 두 번 나오는데, 그 글이
+   * 200자짜리 쟁점까지 담고 있으면 좁은 화면에서 첫 두 화면이 같은 문장으로 채워진다.
+   * 부르는 쪽이 이미 나눠서 넘긴다(`lib/case-name.ts`).
+   */
   return (
     <WikiInfobox
       footer={

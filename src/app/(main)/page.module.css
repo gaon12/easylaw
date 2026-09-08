@@ -70,6 +70,12 @@
 .searchInput {
   flex: 1;
   min-width: 0;
+  /*
+   * `<input>`은 `size` 특성에서 오는 **고유 폭**(약 20자)을 갖는다. `min-width: 0`으로는
+   * 그 값이 줄지 않아서, 좁은 화면에서 칸을 세로로 쌓으면 이 칸 하나가 320px 화면을
+   * 밖으로 밀어냈다 — 랜딩 전체에 가로 스크롤이 생겼다. `width: 100%`가 고유 폭을 덮는다.
+   */
+  width: 100%;
   height: 56px;
   padding: 0 16px;
   border: 1px solid var(--el-border-default);

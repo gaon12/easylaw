@@ -56,6 +56,47 @@ describe("법 이름 찾기", () => {
 });
 
 describe("이름 없이 이어지는 인용", () => {
+  it("법령 본문은 현재 법을 문맥으로 받아 이름 없는 조문도 연결한다", () => {
+    const [first] = detectCitations("제5조에 따른다", index, {
+      lawId: "004",
+      matched: "도로교통법",
+      name: "도로교통법",
+    });
+
+    expect(first?.law?.lawId).toBe("004");
+    expect(first?.named).toBe(false);
+  });
+
+  it("법령 본문의 외부 법 인용 뒤에 설명이 끼면 다시 현재 법으로 돌아온다", () => {
+    const found = detectCitations(
+      "민법 제10조에 따른 권리와 이 법에서 정한 제20조를 함께 본다",
+      index,
+      { lawId: "004", matched: "도로교통법", name: "도로교통법" },
+    );
+
+    expect(found.map((citation) => citation.law?.lawId)).toEqual(["001", "004"]);
+  });
+
+  it("괄호 제목과 접속사로 바로 이은 조문은 앞의 외부 법을 유지한다", () => {
+    const found = detectCitations("민법 제10조(첫 조문) 및 제11조를 준용한다", index, {
+      lawId: "004",
+      matched: "도로교통법",
+      name: "도로교통법",
+    });
+
+    expect(found.map((citation) => citation.law?.lawId)).toEqual(["001", "001"]);
+  });
+
+  it("모호한 법 이름을 현재 법으로 잘못 연결하지 않는다", () => {
+    const found = detectCitations("모호법 제1조", index, {
+      lawId: "004",
+      matched: "도로교통법",
+      name: "도로교통법",
+    });
+
+    expect(found[0]?.law).toBeUndefined();
+  });
+
   it("바로 앞에서 말한 법을 잇는다", () => {
     // 참조조문은 이름을 한 번만 쓰고 조문을 나열한다. 버리면 절반을 놓친다.
     const found = detect("채무자 회생 및 파산에 관한 법률 제251조, 제252조 제1항");

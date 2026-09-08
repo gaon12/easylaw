@@ -74,11 +74,34 @@
 
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--el-space-3);
   padding-bottom: var(--el-space-3);
   border-bottom: 1px solid var(--el-border-subtle);
+}
+
+.headingGroup {
+  display: grid;
+  gap: var(--el-space-1);
+  min-width: 0;
+}
+
+.back {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--el-action);
+  font: inherit;
+  font-size: var(--el-text-body-s);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.back:hover {
+  color: var(--el-action-hover);
 }
 
 .title {
@@ -146,6 +169,8 @@
 
 .foot {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--el-space-2);
   justify-content: flex-end;
   padding-top: var(--el-space-3);
   border-top: 1px solid var(--el-border-subtle);

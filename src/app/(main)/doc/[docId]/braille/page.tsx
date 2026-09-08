@@ -1,18 +1,12 @@
 import { notFound } from "next/navigation";
 import { BrailleDocument } from "@/components/a11y/braille-document";
 import { toLevel } from "@/components/viewer/levels";
-import {
-  findLatestUploadRendition,
-  findUploadRendition,
-  listUploadSentences,
-} from "@/db/app/generation";
+import { findUploadRendition, listUploadSentences } from "@/db/app/generation";
 import { findUploadForOwner, listUploadSpans } from "@/db/app/repository";
 import { appDb } from "@/db/client";
-import { formatDate } from "@/lib/format";
 import { braille as strings, viewer } from "@/lib/strings";
 import { PIPELINE_VERSION } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
-import { siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
 
 /**
@@ -44,17 +38,13 @@ export default async function DocBraillePage(props: {
     level === "L0"
       ? { lines: listUploadSpans(db, docId).map((span) => span.text), outdatedAt: null }
       : (() => {
-          const current = findUploadRendition(db, docId, level, PIPELINE_VERSION);
-          const rendition = current ?? findLatestUploadRendition(db, docId, level);
+          const rendition = findUploadRendition(db, docId, level, PIPELINE_VERSION);
           return {
             lines:
               rendition === undefined
                 ? []
                 : listUploadSentences(db, rendition.id).map((sentence) => sentence.text),
-            outdatedAt:
-              current === undefined && rendition !== undefined
-                ? formatDate(rendition.generatedAt, siteTimeZone())
-                : null,
+            outdatedAt: null,
           };
         })();
 

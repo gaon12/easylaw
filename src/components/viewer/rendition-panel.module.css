@@ -13,10 +13,35 @@
   font-size: var(--el-text-body-s);
 }
 
+.blocks {
+  display: grid;
+}
+
+.block {
+  padding-block: var(--el-space-6);
+  border-top: 1px solid var(--el-border-default);
+}
+
+.block:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.blockContent {
+  display: grid;
+  gap: var(--el-space-4);
+}
+
+.blockText {
+  display: grid;
+  gap: var(--el-space-1);
+}
+
 .heading {
   font-size: var(--el-text-heading-xs);
   font-weight: 700;
-  margin-top: var(--el-space-4);
+  margin: 0;
+  color: var(--el-fg-1);
 }
 
 .sentence {
@@ -55,8 +80,13 @@
   margin-inline-start: var(--el-space-3);
   color: var(--el-action);
   font-size: var(--el-text-body-xs);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sentenceLink:hover .evidenceAction {
   text-decoration: underline;
-  text-decoration-style: dotted;
   text-underline-offset: 3px;
 }
 
@@ -92,10 +122,12 @@
   display: grid;
   gap: var(--el-space-1);
   margin: 0;
-  padding: var(--el-space-3) var(--el-space-4);
-  border: 1px solid var(--el-border-subtle);
-  border-radius: var(--el-radius-s);
-  background: var(--el-bg-subtle);
+  padding: var(--el-space-3) 0;
+  border-top: 1px solid var(--el-border-subtle);
+}
+
+.gloss:first-child {
+  border-top: 0;
 }
 
 .glossLabel {

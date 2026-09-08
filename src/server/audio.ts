@@ -11,6 +11,7 @@ import { reserveAudioSlot } from "@/db/corpus/repository";
 import { judgment, rendition, renditionAudio, renditionSentence } from "@/db/corpus/schema";
 import { dayKey } from "@/lib/format";
 import { speak, TtsError } from "@/lib/tts/client";
+import { PIPELINE_VERSION } from "./generate";
 import { siteTimeZone, ttsAllowsUploads, ttsConfig, ttsDailyLimit } from "./settings";
 
 /**
@@ -300,6 +301,7 @@ function caseAudioStatus(limit: number): AudioStatusRow[] {
     .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
     .innerJoin(renditionSentence, eq(renditionSentence.renditionId, rendition.id))
     .leftJoin(renditionAudio, eq(renditionAudio.sentenceId, renditionSentence.id))
+    .where(eq(rendition.promptVersion, PIPELINE_VERSION))
     .groupBy(rendition.id)
     .orderBy(desc(rendition.generatedAt))
     .limit(limit)
@@ -311,7 +313,11 @@ function findCaseAudio(sentenceId: string): { bytes: Buffer; format: string } | 
   return corpusDb()
     .select({ bytes: renditionAudio.bytes, format: renditionAudio.format })
     .from(renditionAudio)
-    .where(eq(renditionAudio.sentenceId, sentenceId))
+    .innerJoin(renditionSentence, eq(renditionSentence.id, renditionAudio.sentenceId))
+    .innerJoin(rendition, eq(rendition.id, renditionSentence.renditionId))
+    .where(
+      and(eq(renditionAudio.sentenceId, sentenceId), eq(rendition.promptVersion, PIPELINE_VERSION)),
+    )
     .all()
     .at(0);
 }
@@ -320,7 +326,17 @@ function findDocAudio(sentenceId: string): { bytes: Buffer; format: string } | u
   return appDb()
     .select({ bytes: uploadRenditionAudio.bytes, format: uploadRenditionAudio.format })
     .from(uploadRenditionAudio)
-    .where(eq(uploadRenditionAudio.sentenceId, sentenceId))
+    .innerJoin(
+      uploadRenditionSentence,
+      eq(uploadRenditionSentence.id, uploadRenditionAudio.sentenceId),
+    )
+    .innerJoin(uploadRendition, eq(uploadRendition.id, uploadRenditionSentence.renditionId))
+    .where(
+      and(
+        eq(uploadRenditionAudio.sentenceId, sentenceId),
+        eq(uploadRendition.promptVersion, PIPELINE_VERSION),
+      ),
+    )
     .all()
     .at(0);
 }
@@ -338,7 +354,13 @@ function ownsDocSentence(sentenceId: string, userId: string): boolean {
       .from(uploadRenditionSentence)
       .innerJoin(uploadRendition, eq(uploadRendition.id, uploadRenditionSentence.renditionId))
       .innerJoin(upload, eq(upload.id, uploadRendition.uploadId))
-      .where(and(eq(uploadRenditionSentence.id, sentenceId), eq(upload.userId, userId)))
+      .where(
+        and(
+          eq(uploadRenditionSentence.id, sentenceId),
+          eq(upload.userId, userId),
+          eq(uploadRendition.promptVersion, PIPELINE_VERSION),
+        ),
+      )
       .all().length > 0
   );
 }
