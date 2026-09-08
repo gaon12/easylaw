@@ -1,9 +1,10 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { dictDb } from "@/db/client";
-import { dictEntry, legalTerm } from "@/db/dict/schema";
+import { dictEntry, dictSource, legalTerm } from "@/db/dict/schema";
 import { candidateTerms } from "@/lib/dict/terms";
 import { lawApi } from "@/lib/law-api/client";
+import { stableId } from "@/lib/stable-id";
 
 /**
  * 낱말의 뜻을 찾는다. [F-29] · `PRODUCT.md` §6.2
@@ -56,6 +57,24 @@ const QUERY_CHUNK = 400;
 const SAFE_GENERAL_DICTIONARY_TERMS = new Set(["변제"]);
 
 type DictionaryDb = ReturnType<typeof dictDb>;
+
+/**
+ * 생성 캐시가 보는 사전 판.
+ *
+ * 표준 사전은 원본 제작판과 항목 수, 법령용어 캐시는 누적 항목 수가 바뀔 때 결과 후보가
+ * 달라질 수 있다. 단순 확인 시각은 내용이 아니므로 넣지 않아 자동 확인 때마다 캐시가
+ * 무효화되지 않게 한다.
+ */
+function dictionaryRevision(): string {
+  const db = dictDb();
+  const sources = db
+    .select({ id: dictSource.id, builtAt: dictSource.builtAt, entries: dictSource.entries })
+    .from(dictSource)
+    .orderBy(asc(dictSource.id))
+    .all();
+  const legalTerms = db.select({ entries: count() }).from(legalTerm).get()?.entries ?? 0;
+  return stableId(JSON.stringify({ sources, legalTerms }));
+}
 
 function addStandardLegalGlosses(
   db: DictionaryDb,
@@ -343,5 +362,5 @@ function glossesInText(text: string): Gloss[] {
   return found;
 }
 
-export { glossesFor, glossesInText, glossFor, isSafeAutomaticLegalTerm };
+export { dictionaryRevision, glossesFor, glossesInText, glossFor, isSafeAutomaticLegalTerm };
 export type { Gloss };

@@ -18,7 +18,7 @@ import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
 import { viewer } from "@/lib/strings";
 import { HEARTBEAT_MS } from "@/lib/timing";
-import { glossesInText } from "@/server/glossary";
+import { dictionaryRevision, glossesInText } from "@/server/glossary";
 import type { PipelineStore, StoreLevel, StoreStage } from "@/server/pipeline-store";
 import {
   DEFAULT_GENERATION_IP_LIMIT,
@@ -60,7 +60,7 @@ function generationRuntime(): GenerationRuntime | undefined {
   if (client === undefined) {
     return;
   }
-  const snapshot = createGenerationSnapshot(client);
+  const snapshot = createGenerationSnapshot(client, dictionaryRevision());
   return {
     client,
     snapshot,

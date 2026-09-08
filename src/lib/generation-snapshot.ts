@@ -31,15 +31,25 @@ interface GenerationSnapshotV2 extends Omit<GenerationSnapshotV1, "schemaVersion
   readonly modelRevision: string;
 }
 
-type GenerationSnapshot = GenerationSnapshotV1 | GenerationSnapshotV2;
+interface GenerationSnapshotV3 extends Omit<GenerationSnapshotV2, "schemaVersion"> {
+  readonly schemaVersion: "generation-snapshot-v3";
+  /** 생성 시작 때 로컬 사전에서 보이던 공식 원본판과 법령용어 캐시 판. */
+  readonly dictionaryRevision: string;
+}
 
-function createGenerationSnapshot(client: LlmClient): GenerationSnapshot {
+type GenerationSnapshot = GenerationSnapshotV1 | GenerationSnapshotV2 | GenerationSnapshotV3;
+
+function createGenerationSnapshot(
+  client: LlmClient,
+  dictionaryRevision = "dictionary-unavailable",
+): GenerationSnapshot {
   return {
-    schemaVersion: "generation-snapshot-v2",
+    schemaVersion: "generation-snapshot-v3",
     providerId: client.providerId,
     generationModel: client.model,
     verificationModel: client.model,
     modelRevision: client.modelRevision ?? "1",
+    dictionaryRevision,
     extractPromptVersion: EXTRACT_PROMPT_VERSION,
     renderPromptVersion: RENDER_PROMPT_VERSION,
     entailPromptVersion: ENTAIL_PROMPT_VERSION,

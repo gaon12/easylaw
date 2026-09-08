@@ -23,6 +23,7 @@ describe("generation snapshot", () => {
       generationModel: "model-a",
       verificationModel: "model-a",
       modelRevision: "1",
+      dictionaryRevision: "dictionary-unavailable",
     });
   });
 
@@ -31,7 +32,15 @@ describe("generation snapshot", () => {
     const replaced = createGenerationSnapshot(fakeClient("provider-a", "stable-alias", "2"));
 
     expect(generationSnapshotId(replaced)).not.toBe(generationSnapshotId(first));
-    expect(replaced).toMatchObject({ schemaVersion: "generation-snapshot-v2", modelRevision: "2" });
+    expect(replaced).toMatchObject({ schemaVersion: "generation-snapshot-v3", modelRevision: "2" });
+  });
+
+  it("사전 판이 바뀌면 같은 모델의 생성 캐시도 달라진다", () => {
+    const client = fakeClient("provider-a", "model-a");
+    const oldDictionary = createGenerationSnapshot(client, "dictionary-a");
+    const newDictionary = createGenerationSnapshot(client, "dictionary-b");
+
+    expect(generationSnapshotId(newDictionary)).not.toBe(generationSnapshotId(oldDictionary));
   });
 
   it("공급자나 모델이 바뀌면 캐시 식별자도 바뀐다", () => {
