@@ -799,6 +799,54 @@ function listContentReleases(db: CorpusDb, judgmentId: string) {
   }));
 }
 
+/** 릴리스 비교·감사에 쓰는 정확한 레벨별 변환본과 문장 묶음. */
+function findContentReleaseBundle(db: CorpusDb, judgmentId: string, releaseId: string) {
+  const release = db
+    .select()
+    .from(contentRelease)
+    .where(and(eq(contentRelease.id, releaseId), eq(contentRelease.judgmentId, judgmentId)))
+    .get();
+  if (release === undefined) {
+    return;
+  }
+  const items = db
+    .select({
+      level: contentReleaseRendition.level,
+      renditionId: contentReleaseRendition.renditionId,
+      generatedAt: rendition.generatedAt,
+    })
+    .from(contentReleaseRendition)
+    .innerJoin(rendition, eq(rendition.id, contentReleaseRendition.renditionId))
+    .where(
+      and(eq(contentReleaseRendition.releaseId, releaseId), eq(rendition.judgmentId, judgmentId)),
+    )
+    .orderBy(contentReleaseRendition.level)
+    .all();
+  const renditionIds = items.map(({ renditionId }) => renditionId);
+  const sentences =
+    renditionIds.length === 0
+      ? []
+      : db
+          .select({
+            id: renditionSentence.id,
+            renditionId: renditionSentence.renditionId,
+            orderIdx: renditionSentence.orderIdx,
+            role: renditionSentence.role,
+            text: renditionSentence.text,
+          })
+          .from(renditionSentence)
+          .where(inArray(renditionSentence.renditionId, renditionIds))
+          .orderBy(renditionSentence.renditionId, renditionSentence.orderIdx)
+          .all();
+  return {
+    ...release,
+    renditions: items.map((item) => ({
+      ...item,
+      sentences: sentences.filter(({ renditionId }) => renditionId === item.renditionId),
+    })),
+  };
+}
+
 function listSentences(db: CorpusDb, renditionId: string) {
   const sentences = db
     .select()
@@ -1995,6 +2043,7 @@ export {
   claimStructureGenerationJob,
   countGenerationsOn,
   findApprovedRendition,
+  findContentReleaseBundle,
   findPublishedAudio,
   findPublishedRendition,
   findCurrentJudgmentRevisionId,

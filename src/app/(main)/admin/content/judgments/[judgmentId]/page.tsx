@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { appDb, corpusDb } from "@/db/client";
 import {
+  findContentReleaseBundle,
   findJudgmentById,
   listContentReleases,
   listJudgmentRevisionSummaries,
@@ -20,11 +21,14 @@ import { admin } from "@/lib/strings";
 import { diffParagraphs, type Paragraph } from "@/lib/text/revision-diff";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../../../admin.module.css";
+import { ReleaseComparison } from "./release-comparison";
 import { ReleaseControls, RestoreReleaseControl } from "./release-controls";
 
 interface SearchParams {
   readonly from?: string | string[];
   readonly to?: string | string[];
+  readonly releaseFrom?: string | string[];
+  readonly releaseTo?: string | string[];
 }
 
 interface RevisionView {
@@ -437,32 +441,50 @@ function ReleaseHistory({
           </tr>
         </thead>
         <tbody>
-          {releases.map((release) => (
-            <tr key={release.id}>
-              <td>{at(release.createdAt)}</td>
-              <td>
-                {admin.releaseActions[release.action]}
-                {release.id === currentReleaseId ? (
-                  <span className={styles.currentMark}>{admin.releaseCurrent}</span>
-                ) : null}
-              </td>
-              <td>
-                {release.levels.length > 0 ? release.levels.join(", ") : admin.releaseNoLevels}
-              </td>
-              <td title={release.id}>{release.id.slice(0, RELEASE_ID_LENGTH)}</td>
-              <td>{release.actorId === null ? "—" : admin.releaseActor}</td>
-              <td>
-                <RestoreReleaseControl
-                  disabled={
-                    release.id === currentReleaseId ||
-                    release.sourceRevisionId !== currentRevisionId
-                  }
-                  judgmentId={judgmentId}
-                  releaseId={release.id}
-                />
-              </td>
-            </tr>
-          ))}
+          {releases.map((release, index) => {
+            const older = releases[index + 1];
+            return (
+              <tr key={release.id}>
+                <td>{at(release.createdAt)}</td>
+                <td>
+                  {admin.releaseActions[release.action]}
+                  {release.id === currentReleaseId ? (
+                    <span className={styles.currentMark}>{admin.releaseCurrent}</span>
+                  ) : null}
+                </td>
+                <td>
+                  {release.levels.length > 0 ? release.levels.join(", ") : admin.releaseNoLevels}
+                </td>
+                <td title={release.id}>{release.id.slice(0, RELEASE_ID_LENGTH)}</td>
+                <td>{release.actorId === null ? "—" : admin.releaseActor}</td>
+                <td>
+                  <div className={styles.rowActions}>
+                    {older === undefined ? null : (
+                      <Link
+                        className={styles.link}
+                        href={`?releaseFrom=${older.id}&releaseTo=${release.id}`}
+                      >
+                        {admin.releaseCompare}
+                      </Link>
+                    )}
+                    <RestoreReleaseControl
+                      disabled={
+                        release.id === currentReleaseId ||
+                        release.sourceRevisionId !== currentRevisionId
+                      }
+                      disabledTitle={
+                        release.id === currentReleaseId
+                          ? admin.releaseRestoreCurrent
+                          : admin.releaseRestoreStale
+                      }
+                      judgmentId={judgmentId}
+                      releaseId={release.id}
+                    />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -507,6 +529,24 @@ export default async function JudgmentRevisionPage({
           paragraphsFor(listSpans(db, judgmentId, from.id)),
           paragraphsFor(listSpans(db, judgmentId, to.id)),
         );
+  const requestedReleaseFrom = one(requested.releaseFrom);
+  const requestedReleaseTo = one(requested.releaseTo);
+  const releaseTo =
+    releases.find(({ id }) => id === requestedReleaseTo) ??
+    releases.find(({ id }) => id === judgment.currentContentReleaseId) ??
+    releases[0];
+  const releaseToIndex =
+    releaseTo === undefined ? -1 : releases.findIndex(({ id }) => id === releaseTo.id);
+  const releaseFrom =
+    releases.find(({ id }) => id === requestedReleaseFrom && id !== releaseTo?.id) ??
+    releases[releaseToIndex + 1] ??
+    releases.find(({ id }) => id !== releaseTo?.id);
+  const fromReleaseBundle =
+    releaseFrom === undefined
+      ? undefined
+      : findContentReleaseBundle(db, judgmentId, releaseFrom.id);
+  const toReleaseBundle =
+    releaseTo === undefined ? undefined : findContentReleaseBundle(db, judgmentId, releaseTo.id);
   const timeZone = siteTimeZone(appDb());
   const at = (value: Date) => formatDateTime(value, timeZone);
 
@@ -550,6 +590,16 @@ export default async function JudgmentRevisionPage({
           currentRevisionId={judgment.currentRevisionId}
           judgmentId={judgmentId}
           releases={releases}
+        />
+      </Card>
+
+      <Card as="section" className={styles.usage}>
+        <h2 className={styles.sectionTitle}>{admin.releaseCompareTitle}</h2>
+        <ReleaseComparison
+          at={at}
+          from={fromReleaseBundle}
+          releases={releases}
+          to={toReleaseBundle}
         />
       </Card>
 

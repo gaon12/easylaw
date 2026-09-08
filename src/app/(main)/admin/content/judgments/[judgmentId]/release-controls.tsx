@@ -74,10 +74,12 @@ function RestoreReleaseControl({
   judgmentId,
   releaseId,
   disabled,
+  disabledTitle,
 }: {
   judgmentId: string;
   releaseId: string;
   disabled: boolean;
+  disabledTitle?: string;
 }) {
   const [state, formAction, pending] = useActionState<ReleaseState, FormData>(
     manageJudgmentRelease,
@@ -93,7 +95,7 @@ function RestoreReleaseControl({
         <Button
           disabled={disabled || pending}
           size="s"
-          title={disabled ? admin.releaseRestoreStale : undefined}
+          title={disabled ? disabledTitle : undefined}
           type="submit"
           variant="secondary"
         >

@@ -9,6 +9,7 @@ import {
   claimStructureGenerationJob,
   countGenerationsOn,
   findApprovedRendition,
+  findContentReleaseBundle,
   findGenerationProgress,
   findJudgmentByCaseNo,
   findJudgmentRevision,
@@ -575,6 +576,31 @@ describe("content release", () => {
       ok: false,
       reason: "stale",
     });
+  });
+
+  it("과거 릴리스 비교는 당시의 정확한 변환본과 문장을 돌려준다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const first = renditionFor(judgmentId, "L4", "첫 설명");
+    const firstRelease = publishRendition(db, { judgmentId, renditionId: first });
+    const second = renditionFor(judgmentId, "L4", "둘째 설명");
+    publishRendition(db, { judgmentId, renditionId: second });
+    if (!firstRelease.ok || firstRelease.releaseId === null) {
+      throw new Error("첫 릴리스를 만들지 못했습니다.");
+    }
+
+    expect(findContentReleaseBundle(db, judgmentId, firstRelease.releaseId)?.renditions).toEqual([
+      expect.objectContaining({
+        level: "L4",
+        renditionId: first,
+        sentences: [expect.objectContaining({ text: "첫 설명" })],
+      }),
+    ]);
+    expect(
+      findContentReleaseBundle(db, "another-judgment", firstRelease.releaseId),
+    ).toBeUndefined();
   });
 });
 
