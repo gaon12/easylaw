@@ -6,7 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
@@ -89,6 +89,31 @@ function listJudgmentRevisions(db: CorpusDb, judgmentId: string) {
     .all();
 }
 
+/** 이력 표는 본문을 전부 읽지 않고 각 원문판의 문장 수만 DB에서 센다. */
+function listJudgmentRevisionSummaries(db: CorpusDb, judgmentId: string) {
+  return db
+    .select({
+      id: judgmentRevision.id,
+      judgmentId: judgmentRevision.judgmentId,
+      contentHash: judgmentRevision.contentHash,
+      fetchedAt: judgmentRevision.fetchedAt,
+      createdAt: judgmentRevision.createdAt,
+      spans: count(judgmentSpan.id),
+    })
+    .from(judgmentRevision)
+    .leftJoin(
+      judgmentSpan,
+      and(
+        eq(judgmentSpan.judgmentId, judgmentRevision.judgmentId),
+        eq(judgmentSpan.revisionId, judgmentRevision.id),
+      ),
+    )
+    .where(eq(judgmentRevision.judgmentId, judgmentId))
+    .groupBy(judgmentRevision.id)
+    .orderBy(desc(judgmentRevision.createdAt))
+    .all();
+}
+
 function sourceRevision(
   db: CorpusDb,
   judgmentId: string,
@@ -120,6 +145,18 @@ function contentHash(spans: readonly SpanInput[]): string {
 
 function findJudgmentByCaseNo(db: CorpusDb, caseNoCanonical: string) {
   return db.select().from(judgment).where(eq(judgment.caseNoCanonical, caseNoCanonical)).get();
+}
+
+function findJudgmentById(db: CorpusDb, judgmentId: string) {
+  return db.select().from(judgment).where(eq(judgment.id, judgmentId)).get();
+}
+
+function findJudgmentRevision(db: CorpusDb, judgmentId: string, revisionId: string) {
+  return db
+    .select()
+    .from(judgmentRevision)
+    .where(and(eq(judgmentRevision.id, revisionId), eq(judgmentRevision.judgmentId, judgmentId)))
+    .get();
 }
 
 function upsertJudgment(db: CorpusDb, input: JudgmentInput): string {
@@ -204,7 +241,7 @@ function listSpans(db: CorpusDb, judgmentId: string, pinnedRevisionId?: string |
     .where(
       revisionId === null
         ? and(eq(judgmentSpan.judgmentId, judgmentId), isNull(judgmentSpan.revisionId))
-        : eq(judgmentSpan.revisionId, revisionId),
+        : and(eq(judgmentSpan.judgmentId, judgmentId), eq(judgmentSpan.revisionId, revisionId)),
     )
     .orderBy(judgmentSpan.paraIdx, judgmentSpan.sentIdx)
     .all();
@@ -1495,6 +1532,8 @@ export {
   findApprovedRendition,
   findCurrentJudgmentRevisionId,
   findJudgmentByCaseNo,
+  findJudgmentById,
+  findJudgmentRevision,
   findLatestLawVersion,
   findLatestRendition,
   findRenditionAtRevision,
@@ -1509,6 +1548,7 @@ export {
   heartbeatStructureGenerationJob,
   listLawArticles,
   listJudgmentRevisions,
+  listJudgmentRevisionSummaries,
   listLawNameEntries,
   listLawSections,
   listSentences,

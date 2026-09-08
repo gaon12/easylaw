@@ -1,6 +1,6 @@
 import "server-only";
 import { statSync } from "node:fs";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { auditLog, user } from "@/db/app/schema";
 import { appDb, corpusDb, dictDb } from "@/db/client";
 import {
@@ -70,12 +70,22 @@ function listJudgments(limit: number) {
     .select({
       caseNo: judgment.caseNoDisplay,
       caseNoCanonical: judgment.caseNoCanonical,
+      id: judgment.id,
       court: judgment.court,
       spans: count(judgmentSpan.id),
       textCachedAt: judgment.textCachedAt,
     })
     .from(judgment)
-    .leftJoin(judgmentSpan, eq(judgmentSpan.judgmentId, judgment.id))
+    .leftJoin(
+      judgmentSpan,
+      and(
+        eq(judgmentSpan.judgmentId, judgment.id),
+        or(
+          eq(judgmentSpan.revisionId, judgment.currentRevisionId),
+          and(isNull(judgment.currentRevisionId), isNull(judgmentSpan.revisionId)),
+        ),
+      ),
+    )
     .groupBy(judgment.id)
     .orderBy(desc(judgment.fetchedAt))
     .limit(limit)

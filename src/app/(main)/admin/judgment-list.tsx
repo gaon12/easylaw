@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { admin } from "@/lib/strings";
 import { type RefreshState, refreshJudgmentText } from "@/server/admin-actions";
 import styles from "./admin.module.css";
 
 interface JudgmentRow {
+  readonly id: string;
   readonly caseNo: string;
   readonly caseNoCanonical: string;
   readonly court: string | null;
@@ -33,12 +34,17 @@ function JudgmentRowView({ row, formatTime }: { row: JudgmentRow; formatTime: st
       <td>{row.spans.toLocaleString()}</td>
       <td>{formatTime}</td>
       <td>
-        <form action={formAction}>
-          <input name="case_no" type="hidden" value={row.caseNoCanonical} />
-          <Button disabled={pending} size="s" type="submit" variant="secondary">
-            {pending ? admin.judgmentRefreshing : admin.judgmentRefresh}
-          </Button>
-        </form>
+        <div className={styles.rowActions}>
+          <ButtonLink href={`/admin/content/judgments/${row.id}`} size="s" variant="tertiary">
+            {admin.judgmentHistory}
+          </ButtonLink>
+          <form action={formAction}>
+            <input name="case_no" type="hidden" value={row.caseNoCanonical} />
+            <Button disabled={pending} size="s" type="submit" variant="secondary">
+              {pending ? admin.judgmentRefreshing : admin.judgmentRefresh}
+            </Button>
+          </form>
+        </div>
         {state.done === undefined ? null : <span className={styles.hint}>{state.done}</span>}
         {state.problem === undefined ? null : (
           <span className={styles.roleError} role="alert">

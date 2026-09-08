@@ -11,6 +11,7 @@ import {
   findApprovedRendition,
   findGenerationProgress,
   findJudgmentByCaseNo,
+  findJudgmentRevision,
   findLatestRendition,
   findLawArticle,
   findLawVersionAt,
@@ -21,6 +22,7 @@ import {
   finishStructureGenerationJob,
   heartbeatGenerationJob,
   heartbeatStructureGenerationJob,
+  listJudgmentRevisionSummaries,
   listJudgmentRevisions,
   listLawArticles,
   listRecentGenerationFailures,
@@ -125,6 +127,7 @@ describe("saveJudgmentText", () => {
     expect(current.revisionId).toMatch(/^[0-9a-f-]{36}$/u);
     expect(listSpans(db, id).map((span) => span.text)).toEqual(["새 문장"]);
     expect(listJudgmentRevisions(db, id)).toHaveLength(2);
+    expect(listJudgmentRevisionSummaries(db, id).map(({ spans }) => spans)).toEqual([1, 1]);
     expect(
       db
         .select()
@@ -144,6 +147,17 @@ describe("saveJudgmentText", () => {
     expect(second).toEqual({ revisionId: first.revisionId, created: false });
     expect(listJudgmentRevisions(db, id)).toHaveLength(1);
     expect(db.select().from(judgmentSpan).all()).toHaveLength(1);
+  });
+
+  it("다른 판결문의 원문판 ID로 문장과 원문판을 읽을 수 없다", () => {
+    const id = seedJudgment();
+    const other = seedJudgment("2020다2222");
+    const revision = saveJudgmentText(db, other, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 6, text: "다른 판결문" },
+    ]);
+
+    expect(listSpans(db, id, revision.revisionId)).toEqual([]);
+    expect(findJudgmentRevision(db, id, revision.revisionId)).toBeUndefined();
   });
 
   it("원문판이 바뀌면 구 설명을 현재 판의 캐시로 반환하지 않는다", () => {
