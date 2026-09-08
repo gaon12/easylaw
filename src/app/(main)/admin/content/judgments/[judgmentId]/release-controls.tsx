@@ -4,7 +4,11 @@ import { useActionState } from "react";
 import { Input } from "@/components/shadcn/ui/input";
 import { Button } from "@/components/ui/button";
 import { admin } from "@/lib/strings";
-import { manageJudgmentRelease, type ReleaseState } from "@/server/admin-actions";
+import {
+  manageJudgmentRelease,
+  manageRenditionReview,
+  type ReleaseState,
+} from "@/server/admin-actions";
 import styles from "../../../admin.module.css";
 
 interface Props {
@@ -13,6 +17,7 @@ interface Props {
   readonly latestRenditionId: string | null;
   readonly publishedRenditionId: string | null;
   readonly publishBlocked: boolean;
+  readonly publishBlockedTitle?: string;
 }
 
 /** 각 단계가 자기 액션 상태를 가진다. 다른 단계의 작업 버튼까지 잠그지 않는다. */
@@ -22,6 +27,7 @@ function ReleaseControls({
   latestRenditionId,
   publishedRenditionId,
   publishBlocked,
+  publishBlockedTitle,
 }: Props) {
   const [state, formAction, pending] = useActionState<ReleaseState, FormData>(
     manageJudgmentRelease,
@@ -42,7 +48,7 @@ function ReleaseControls({
             <Button
               disabled={pending || !canPublish}
               size="s"
-              title={publishBlocked ? admin.releaseBlocked : undefined}
+              title={publishBlocked ? publishBlockedTitle : undefined}
               type="submit"
             >
               {pending ? admin.releaseChanging : admin.releasePublish}
@@ -112,4 +118,53 @@ function RestoreReleaseControl({
   );
 }
 
-export { ReleaseControls, RestoreReleaseControl };
+function ReviewControls({
+  judgmentId,
+  renditionId,
+  reviewState,
+  canRequest,
+  canReview,
+}: {
+  judgmentId: string;
+  renditionId: string | null;
+  reviewState: "none" | "pending" | "approved" | "rejected" | null;
+  canRequest: boolean;
+  canReview: boolean;
+}) {
+  const [state, formAction, pending] = useActionState<ReleaseState, FormData>(
+    manageRenditionReview,
+    {},
+  );
+  if (renditionId === null) {
+    return null;
+  }
+  const form = (operation: "request" | "approve" | "reject", label: string) => (
+    <form action={formAction}>
+      <Input name="judgment_id" type="hidden" value={judgmentId} />
+      <Input name="rendition_id" type="hidden" value={renditionId} />
+      <Input name="operation" type="hidden" value={operation} />
+      <Button disabled={pending} size="s" type="submit" variant="secondary">
+        {pending ? admin.reviewChanging : label}
+      </Button>
+    </form>
+  );
+  return (
+    <div className={styles.releaseActions}>
+      <div className={styles.rowActions}>
+        {canRequest && (reviewState === "none" || reviewState === "rejected")
+          ? form("request", admin.reviewRequest)
+          : null}
+        {canReview && reviewState === "pending" ? form("approve", admin.reviewApprove) : null}
+        {canReview && reviewState === "pending" ? form("reject", admin.reviewReject) : null}
+      </div>
+      {state.done === undefined ? null : <span className={styles.hint}>{state.done}</span>}
+      {state.problem === undefined ? null : (
+        <span className={styles.roleError} role="alert">
+          {state.problem}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export { ReleaseControls, RestoreReleaseControl, ReviewControls };

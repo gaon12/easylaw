@@ -21,6 +21,7 @@ import {
   listUploadSpans,
   listUploadsForOwner,
   listUsersForAdmin,
+  recordAuditEvent,
   saveUpload,
   saveUploadRevision,
   setUserRole,
@@ -122,8 +123,40 @@ describe("계정", () => {
       role: "admin",
     });
     const memberId = createUser(db, { email: "member@example.com", passwordHash: "secret" });
-    expect(setUserRole(db, adminId as string, adminId as string, "member")).toBe("last_admin");
-    expect(setUserRole(db, memberId as string, adminId as string, "member")).toBe("forbidden");
+    expect(setUserRole(db, adminId as string, adminId as string, "reviewer")).toBe("last_admin");
+    expect(setUserRole(db, memberId as string, adminId as string, "viewer")).toBe("forbidden");
+  });
+
+  it("관리자가 콘텐츠 역할을 단계별로 지정한다", () => {
+    const adminId = createUser(db, {
+      email: "admin@example.com",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const userId = createUser(db, { email: "editor@example.com", passwordHash: "secret" });
+    expect(setUserRole(db, adminId as string, userId as string, "reviewer")).toBe("updated");
+    expect(findUserById(db, userId as string)?.role).toBe("reviewer");
+    expect(setUserRole(db, adminId as string, userId as string, "publisher")).toBe("updated");
+    expect(findUserById(db, userId as string)?.role).toBe("publisher");
+  });
+});
+
+describe("감사 기록", () => {
+  it("콘텐츠 검수와 게시 행위의 주체와 대상만 남긴다", () => {
+    const actorId = makeUser();
+    recordAuditEvent(db, {
+      actorId,
+      action: "content.rendition_approved",
+      targetId: "rendition-id",
+      meta: { judgmentId: "judgment-id" },
+    });
+
+    expect(db.select().from(auditLog).all().at(-1)).toMatchObject({
+      actor: actorId,
+      action: "content.rendition_approved",
+      target: "rendition-id",
+      meta: { judgmentId: "judgment-id" },
+    });
   });
 });
 

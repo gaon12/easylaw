@@ -46,7 +46,7 @@ type AuthResult = { readonly ok: true } | { readonly ok: false; readonly problem
 async function signUp(
   rawEmail: string,
   rawPassword: string,
-  role: UserRole = "member",
+  role: UserRole = "viewer",
   rawNickname?: string,
 ): Promise<AuthResult> {
   const validated = validateNewCredentials(rawEmail, rawPassword);

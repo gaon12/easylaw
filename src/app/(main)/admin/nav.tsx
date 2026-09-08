@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { UserRole } from "@/db/app/repository";
 import { admin } from "@/lib/strings";
 import styles from "./admin.module.css";
 
@@ -54,8 +55,9 @@ const GROUPS = [
   },
 ] as const;
 
-function AdminNav() {
+function AdminNav({ role }: { role: UserRole }) {
   const pathname = usePathname();
+  const groups = role === "admin" ? GROUPS : [GROUPS[1]];
 
   return (
     <nav aria-label={admin.navLabel} className={styles.nav}>
@@ -63,7 +65,7 @@ function AdminNav() {
         <span>{admin.brandMark}</span>
         <strong>{admin.brandName}</strong>
       </div>
-      {GROUPS.map((group) => (
+      {groups.map((group) => (
         <section className={styles.navGroup} key={group.label}>
           <h2 className={styles.navGroupLabel}>{group.label}</h2>
           <ul className={styles.navList}>

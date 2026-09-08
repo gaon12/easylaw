@@ -37,6 +37,7 @@ import {
   recordLookupMiss,
   reserveGenerationSlot,
   restoreContentRelease,
+  reviewRendition,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,
@@ -409,14 +410,80 @@ describe("saveRendition", () => {
 
 describe("content release", () => {
   function renditionFor(judgmentId: string, level: "L1" | "L2" | "L3" | "L4", text: string) {
-    return saveRendition(db, {
+    const renditionId = saveRendition(db, {
       judgmentId,
       level,
       model: "editorial",
       promptVersion: `editorial-${level}-${text}`,
       sentences: [{ orderIdx: 0, text, confidence: "grounded" }],
     });
+    const requested = reviewRendition(db, { judgmentId, renditionId, state: "pending" });
+    if (!requested.ok) {
+      throw new Error(`테스트 설명의 검수를 요청하지 못했어요: ${requested.reason}`);
+    }
+    const result = reviewRendition(db, { judgmentId, renditionId, state: "approved" });
+    if (!result.ok) {
+      throw new Error(`테스트 설명을 승인하지 못했어요: ${result.reason}`);
+    }
+    return renditionId;
   }
+
+  it("검수 승인을 받지 않은 설명은 게시하지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "editorial",
+      promptVersion: "draft-v1",
+      sentences: [{ orderIdx: 0, text: "초안", confidence: "grounded" }],
+    });
+
+    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+      ok: false,
+      reason: "not_approved",
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "pending" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(publishRendition(db, { judgmentId, renditionId })).toMatchObject({ ok: true });
+  });
+
+  it("검수 요청 없이 승인하거나 승인된 설명을 작성 단계로 되돌리지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "editorial",
+      promptVersion: "review-transition-v1",
+      sentences: [{ orderIdx: 0, text: "설명", confidence: "grounded" }],
+    });
+
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toEqual({
+      ok: false,
+      reason: "invalid_review_state",
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "pending" })).toMatchObject({
+      ok: true,
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toMatchObject({
+      ok: true,
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "pending" })).toEqual({
+      ok: false,
+      reason: "invalid_review_state",
+    });
+  });
 
   it("승인 상태만으로는 공개하지 않고 릴리스 포인터가 가리킨 변환본만 공개한다", () => {
     const judgmentId = seedJudgment();
@@ -526,9 +593,13 @@ describe("content release", () => {
       sentences: [{ orderIdx: 0, text: "근거 없는 설명", confidence: "ungrounded" }],
     });
 
-    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toEqual({
       ok: false,
       reason: "ungrounded",
+    });
+    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+      ok: false,
+      reason: "not_approved",
     });
     expect(findPublishedRendition(db, judgmentId, "L4")).toBeUndefined();
   });

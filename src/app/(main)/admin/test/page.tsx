@@ -5,6 +5,7 @@ import { StructuredList } from "@/components/ui/structured-list";
 import { lawApi } from "@/lib/law-api/client";
 import { llm } from "@/lib/llm/client";
 import { adminTest } from "@/lib/strings";
+import { requireAdministrator } from "@/server/admin-access";
 import { type ProbeResult, probeLawApi, probeLlm } from "@/server/connection-test";
 import styles from "./page.module.css";
 
@@ -54,6 +55,7 @@ function ProbeCard({ label, result }: { label: string; result: ProbeResult }) {
 }
 
 export default async function AdminTestPage() {
+  await requireAdministrator();
   // 두 시험은 서로 상관이 없다. 차례로 걸면 느린 쪽이 빠른 쪽을 기다리게 한다.
   const [law, model] = await Promise.all([probeLawApi(lawApi()), probeLlm(llm())]);
 

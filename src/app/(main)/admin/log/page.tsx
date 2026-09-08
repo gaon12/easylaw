@@ -4,6 +4,7 @@ import { appDb, corpusDb } from "@/db/client";
 import { listRecentGenerationFailures } from "@/db/corpus/repository";
 import { formatDateTime } from "@/lib/format";
 import { admin } from "@/lib/strings";
+import { requireAdministrator } from "@/server/admin-access";
 import { listAuditEntries } from "@/server/admin-overview";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../admin.module.css";
@@ -25,7 +26,8 @@ const AUDIT_ROWS = 50;
  * 있었는데 확인하려면 SQLite를 직접 열어야 했다. 쓰기만 하고 아무도 읽지 않는 기록은
  * 없는 것과 같다.
  */
-export default function AdminLogPage() {
+export default async function AdminLogPage() {
+  await requireAdministrator();
   const db = appDb();
   const timeZone = siteTimeZone(db);
   const entries = listAuditEntries(AUDIT_ROWS);

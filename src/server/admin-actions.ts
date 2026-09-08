@@ -1,15 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { corpusDb } from "@/db/client";
+import { recordAuditEvent } from "@/db/app/repository";
+import { appDb, corpusDb } from "@/db/client";
 import {
   findJudgmentById,
   publishRendition,
   type ReleaseMutationResult,
   restoreContentRelease,
+  reviewRendition,
   withdrawPublishedRendition,
 } from "@/db/corpus/repository";
 import { LEVELS } from "@/db/corpus/schema";
+import {
+  canPublishContent,
+  canRequestContentReview,
+  canReviewContent,
+} from "@/lib/content-permissions";
 import { ensureJudgmentText } from "./lookup";
 import { currentSession } from "./owner";
 
@@ -37,6 +44,8 @@ const RELEASE_PROBLEMS = {
   stale: "현재 원문판으로 만든 설명만 게시할 수 있어요.",
   empty: "문장이 없는 설명은 게시할 수 없어요.",
   ungrounded: "근거 없음 문장이 있어 게시할 수 없어요.",
+  not_approved: "검수 승인을 받은 설명만 게시할 수 있어요.",
+  invalid_review_state: "현재 검수 단계에서는 요청한 상태로 바꿀 수 없어요.",
 } as const;
 
 function runReleaseMutation(
@@ -128,8 +137,8 @@ async function manageJudgmentRelease(
   formData: FormData,
 ): Promise<ReleaseState> {
   const session = await currentSession();
-  if (session?.role !== "admin") {
-    return { problem: "관리자만 공개 상태를 바꿀 수 있어요." };
+  if (session === undefined || !canPublishContent(session.role)) {
+    return { problem: "게시자 또는 관리자만 공개 상태를 바꿀 수 있어요." };
   }
 
   const judgmentId = String(formData.get("judgment_id") ?? "").trim();
@@ -163,11 +172,98 @@ async function manageJudgmentRelease(
     return { problem: RELEASE_PROBLEMS[result.reason] };
   }
 
+  if (result.changed) {
+    recordAuditEvent(appDb(), {
+      actorId: session.userId,
+      action: `content.release_${operation}`,
+      targetId: judgmentId,
+      meta: {
+        level: level.length === 0 ? null : level,
+        releaseId: result.releaseId,
+      },
+    });
+  }
+
   revalidatePath(`/admin/content/judgments/${judgmentId}`);
   revalidatePath(`/case/${judgment.caseNoCanonical}`);
   revalidatePath(`/case/${judgment.caseNoCanonical}/braille`);
   return { done: releaseDone(operation, level, result.changed) };
 }
 
-export { manageJudgmentRelease, refreshJudgmentText };
+/** 작성자의 검수 요청과 검수자의 승인·반려를 역할별로 분리한다. */
+function reviewTarget(operation: string) {
+  if (operation === "request") {
+    return "pending" as const;
+  }
+  if (operation === "approve") {
+    return "approved" as const;
+  }
+  if (operation === "reject") {
+    return "rejected" as const;
+  }
+  return;
+}
+
+function reviewPermissionProblem(operation: string, role: Parameters<typeof canReviewContent>[0]) {
+  if (operation === "request" && !canRequestContentReview(role)) {
+    return "작성자 또는 관리자만 검수를 요청할 수 있어요.";
+  }
+  if ((operation === "approve" || operation === "reject") && !canReviewContent(role)) {
+    return "검수자 또는 관리자만 승인하거나 반려할 수 있어요.";
+  }
+  return;
+}
+
+function reviewDone(state: "pending" | "approved" | "rejected", changed: boolean) {
+  if (!changed) {
+    return "이미 같은 검수 상태예요.";
+  }
+  const messages = {
+    pending: "검수를 요청했어요.",
+    approved: "설명을 승인했어요.",
+    rejected: "설명을 반려했어요.",
+  } as const;
+  return messages[state];
+}
+
+async function manageRenditionReview(
+  _previous: ReleaseState,
+  formData: FormData,
+): Promise<ReleaseState> {
+  const session = await currentSession();
+  const operation = String(formData.get("operation") ?? "");
+  const state = reviewTarget(operation);
+  if (state === undefined) {
+    return { problem: "알 수 없는 검수 상태 변경 요청이에요." };
+  }
+  const permissionProblem = reviewPermissionProblem(operation, session?.role);
+  if (permissionProblem !== undefined) {
+    return { problem: permissionProblem };
+  }
+  if (session === undefined) {
+    return { problem: "로그인한 콘텐츠 담당자만 검수 상태를 바꿀 수 있어요." };
+  }
+
+  const judgmentId = String(formData.get("judgment_id") ?? "").trim();
+  const renditionId = String(formData.get("rendition_id") ?? "").trim();
+  if (judgmentId.length === 0 || renditionId.length === 0) {
+    return { problem: RELEASE_PROBLEMS.not_found };
+  }
+  const result = reviewRendition(corpusDb(), { judgmentId, renditionId, state });
+  if (!result.ok) {
+    return { problem: RELEASE_PROBLEMS[result.reason] };
+  }
+  if (result.changed) {
+    recordAuditEvent(appDb(), {
+      actorId: session.userId,
+      action: `content.rendition_${state}`,
+      targetId: renditionId,
+      meta: { judgmentId },
+    });
+  }
+  revalidatePath(`/admin/content/judgments/${judgmentId}`);
+  return { done: reviewDone(state, result.changed) };
+}
+
+export { manageJudgmentRelease, manageRenditionReview, refreshJudgmentText };
 export type { RefreshState, ReleaseState };

@@ -10,6 +10,7 @@ import {
   listLookupMisses,
 } from "@/server/admin-overview";
 import { dictScheduleState } from "@/server/dict-schedule";
+import { currentSession } from "@/server/owner";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../admin.module.css";
 import { JudgmentList } from "../judgment-list";
@@ -30,7 +31,8 @@ const JUDGMENT_ROWS = 30;
  * 세 데이터베이스는 서로 조인하지 않으므로(`ARCHITECTURE.md` §3) 이 화면도 **묶어서 한
  * 줄로 보여 주지 않는다.** 판례·법령과 사전은 다른 상자에 담긴 다른 자료다.
  */
-export default function AdminContentPage() {
+export default async function AdminContentPage() {
+  const session = await currentSession();
   const counts = contentCounts();
   const sources = dictSources();
   const misses = listLookupMisses(MISS_ROWS);
@@ -72,6 +74,7 @@ export default function AdminContentPage() {
         <h2 className={styles.sectionTitle}>{admin.judgmentTitle}</h2>
         <p className={styles.sectionBody}>{admin.judgmentIntro}</p>
         <JudgmentList
+          canRefresh={session?.role === "admin"}
           formatTime={(value) => (value === null ? admin.judgmentNever : at(value))}
           rows={judgments}
         />

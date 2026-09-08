@@ -18,7 +18,6 @@ import {
   blob,
   index,
   integer,
-  // biome-ignore lint/suspicious/noDeprecatedImports: 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
   primaryKey,
   sqliteTable,
   text,
@@ -26,6 +25,8 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import { MASK_KINDS } from "@/lib/text/mask";
+
+const USER_ROLES = ["viewer", "contributor", "reviewer", "publisher", "admin"] as const;
 
 /**
  * "지금" 기본값이 붙은 시각 컬럼. 컬럼 이름을 인자로 받는다 —
@@ -69,13 +70,10 @@ const user = sqliteTable(
      */
     nickname: text("nickname"),
     /**
-     * 권한. `admin`은 설치 마법사가 만든 첫 계정이고, 서비스 설정을 바꿀 수 있다.
-     * 컬럼 하나로 두는 이유는 지금 필요한 구분이 둘뿐이기 때문이다 —
-     * 역할 테이블은 역할이 셋 이상 생길 때 만든다.
+     * 권한. 일반 이용자와 콘텐츠 작성·검수·게시, 시스템 관리를 분리한다.
+     * 한 계정은 가장 강한 역할 하나를 가지며 세부 능력은 권한 함수에서 해석한다.
      */
-    role: text("role", { enum: ["admin", "member"] })
-      .notNull()
-      .default("member"),
+    role: text("role", { enum: USER_ROLES }).notNull().default("viewer"),
     /** 접근성 프로필 등 사용자 설정(JSON). */
     settings: text("settings", { mode: "json" }),
     createdAt: timestampNow("created_at"),
@@ -544,4 +542,5 @@ export {
   uploadStructureGenerationJob,
   uploadStructureNode,
   user,
+  USER_ROLES,
 };

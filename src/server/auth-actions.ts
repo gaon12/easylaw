@@ -31,7 +31,7 @@ function field(formData: FormData, name: string): string {
 async function createAccount(_previous: AuthState, formData: FormData): Promise<AuthState> {
   const email = field(formData, "email");
   const nickname = field(formData, "nickname");
-  const result = await signUp(email, field(formData, "password"), "member", nickname);
+  const result = await signUp(email, field(formData, "password"), "viewer", nickname);
 
   if (!result.ok) {
     // 실패하면 이메일과 닉네임을 다시 채워 준다. 비밀번호는 돌려주지 않는다.

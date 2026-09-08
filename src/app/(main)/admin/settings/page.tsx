@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { appDb } from "@/db/client";
 import { baseUrlAdvice, isBaseUrlProblem } from "@/lib/llm/base-url";
 import { admin, setup } from "@/lib/strings";
+import { requireAdministrator } from "@/server/admin-access";
 import {
   DEFAULT_LLM_MODEL_REVISION,
   isLocalUrl,
@@ -117,6 +118,7 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
 export default async function AdminSettingsPage(props: {
   searchParams: Promise<{ saved?: string; url_problem?: string }>;
 }) {
+  await requireAdministrator();
   const searchParams = await props.searchParams;
   const db = appDb();
   const timeZone = siteTimeZone(db);

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { hasAdmin, type RoleChangeResult, setUserRole } from "@/db/app/repository";
+import { USER_ROLES } from "@/db/app/schema";
 import { appDb } from "@/db/client";
 import { checkBaseUrl, trimBaseUrl } from "@/lib/llm/base-url";
 import type { AuthProblem } from "./auth";
@@ -208,21 +209,26 @@ async function saveSettings(formData: FormData): Promise<void> {
   redirect("/admin/settings?saved=1");
 }
 
-/** 관리자 화면에서 기존 가입자를 관리자로 지정한다. 비밀번호를 다루지 않는다. */
-async function setAdminRole(
+/** 관리자 화면에서 계정의 서비스·콘텐츠 역할을 바꾼다. 비밀번호를 다루지 않는다. */
+async function setAccountRole(
   _previous: AdminRoleState,
   formData: FormData,
 ): Promise<AdminRoleState> {
   const session = await currentSession();
   const targetId = field(formData, "user_id");
+  const requestedRole = field(formData, "role");
   if (session?.role !== "admin") {
     return { problem: "forbidden" };
   }
   if (targetId.length === 0) {
     return { problem: "not_found" };
   }
+  const role = USER_ROLES.find((candidate) => candidate === requestedRole);
+  if (role === undefined) {
+    return { problem: "not_found" };
+  }
 
-  const result = setUserRole(appDb(), session.userId, targetId, "admin");
+  const result = setUserRole(appDb(), session.userId, targetId, role);
   if (result !== "updated" && result !== "unchanged") {
     return { problem: result };
   }
@@ -235,7 +241,7 @@ export {
   saveConnections,
   saveService,
   saveSettings,
-  setAdminRole,
+  setAccountRole,
   signInAdmin,
 };
 export type { AdminRoleState, SetupState };

@@ -16,13 +16,19 @@ import {
   type ReleaseState,
   type RenditionReleaseOverview,
 } from "@/db/corpus/repository";
+import {
+  canPublishContent,
+  canRequestContentReview,
+  canReviewContent,
+} from "@/lib/content-permissions";
 import { formatDateTime } from "@/lib/format";
 import { admin } from "@/lib/strings";
 import { diffParagraphs, type Paragraph } from "@/lib/text/revision-diff";
+import { currentSession } from "@/server/owner";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../../../admin.module.css";
 import { ReleaseComparison } from "./release-comparison";
-import { ReleaseControls, RestoreReleaseControl } from "./release-controls";
+import { ReleaseControls, RestoreReleaseControl, ReviewControls } from "./release-controls";
 
 interface SearchParams {
   readonly from?: string | string[];
@@ -314,12 +320,18 @@ function ReleaseTableRow({
   caseNo,
   at,
   preview,
+  canManage,
+  canRequestReview,
+  canReview,
 }: {
   row: RenditionReleaseOverview;
   judgmentId: string;
   caseNo: string;
   at: (value: Date) => string;
   preview: ReturnType<typeof listSentences>;
+  canManage: boolean;
+  canRequestReview: boolean;
+  canReview: boolean;
 }) {
   return (
     <tr>
@@ -347,15 +359,29 @@ function ReleaseTableRow({
       </td>
       <td>
         <ReleaseCheck row={row} />
+        <ReviewControls
+          canRequest={canRequestReview}
+          canReview={canReview}
+          judgmentId={judgmentId}
+          renditionId={row.latest?.id ?? null}
+          reviewState={row.latest?.reviewState ?? null}
+        />
       </td>
       <td>
-        <ReleaseControls
-          judgmentId={judgmentId}
-          latestRenditionId={row.latest?.id ?? null}
-          level={row.level}
-          publishBlocked={row.ungrounded > 0}
-          publishedRenditionId={row.publishedRenditionId}
-        />
+        {canManage ? (
+          <ReleaseControls
+            judgmentId={judgmentId}
+            latestRenditionId={row.latest?.id ?? null}
+            level={row.level}
+            publishBlocked={row.ungrounded > 0 || row.latest?.reviewState !== "approved"}
+            publishBlockedTitle={
+              row.ungrounded > 0 ? admin.releaseBlocked : admin.releaseNeedsApproval
+            }
+            publishedRenditionId={row.publishedRenditionId}
+          />
+        ) : (
+          <span className={styles.hint}>{admin.releasePublisherOnly}</span>
+        )}
         {row.state === "published" ? (
           <Link
             className={styles.link}
@@ -375,12 +401,18 @@ function ReleaseTable({
   caseNo,
   at,
   previews,
+  canManage,
+  canRequestReview,
+  canReview,
 }: {
   rows: readonly RenditionReleaseOverview[];
   judgmentId: string;
   caseNo: string;
   at: (value: Date) => string;
   previews: ReadonlyMap<string, ReturnType<typeof listSentences>>;
+  canManage: boolean;
+  canRequestReview: boolean;
+  canReview: boolean;
 }) {
   return (
     <div className={styles.tableScroll}>
@@ -398,6 +430,9 @@ function ReleaseTable({
           {rows.map((row) => (
             <ReleaseTableRow
               at={at}
+              canManage={canManage}
+              canRequestReview={canRequestReview}
+              canReview={canReview}
               caseNo={caseNo}
               judgmentId={judgmentId}
               key={row.level}
@@ -417,12 +452,14 @@ function ReleaseHistory({
   currentRevisionId,
   judgmentId,
   at,
+  canManage,
 }: {
   releases: ReturnType<typeof listContentReleases>;
   currentReleaseId: string | null;
   currentRevisionId: string | null;
   judgmentId: string;
   at: (value: Date) => string;
+  canManage: boolean;
 }) {
   if (releases.length === 0) {
     return <p className={styles.empty}>{admin.releaseHistoryEmpty}</p>;
@@ -467,19 +504,23 @@ function ReleaseHistory({
                         {admin.releaseCompare}
                       </Link>
                     )}
-                    <RestoreReleaseControl
-                      disabled={
-                        release.id === currentReleaseId ||
-                        release.sourceRevisionId !== currentRevisionId
-                      }
-                      disabledTitle={
-                        release.id === currentReleaseId
-                          ? admin.releaseRestoreCurrent
-                          : admin.releaseRestoreStale
-                      }
-                      judgmentId={judgmentId}
-                      releaseId={release.id}
-                    />
+                    {canManage ? (
+                      <RestoreReleaseControl
+                        disabled={
+                          release.id === currentReleaseId ||
+                          release.sourceRevisionId !== currentRevisionId
+                        }
+                        disabledTitle={
+                          release.id === currentReleaseId
+                            ? admin.releaseRestoreCurrent
+                            : admin.releaseRestoreStale
+                        }
+                        judgmentId={judgmentId}
+                        releaseId={release.id}
+                      />
+                    ) : (
+                      <span className={styles.hint}>{admin.releasePublisherOnly}</span>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -499,6 +540,10 @@ export default async function JudgmentRevisionPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { judgmentId } = await params;
+  const session = await currentSession();
+  const canManageRelease = canPublishContent(session?.role);
+  const canRequestReview = canRequestContentReview(session?.role);
+  const canReview = canReviewContent(session?.role);
   const requested = await searchParams;
   const db = corpusDb();
   const judgment = findJudgmentById(db, judgmentId);
@@ -575,6 +620,9 @@ export default async function JudgmentRevisionPage({
         <p className={styles.sectionBody}>{admin.releaseIntro}</p>
         <ReleaseTable
           at={at}
+          canManage={canManageRelease}
+          canRequestReview={canRequestReview}
+          canReview={canReview}
           caseNo={judgment.caseNoCanonical}
           judgmentId={judgmentId}
           previews={previews}
@@ -586,6 +634,7 @@ export default async function JudgmentRevisionPage({
         <h2 className={styles.sectionTitle}>{admin.releaseHistory}</h2>
         <ReleaseHistory
           at={at}
+          canManage={canManageRelease}
           currentReleaseId={judgment.currentContentReleaseId}
           currentRevisionId={judgment.currentRevisionId}
           judgmentId={judgmentId}

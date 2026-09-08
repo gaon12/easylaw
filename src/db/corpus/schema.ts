@@ -11,7 +11,6 @@ import {
   blob,
   index,
   integer,
-  // biome-ignore lint/suspicious/noDeprecatedImports: 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
   primaryKey,
   sqliteTable,
   text,

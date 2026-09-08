@@ -413,8 +413,71 @@ type ReleaseMutationResult =
   | { readonly ok: true; readonly changed: boolean; readonly releaseId: string | null }
   | {
       readonly ok: false;
-      readonly reason: "not_found" | "no_source_revision" | "stale" | "empty" | "ungrounded";
+      readonly reason:
+        | "not_found"
+        | "no_source_revision"
+        | "stale"
+        | "empty"
+        | "ungrounded"
+        | "not_approved"
+        | "invalid_review_state";
     };
+
+type ReviewMutationResult = ReleaseMutationResult;
+
+/** 현재 원문판의 설명만 검수 상태를 바꾼다. 승인에는 문장·근거 검사를 함께 적용한다. */
+function reviewRendition(
+  db: CorpusDb,
+  input: { judgmentId: string; renditionId: string; state: "pending" | "approved" | "rejected" },
+): ReviewMutationResult {
+  const owner = db
+    .select({ currentRevisionId: judgment.currentRevisionId })
+    .from(judgment)
+    .where(eq(judgment.id, input.judgmentId))
+    .get();
+  const selected = db
+    .select()
+    .from(rendition)
+    .where(and(eq(rendition.id, input.renditionId), eq(rendition.judgmentId, input.judgmentId)))
+    .get();
+  if (owner === undefined || selected === undefined) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (owner.currentRevisionId === null) {
+    return { ok: false, reason: "no_source_revision" };
+  }
+  if (selected.sourceRevisionId !== owner.currentRevisionId) {
+    return { ok: false, reason: "stale" };
+  }
+  const sentences = db
+    .select({ confidence: renditionSentence.confidence })
+    .from(renditionSentence)
+    .where(eq(renditionSentence.renditionId, selected.id))
+    .all();
+  if (sentences.length === 0) {
+    return { ok: false, reason: "empty" };
+  }
+  if (
+    input.state === "approved" &&
+    sentences.some(({ confidence }) => confidence === "ungrounded")
+  ) {
+    return { ok: false, reason: "ungrounded" };
+  }
+  if (selected.reviewState === input.state) {
+    return { ok: true, changed: false, releaseId: null };
+  }
+  const mayRequest =
+    input.state === "pending" &&
+    (selected.reviewState === "none" || selected.reviewState === "rejected");
+  const mayDecide =
+    (input.state === "approved" || input.state === "rejected") &&
+    selected.reviewState === "pending";
+  if (!(mayRequest || mayDecide)) {
+    return { ok: false, reason: "invalid_review_state" };
+  }
+  db.update(rendition).set({ reviewState: input.state }).where(eq(rendition.id, selected.id)).run();
+  return { ok: true, changed: true, releaseId: null };
+}
 
 function sameReleaseItems(
   left: readonly { level: Level; renditionId: string }[],
@@ -521,6 +584,9 @@ function publishRendition(
       if (selected.sourceRevisionId !== owner.currentRevisionId) {
         return { ok: false, reason: "stale" } as const;
       }
+      if (selected.reviewState !== "approved") {
+        return { ok: false, reason: "not_approved" } as const;
+      }
 
       const sentences = tx
         .select({ confidence: renditionSentence.confidence })
@@ -547,10 +613,6 @@ function publishRendition(
         ...previous.filter(({ level }) => level !== selected.level),
         { level: selected.level, renditionId: selected.id },
       ];
-      tx.update(rendition)
-        .set({ reviewState: "approved" })
-        .where(eq(rendition.id, selected.id))
-        .run();
       const releaseId = insertContentRelease(tx, {
         judgmentId: input.judgmentId,
         sourceRevisionId: owner.currentRevisionId,
@@ -2079,6 +2141,7 @@ export {
   reserveGenerationSlot,
   publishRendition,
   restoreContentRelease,
+  reviewRendition,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,
@@ -2106,6 +2169,7 @@ export type {
   Outcome,
   ReviewState,
   ReleaseMutationResult,
+  ReviewMutationResult,
   ReleaseState,
   RenditionReleaseOverview,
   SentenceInput,

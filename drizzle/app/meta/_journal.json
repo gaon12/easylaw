@@ -92,6 +92,13 @@
       "when": 1788848382350,
       "tag": "0012_clean_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1788873745142,
+      "tag": "0013_daily_hairball",
+      "breakpoints": true
     }
   ]
 }

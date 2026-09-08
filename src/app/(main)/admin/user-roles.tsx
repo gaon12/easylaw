@@ -2,16 +2,19 @@
 
 import { useActionState } from "react";
 import { Input } from "@/components/shadcn/ui/input";
+import { NativeSelect } from "@/components/shadcn/ui/native-select";
 import { Button } from "@/components/ui/button";
+import type { UserRole } from "@/db/app/repository";
+import { USER_ROLES } from "@/db/app/schema";
 import { admin } from "@/lib/strings";
-import { type AdminRoleState, setAdminRole } from "@/server/setup-actions";
+import { type AdminRoleState, setAccountRole } from "@/server/setup-actions";
 import styles from "./admin.module.css";
 
 interface AdminUser {
   readonly id: string;
   readonly email: string | null;
   readonly nickname: string | null;
-  readonly role: "admin" | "member";
+  readonly role: UserRole;
 }
 
 function roleErrorMessage(problem: AdminRoleState["problem"]): string {
@@ -26,7 +29,7 @@ function roleErrorMessage(problem: AdminRoleState["problem"]): string {
 }
 
 function UserRoleForm({ user }: { user: AdminUser }) {
-  const [state, formAction, pending] = useActionState<AdminRoleState, FormData>(setAdminRole, {});
+  const [state, formAction, pending] = useActionState<AdminRoleState, FormData>(setAccountRole, {});
   const error = state.problem;
   return (
     <li className={styles.userRow}>
@@ -34,21 +37,28 @@ function UserRoleForm({ user }: { user: AdminUser }) {
         <strong>{user.nickname ?? user.email ?? "이름 없는 계정"}</strong>
         {user.email === null ? null : <span>{user.email}</span>}
       </div>
-      {user.role === "admin" ? (
-        <span className={styles.roleBadge}>{admin.adminRole}</span>
-      ) : (
-        <form action={formAction}>
-          <Input name="user_id" type="hidden" value={user.id} />
-          <Button disabled={pending} size="s" type="submit">
-            {pending ? "지정 중…" : admin.makeAdmin}
-          </Button>
-          {error === undefined ? null : (
-            <span className={styles.roleError} role="alert">
-              {roleErrorMessage(error)}
-            </span>
-          )}
-        </form>
-      )}
+      <form action={formAction} className={styles.rowActions}>
+        <Input name="user_id" type="hidden" value={user.id} />
+        <NativeSelect
+          aria-label={admin.roleSelect(user.nickname ?? user.email ?? admin.unnamedAccount)}
+          defaultValue={user.role}
+          name="role"
+        >
+          {USER_ROLES.map((role) => (
+            <option key={role} value={role}>
+              {admin.roles[role]}
+            </option>
+          ))}
+        </NativeSelect>
+        <Button disabled={pending} size="s" type="submit" variant="secondary">
+          {pending ? admin.roleSaving : admin.roleSave}
+        </Button>
+        {error === undefined ? null : (
+          <span className={styles.roleError} role="alert">
+            {roleErrorMessage(error)}
+          </span>
+        )}
+      </form>
     </li>
   );
 }
