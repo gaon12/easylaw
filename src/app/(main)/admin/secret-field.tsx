@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
+import { Button } from "@/components/shadcn/ui/button";
+import { Input } from "@/components/shadcn/ui/input";
 import { admin } from "@/lib/strings";
 import styles from "./admin.module.css";
 
@@ -37,7 +39,7 @@ function SecretField({
         {label}
       </label>
       <div className={styles.secretRow}>
-        <input
+        <Input
           aria-describedby={hintId}
           autoComplete="off"
           className={styles.input}
@@ -51,14 +53,15 @@ function SecretField({
           `aria-pressed`로 눌린 상태를 알린다. 글자만 바뀌면 스크린리더 사용자는 이것이
           토글인지 이동인지 알 수 없다.
         */}
-        <button
+        <Button
           aria-pressed={shown}
           className={styles.reveal}
           onClick={() => setShown((previous) => !previous)}
           type="button"
+          variant="outline"
         >
           {shown ? admin.secretHide : admin.secretShow}
-        </button>
+        </Button>
       </div>
       <span className={styles.hint} id={hintId}>
         {admin.secretHint}

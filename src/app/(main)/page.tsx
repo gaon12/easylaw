@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LevelDemo } from "@/components/landing/level-demo";
+import { Input } from "@/components/shadcn/ui/input";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
@@ -49,10 +50,10 @@ function HeroSearch({ examples }: { examples: readonly SampleJudgment[] }) {
       <form action="/search" className={styles.searchForm} id="search" method="get">
         <Card className={styles.searchCard} tone="elevated">
           {/* label이 input을 감싸면 id/htmlFor 없이도 연결된다 — 서버 컴포넌트에서 useId를 쓸 수 없다. */}
-          <label className={styles.searchLabel}>
+          <label className={styles.searchLabel} htmlFor="q">
             <span className="sr-only">{home.searchLabel}</span>
             <span className={styles.searchRow}>
-              <input
+              <Input
                 autoComplete="off"
                 className={styles.searchInput}
                 name="q"

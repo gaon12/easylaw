@@ -3,15 +3,13 @@ import { BrailleDocument } from "@/components/a11y/braille-document";
 import { toLevel } from "@/components/viewer/levels";
 import { corpusDb } from "@/db/client";
 import {
-  findApprovedRendition,
   findJudgmentByCaseNo,
-  findRendition,
+  findPublishedRendition,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { braille as strings, viewer } from "@/lib/strings";
-import { currentPipelineVersion } from "@/server/generate";
 
 /**
  * 점자로 보기. `PAGES.md` §5 · `FEATURES.md` [F-11] 계열
@@ -50,9 +48,7 @@ export default async function BraillePage(props: {
     level === "L0"
       ? { lines: listSpans(db, judgment.id).map((span) => span.text), outdatedAt: null }
       : (() => {
-          const rendition =
-            findApprovedRendition(db, judgment.id, level) ??
-            findRendition(db, judgment.id, level, currentPipelineVersion());
+          const rendition = findPublishedRendition(db, judgment.id, level);
           return {
             lines:
               rendition === undefined

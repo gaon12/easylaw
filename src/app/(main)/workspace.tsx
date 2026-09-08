@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Input } from "@/components/shadcn/ui/input";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
@@ -44,10 +45,10 @@ function Workspace({
           {/* 찾기가 첫 자리다. 로그인했든 아니든 가장 자주 하는 일이다. */}
           <form action="/search" method="get">
             <Card className={styles.searchCard} tone="elevated">
-              <label className={styles.searchLabel}>
+              <label className={styles.searchLabel} htmlFor="q">
                 <span className={styles.searchLabelText}>{home.searchLabel}</span>
                 <span className={styles.searchRow}>
-                  <input
+                  <Input
                     autoComplete="off"
                     className={styles.searchInput}
                     name="q"

@@ -1,6 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
+import { Checkbox } from "@/components/shadcn/ui/checkbox";
+import { Input } from "@/components/shadcn/ui/input";
+import { NativeSelect } from "@/components/shadcn/ui/native-select";
+import { Textarea } from "@/components/shadcn/ui/textarea";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,15 +34,15 @@ function UploadForm() {
         )}
 
         {state.error === "confirm_required" ? (
-          <label className={styles.confirm}>
-            <input name="confirmLongDocument" type="checkbox" value="on" />
+          <label className={styles.confirm} htmlFor="confirmLongDocument">
+            <Checkbox name="confirmLongDocument" value="on" />
             <span>{upload.confirmLong}</span>
           </label>
         ) : null}
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="text">
           <span className={styles.label}>{upload.textLabel}</span>
-          <textarea
+          <Textarea
             className={styles.textarea}
             defaultValue={state.text}
             name="text"
@@ -48,9 +52,9 @@ function UploadForm() {
         </label>
 
         {/* 점선 드롭존(`DESIGN.md` §6 `file-upload`). 라벨이 입력을 감싸 전체가 클릭 영역이 된다. */}
-        <label className={styles.dropzone}>
+        <label className={styles.dropzone} htmlFor="file">
           <span className={styles.dropzoneLabel}>{upload.fileLabel}</span>
-          <input
+          <Input
             accept=".pdf,application/pdf,.txt,text/plain"
             className={styles.file}
             name="file"
@@ -60,9 +64,9 @@ function UploadForm() {
         </label>
 
         <div className={styles.row}>
-          <label className={styles.field}>
+          <label className={styles.field} htmlFor="title">
             <span className={styles.label}>{upload.titleLabel}</span>
-            <input
+            <Input
               autoComplete="off"
               className={styles.input}
               name="title"
@@ -71,9 +75,9 @@ function UploadForm() {
             />
           </label>
 
-          <label className={styles.field}>
+          <label className={styles.field} htmlFor="caseNo">
             <span className={styles.label}>{upload.caseNoLabel}</span>
-            <input
+            <Input
               autoComplete="off"
               className={styles.input}
               name="caseNo"
@@ -83,15 +87,19 @@ function UploadForm() {
           </label>
         </div>
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="retention">
           <span className={styles.label}>{upload.retentionLabel}</span>
-          <select className={styles.select} defaultValue={upload.retentionDefault} name="retention">
+          <NativeSelect
+            className={styles.select}
+            defaultValue={upload.retentionDefault}
+            name="retention"
+          >
             {upload.retentionOrder.map((key) => (
               <option key={key} value={key}>
                 {upload.retentionOptions[key]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         <Button disabled={pending} size="l" type="submit">

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import styles from "./button.module.css";
+import { Button as ShadcnButton } from "@/components/shadcn/ui/button";
+import { buttonVariants } from "@/components/shadcn/ui/button-variants";
+import { cn } from "@/lib/utils";
 
 type ButtonVariant = "primary" | "secondary" | "tertiary";
 type ButtonSize = "l" | "m" | "s";
@@ -12,13 +14,28 @@ interface CommonProps {
   className?: string;
 }
 
-function classesFor(variant: ButtonVariant, size: ButtonSize, extra?: string): string {
-  return [styles.base, styles[size], styles[variant], extra].filter(Boolean).join(" ");
-}
+const VARIANTS = {
+  primary: "default",
+  secondary: "secondary",
+  tertiary: "outline",
+} as const;
+
+const SIZES = {
+  l: "lg",
+  m: "default",
+  s: "sm",
+} as const;
+
+const EASYLAW_SIZES = {
+  l: "min-h-14 px-6 text-[length:var(--el-text-body-l)] font-bold",
+  m: "min-h-12 px-5 text-[length:var(--el-text-body-m)] font-bold",
+  s: "min-h-10 px-4 text-[length:var(--el-text-body-s)] font-bold",
+} as const;
 
 type ButtonProps = CommonProps &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className">;
 
+/** shadcn Button의 상태·포커스 처리를 쓰고 EasyLaw의 큰 터치 크기만 덧붙인다. */
 function Button({
   variant = "primary",
   size = "m",
@@ -28,9 +45,15 @@ function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button className={classesFor(variant, size, className)} type={type} {...rest}>
+    <ShadcnButton
+      className={cn(EASYLAW_SIZES[size], className)}
+      size={SIZES[size]}
+      type={type}
+      variant={VARIANTS[variant]}
+      {...rest}
+    >
       {children}
-    </button>
+    </ShadcnButton>
   );
 }
 
@@ -38,7 +61,7 @@ interface ButtonLinkProps extends CommonProps {
   href: string;
 }
 
-/** 이동은 링크로 한다 — 버튼처럼 보여도 새 탭·복사 같은 링크 동작을 뺏지 않는다. */
+/** 링크의 기본 동작을 지키면서 shadcn Button과 같은 variant를 적용한다. */
 function ButtonLink({
   href,
   variant = "primary",
@@ -47,7 +70,14 @@ function ButtonLink({
   className,
 }: ButtonLinkProps) {
   return (
-    <Link className={classesFor(variant, size, className)} href={href}>
+    <Link
+      className={cn(
+        buttonVariants({ variant: VARIANTS[variant], size: SIZES[size] }),
+        EASYLAW_SIZES[size],
+        className,
+      )}
+      href={href}
+    >
       {children}
     </Link>
   );

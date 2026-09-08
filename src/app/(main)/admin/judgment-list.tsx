@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { admin } from "@/lib/strings";
 import { type RefreshState, refreshJudgmentText } from "@/server/admin-actions";
@@ -39,7 +40,7 @@ function JudgmentRowView({ row, formatTime }: { row: JudgmentRow; formatTime: st
             {admin.judgmentHistory}
           </ButtonLink>
           <form action={formAction}>
-            <input name="case_no" type="hidden" value={row.caseNoCanonical} />
+            <Input name="case_no" type="hidden" value={row.caseNoCanonical} />
             <Button disabled={pending} size="s" type="submit" variant="secondary">
               {pending ? admin.judgmentRefreshing : admin.judgmentRefresh}
             </Button>

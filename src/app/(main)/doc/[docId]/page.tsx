@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Input } from "@/components/shadcn/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -225,7 +226,7 @@ function DeleteDocPanel({ docId }: { docId: string }) {
       <h2 className={styles.sectionTitle}>{doc.deleteTitle}</h2>
       <p className={styles.hint}>{doc.deleteBody}</p>
       <form action={deleteDoc}>
-        <input name="docId" type="hidden" value={docId} />
+        <Input name="docId" type="hidden" value={docId} />
         <Button size="m" type="submit" variant="tertiary">
           {doc.deleteSubmit}
         </Button>

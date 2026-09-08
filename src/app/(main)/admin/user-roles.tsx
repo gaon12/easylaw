@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Button } from "@/components/ui/button";
 import { admin } from "@/lib/strings";
 import { type AdminRoleState, setAdminRole } from "@/server/setup-actions";
@@ -37,7 +38,7 @@ function UserRoleForm({ user }: { user: AdminUser }) {
         <span className={styles.roleBadge}>{admin.adminRole}</span>
       ) : (
         <form action={formAction}>
-          <input name="user_id" type="hidden" value={user.id} />
+          <Input name="user_id" type="hidden" value={user.id} />
           <Button disabled={pending} size="s" type="submit">
             {pending ? "지정 중…" : admin.makeAdmin}
           </Button>

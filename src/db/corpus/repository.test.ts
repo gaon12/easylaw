@@ -16,6 +16,8 @@ import {
   findLawArticle,
   findLawVersionAt,
   findLawVersionByMst,
+  findPublishedAudio,
+  findPublishedRendition,
   findRendition,
   findRenditionAtRevision,
   finishGenerationJob,
@@ -26,11 +28,14 @@ import {
   listJudgmentRevisions,
   listLawArticles,
   listRecentGenerationFailures,
+  listRenditionReleaseOverview,
   listSentences,
   listSpans,
   listStructureNodes,
+  publishRendition,
   recordLookupMiss,
   reserveGenerationSlot,
+  restoreContentRelease,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,
@@ -38,8 +43,10 @@ import {
   setGenerationStage,
   upsertJudgment,
   upsertLawVersions,
+  withdrawPublishedRendition,
 } from "./repository";
 import {
+  contentRelease,
   generationJob,
   judgmentSpan,
   lookupMiss,
@@ -396,6 +403,178 @@ describe("saveRendition", () => {
 
     expect(findRendition(db, judgmentId, "L2", "v1")).toBeDefined();
     expect(findRendition(db, judgmentId, "L2", "v2")).toBeDefined();
+  });
+});
+
+describe("content release", () => {
+  function renditionFor(judgmentId: string, level: "L1" | "L2" | "L3" | "L4", text: string) {
+    return saveRendition(db, {
+      judgmentId,
+      level,
+      model: "editorial",
+      promptVersion: `editorial-${level}-${text}`,
+      sentences: [{ orderIdx: 0, text, confidence: "grounded" }],
+    });
+  }
+
+  it("승인 상태만으로는 공개하지 않고 릴리스 포인터가 가리킨 변환본만 공개한다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = renditionFor(judgmentId, "L4", "쉬운 설명");
+
+    expect(findPublishedRendition(db, judgmentId, "L4")).toBeUndefined();
+    expect(publishRendition(db, { judgmentId, renditionId, actorId: "admin-1" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(findPublishedRendition(db, judgmentId, "L4")?.id).toBe(renditionId);
+    expect(listRenditionReleaseOverview(db, judgmentId)[3]).toMatchObject({
+      level: "L4",
+      state: "published",
+      publishedRenditionId: renditionId,
+      sentences: 1,
+    });
+  });
+
+  it("음성도 게시된 현재 원문판의 문장일 때만 공개한다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = renditionFor(judgmentId, "L4", "소리로 읽을 설명");
+    const sentenceId = listSentences(db, renditionId)[0]?.id as string;
+    db.insert(renditionAudio)
+      .values({
+        sentenceId,
+        voice: "KR",
+        model: "test-tts",
+        format: "mp3",
+        bytes: Buffer.from([1, 2, 3]),
+      })
+      .run();
+
+    expect(findPublishedAudio(db, sentenceId)).toBeUndefined();
+    publishRendition(db, { judgmentId, renditionId });
+    expect(findPublishedAudio(db, sentenceId)?.bytes).toEqual(Buffer.from([1, 2, 3]));
+
+    withdrawPublishedRendition(db, { judgmentId, level: "L4" });
+    expect(findPublishedAudio(db, sentenceId)).toBeUndefined();
+  });
+
+  it("레벨 하나를 게시할 때 기존 공개 레벨을 새 불변 릴리스에 함께 잇는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const l2 = renditionFor(judgmentId, "L2", "법률 설명");
+    const l4 = renditionFor(judgmentId, "L4", "아주 쉬운 설명");
+    publishRendition(db, { judgmentId, renditionId: l2 });
+    publishRendition(db, { judgmentId, renditionId: l4 });
+
+    expect(findPublishedRendition(db, judgmentId, "L2")?.id).toBe(l2);
+    expect(findPublishedRendition(db, judgmentId, "L4")?.id).toBe(l4);
+    expect(db.select().from(contentRelease).all()).toHaveLength(2);
+  });
+
+  it("한 레벨을 철회하면 다른 공개 레벨은 유지하고 철회 이력을 남긴다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const l2 = renditionFor(judgmentId, "L2", "법률 설명");
+    const l4 = renditionFor(judgmentId, "L4", "아주 쉬운 설명");
+    publishRendition(db, { judgmentId, renditionId: l2 });
+    publishRendition(db, { judgmentId, renditionId: l4 });
+
+    expect(withdrawPublishedRendition(db, { judgmentId, level: "L4" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(findPublishedRendition(db, judgmentId, "L4")).toBeUndefined();
+    expect(findPublishedRendition(db, judgmentId, "L2")?.id).toBe(l2);
+    expect(db.select().from(contentRelease).all()).toHaveLength(3);
+  });
+
+  it("원문판이 바뀌면 옛 릴리스를 현재 설명으로 공개하지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "옛 원문" },
+    ]);
+    const renditionId = renditionFor(judgmentId, "L4", "옛 설명");
+    publishRendition(db, { judgmentId, renditionId });
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "새 원문" },
+    ]);
+
+    expect(findPublishedRendition(db, judgmentId, "L4")).toBeUndefined();
+    expect(listRenditionReleaseOverview(db, judgmentId)[3]?.state).toBe("stale");
+  });
+
+  it("근거 없음 문장이 든 변환본은 게시를 막는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "editorial",
+      promptVersion: "bad-v1",
+      sentences: [{ orderIdx: 0, text: "근거 없는 설명", confidence: "ungrounded" }],
+    });
+
+    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+      ok: false,
+      reason: "ungrounded",
+    });
+    expect(findPublishedRendition(db, judgmentId, "L4")).toBeUndefined();
+  });
+
+  it("과거 묶음을 복원해도 과거 행을 바꾸지 않고 새 릴리스를 남긴다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const first = renditionFor(judgmentId, "L4", "첫 설명");
+    const second = renditionFor(judgmentId, "L4", "둘째 설명");
+    const firstRelease = publishRendition(db, { judgmentId, renditionId: first });
+    publishRendition(db, { judgmentId, renditionId: second });
+    if (!firstRelease.ok || firstRelease.releaseId === null) {
+      throw new Error("첫 릴리스를 만들지 못했습니다.");
+    }
+
+    expect(
+      restoreContentRelease(db, {
+        judgmentId,
+        releaseId: firstRelease.releaseId,
+        actorId: "admin",
+      }),
+    ).toMatchObject({ ok: true, changed: true });
+    expect(findPublishedRendition(db, judgmentId, "L4")?.id).toBe(first);
+    expect(db.select().from(contentRelease).all()).toHaveLength(3);
+    expect(db.select().from(contentRelease).all().at(-1)?.action).toBe("restore");
+  });
+
+  it("다른 원문판의 릴리스는 현재판으로 복원하지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "옛 원문" },
+    ]);
+    const renditionId = renditionFor(judgmentId, "L2", "옛 설명");
+    const released = publishRendition(db, { judgmentId, renditionId });
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "새 원문" },
+    ]);
+    if (!released.ok || released.releaseId === null) {
+      throw new Error("릴리스를 만들지 못했습니다.");
+    }
+
+    expect(restoreContentRelease(db, { judgmentId, releaseId: released.releaseId })).toEqual({
+      ok: false,
+      reason: "stale",
+    });
   });
 });
 

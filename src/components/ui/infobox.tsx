@@ -1,16 +1,8 @@
 import type { ReactNode } from "react";
+import { AlertDescription, AlertTitle, Alert as ShadcnAlert } from "@/components/shadcn/ui/alert";
 import { Icon } from "./icon";
-import styles from "./infobox.module.css";
 
-/**
- * 법적 고지 배너. `DESIGN.md` §3.4 · §6
- *
- * 규격이 좁다 — **흰 배경 + 1px `info` 보더 + `info` 아이콘 원.** 한 가지 모양뿐이다.
- *
- * 경고와 오류는 이것이 아니라 `Alert`가 맡는다(§6에서 `infobox`와 `alert`는 다른
- * 컴포넌트다). 전에는 이 하나에 tone을 붙여 셋을 다 그렸는데, 그러면 파스텔 배경을 쓰는
- * alert 규격과 흰 배경을 쓰는 infobox 규격이 한 몸에 섞인다.
- */
+/** 법적 고지도 shadcn Alert 구조를 쓰되, 일반 경고와 구별되는 흰 정보 표면을 유지한다. */
 function Infobox({
   title,
   children,
@@ -21,16 +13,20 @@ function Infobox({
   actions?: ReactNode;
 }) {
   return (
-    <section className={styles.box}>
-      <span className={styles.mark}>
+    <ShadcnAlert className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 rounded-xl border-[var(--el-info-line)] bg-card px-5 py-4 text-[var(--el-info-fg)] max-sm:px-4">
+      <span className="row-span-2 mt-px flex size-6 items-center justify-center">
         <Icon name="info" />
       </span>
-      <div className={styles.body}>
-        <p className={styles.title}>{title}</p>
-        <div className={styles.text}>{children}</div>
-        {actions === undefined ? null : <div className={styles.actions}>{actions}</div>}
-      </div>
-    </section>
+      <AlertTitle className="col-start-2 font-bold leading-[var(--el-leading-tight)]">
+        {title}
+      </AlertTitle>
+      <AlertDescription className="col-start-2 text-[length:var(--el-text-body-s)] leading-[var(--el-leading-body)] text-[var(--el-fg-2)]">
+        {children}
+      </AlertDescription>
+      {actions === undefined ? null : (
+        <div className="col-start-2 flex flex-wrap gap-3 pt-1">{actions}</div>
+      )}
+    </ShadcnAlert>
   );
 }
 

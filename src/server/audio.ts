@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, sql } from "drizzle-orm";
 import {
   upload,
   uploadRendition,
@@ -7,8 +7,15 @@ import {
   uploadRenditionSentence,
 } from "@/db/app/schema";
 import { appDb, corpusDb } from "@/db/client";
-import { reserveAudioSlot } from "@/db/corpus/repository";
-import { judgment, rendition, renditionAudio, renditionSentence } from "@/db/corpus/schema";
+import { findPublishedAudio, reserveAudioSlot } from "@/db/corpus/repository";
+import {
+  contentRelease,
+  contentReleaseRendition,
+  judgment,
+  rendition,
+  renditionAudio,
+  renditionSentence,
+} from "@/db/corpus/schema";
 import { dayKey } from "@/lib/format";
 import { speak, TtsError } from "@/lib/tts/client";
 import { currentPipelineVersion } from "./generate";
@@ -299,15 +306,21 @@ function caseAudioStatus(limit: number): AudioStatusRow[] {
     })
     .from(rendition)
     .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
+    .innerJoin(contentReleaseRendition, eq(contentReleaseRendition.renditionId, rendition.id))
+    .innerJoin(
+      contentRelease,
+      and(
+        eq(contentRelease.id, contentReleaseRendition.releaseId),
+        eq(contentRelease.id, judgment.currentContentReleaseId),
+      ),
+    )
     .innerJoin(renditionSentence, eq(renditionSentence.renditionId, rendition.id))
     .leftJoin(renditionAudio, eq(renditionAudio.sentenceId, renditionSentence.id))
     .where(
       and(
-        or(
-          like(rendition.promptVersion, `${currentPipelineVersion()}::source:%`),
-          eq(rendition.reviewState, "approved"),
-        ),
+        eq(rendition.reviewState, "approved"),
         eq(rendition.sourceRevisionId, judgment.currentRevisionId),
+        eq(contentRelease.sourceRevisionId, judgment.currentRevisionId),
       ),
     )
     .groupBy(rendition.id)
@@ -318,24 +331,7 @@ function caseAudioStatus(limit: number): AudioStatusRow[] {
 
 /** 문장 하나의 음성. 화면이 `<audio>`로 받아 간다. */
 function findCaseAudio(sentenceId: string): { bytes: Buffer; format: string } | undefined {
-  return corpusDb()
-    .select({ bytes: renditionAudio.bytes, format: renditionAudio.format })
-    .from(renditionAudio)
-    .innerJoin(renditionSentence, eq(renditionSentence.id, renditionAudio.sentenceId))
-    .innerJoin(rendition, eq(rendition.id, renditionSentence.renditionId))
-    .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
-    .where(
-      and(
-        eq(renditionAudio.sentenceId, sentenceId),
-        or(
-          like(rendition.promptVersion, `${currentPipelineVersion()}::source:%`),
-          eq(rendition.reviewState, "approved"),
-        ),
-        eq(rendition.sourceRevisionId, judgment.currentRevisionId),
-      ),
-    )
-    .all()
-    .at(0);
+  return findPublishedAudio(corpusDb(), sentenceId);
 }
 
 function findDocAudio(sentenceId: string): { bytes: Buffer; format: string } | undefined {

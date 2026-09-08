@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/shadcn/ui/button";
+import {
+  Dialog as ShadcnDialog,
+  DialogContent as ShadcnDialogContent,
+  DialogTitle as ShadcnDialogTitle,
+} from "@/components/shadcn/ui/dialog";
 import { ButtonLink } from "@/components/ui/button";
 import type { Citation } from "@/lib/law-citation/detect";
 import { law, viewer } from "@/lib/strings";
@@ -208,15 +213,15 @@ function DialogHeader({
     <header className={styles.head}>
       <div className={styles.headingGroup}>
         {canGoBack ? (
-          <button className={styles.back} onClick={onBack} type="button">
+          <Button className={styles.back} onClick={onBack} size="sm" type="button" variant="ghost">
             {viewer.citationBack}
-          </button>
+          </Button>
         ) : null}
-        <h2 className={styles.title}>{active.title}</h2>
+        <ShadcnDialogTitle className={styles.title}>{active.title}</ShadcnDialogTitle>
       </div>
-      <button className={styles.close} onClick={onClose} type="button">
+      <Button className={styles.close} onClick={onClose} size="sm" type="button" variant="ghost">
         {viewer.citationClose}
-      </button>
+      </Button>
     </header>
   );
 }
@@ -279,24 +284,19 @@ function CitationDialog({
   title: string;
 }) {
   const initial = useMemo<CitationTarget>(() => ({ href, query, title }), [href, query, title]);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isOpen, setOpen] = useState(false);
   const [trail, setTrail] = useState<readonly CitationTarget[]>([initial]);
-  const [mounted, setMounted] = useState(false);
   const { load, reset: resetArticle, state } = useArticleLoader();
   const active = trail.at(-1) ?? initial;
   const at = new URLSearchParams(active.query).get("때") ?? undefined;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const open = useCallback(
+  const openDialog = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       if (followsLink(event)) {
         return;
       }
       event.preventDefault();
-      dialogRef.current?.showModal();
+      setOpen(true);
       if (state.status === "idle") {
         load(initial);
       }
@@ -326,29 +326,33 @@ function CitationDialog({
     resetArticle(initial);
   }, [initial, resetArticle]);
 
-  const close = useCallback(() => {
-    dialogRef.current?.close();
-  }, []);
-
-  const dialog = (
-    <dialog className={styles.dialog} onClose={reset} ref={dialogRef}>
-      <form className={styles.backdrop} method="dialog">
-        <button aria-label={viewer.citationClose} className={styles.backdropButton} type="submit" />
-      </form>
-      <div className={styles.panel}>
-        <DialogHeader active={active} canGoBack={trail.length > 1} onBack={back} onClose={close} />
-        <DialogContent at={at} level={level} onNavigate={navigate} state={state} />
-        <DialogFooter active={active} />
-      </div>
-    </dialog>
-  );
+  const close = useCallback(() => setOpen(false), []);
 
   return (
     <>
-      <a className={styles.link} href={href} onClick={open} title={title}>
+      <a className={styles.link} href={href} onClick={openDialog} title={title}>
         {label}
       </a>
-      {mounted ? createPortal(dialog, document.body) : null}
+      <ShadcnDialog
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) {
+            reset();
+          }
+        }}
+        open={isOpen}
+      >
+        <ShadcnDialogContent className={styles.panel} showCloseButton={false}>
+          <DialogHeader
+            active={active}
+            canGoBack={trail.length > 1}
+            onBack={back}
+            onClose={close}
+          />
+          <DialogContent at={at} level={level} onNavigate={navigate} state={state} />
+          <DialogFooter active={active} />
+        </ShadcnDialogContent>
+      </ShadcnDialog>
     </>
   );
 }

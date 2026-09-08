@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
+import { NativeSelect } from "@/components/shadcn/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { data as strings, upload as uploadStrings } from "@/lib/strings";
 import { changeRetention, type DataState } from "@/server/data-actions";
@@ -25,7 +27,7 @@ function RetentionForm({ docId, label }: { docId: string; label: string }) {
 
   return (
     <form action={formAction} className={styles.retentionForm}>
-      <input name="docId" type="hidden" value={docId} />
+      <Input name="docId" type="hidden" value={docId} />
 
       {/* 지금 기한은 글로 적는다. select로 되돌릴 수 없는 이유는 `strings.ts`에 적었다. */}
       <p className={styles.docMeta}>{label}</p>
@@ -34,7 +36,7 @@ function RetentionForm({ docId, label }: { docId: string; label: string }) {
         <label className="sr-only" htmlFor={selectId}>
           {uploadStrings.retentionLabel}
         </label>
-        <select
+        <NativeSelect
           className={styles.select}
           defaultValue=""
           id={selectId}
@@ -49,7 +51,7 @@ function RetentionForm({ docId, label }: { docId: string; label: string }) {
               {uploadStrings.retentionOptions[choice]}
             </option>
           ))}
-        </select>
+        </NativeSelect>
 
         <Button disabled={pending} size="s" type="submit" variant="secondary">
           {strings.retentionSave}

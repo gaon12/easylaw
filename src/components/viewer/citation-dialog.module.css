@@ -16,60 +16,15 @@
   color: var(--el-action-hover);
 }
 
-.dialog {
-  padding: 0;
-  border: 0;
-  border-radius: var(--el-radius-l);
-  background: transparent;
-  max-width: min(640px, calc(100vw - var(--el-space-8)));
-  width: 100%;
-}
-
-.dialog::backdrop {
-  background: oklch(0.2 0 0 / 45%);
-}
-
-/*
- * 바깥 배경. 눌러서 닫는 일을 `<form method="dialog">`에 맡기려고 버튼 하나를 깐다.
- * 보이지 않지만 스크린리더에는 "닫기"로 읽힌다.
- */
-.backdrop {
-  position: fixed;
-  inset: 0;
-  margin: 0;
-}
-
-.backdropButton {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  cursor: default;
-}
-
 .panel {
-  position: relative;
   display: grid;
   gap: var(--el-space-4);
   padding: var(--el-space-5);
+  width: min(640px, calc(100vw - var(--el-space-8)));
+  max-width: 640px;
   border-radius: var(--el-radius-l);
   background: var(--el-bg-canvas);
   box-shadow: var(--el-shadow-3, 0 12px 32px oklch(0.2 0 0 / 18%));
-  /* 모달 240ms 슬라이드업(§5.1). 줄이기를 원하는 사람에게는 전이를 끈다. */
-  animation: rise var(--el-duration-modal, 240ms) var(--el-ease, ease-out);
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .panel {
-    animation: none;
-  }
 }
 
 .head {
@@ -89,9 +44,8 @@
 
 .back {
   width: fit-content;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  min-height: var(--el-touch-target);
+  padding-inline: var(--el-space-2);
   color: var(--el-action);
   font: inherit;
   font-size: var(--el-text-body-s);
@@ -109,8 +63,6 @@
 }
 
 .close {
-  border: 0;
-  background: transparent;
   color: var(--el-fg-2);
   font-size: var(--el-text-body-s);
   cursor: pointer;

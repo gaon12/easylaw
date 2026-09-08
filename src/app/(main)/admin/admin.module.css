@@ -618,6 +618,37 @@
   gap: var(--el-space-2);
 }
 
+.releaseActions,
+.releaseLatest {
+  display: grid;
+  gap: var(--el-space-2);
+  align-items: start;
+}
+
+.releaseLatest > span {
+  display: block;
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+}
+
+.releaseLatest summary {
+  width: fit-content;
+  color: var(--el-action);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.releasePreview {
+  display: grid;
+  gap: var(--el-space-2);
+  max-width: 64ch;
+  margin: var(--el-space-2) 0 0;
+  padding-left: var(--el-space-5);
+  color: var(--el-fg-1);
+  line-height: var(--el-leading-body);
+}
+
 .revisionMeta {
   display: flex;
   flex-wrap: wrap;

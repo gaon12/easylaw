@@ -1,6 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { Checkbox } from "@/components/shadcn/ui/checkbox";
+import { Input } from "@/components/shadcn/ui/input";
+import { Textarea } from "@/components/shadcn/ui/textarea";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { doc, upload } from "@/lib/strings";
@@ -21,7 +24,7 @@ function ReplaceDocumentForm({ docId }: { docId: string }) {
       <div className={styles.replaceBody}>
         <p className={styles.hint}>{doc.replaceBody}</p>
         <form action={formAction} className={styles.replaceForm}>
-          <input name="docId" type="hidden" value={docId} />
+          <Input name="docId" type="hidden" value={docId} />
           {error === undefined ? null : (
             <div aria-live="polite" role="alert">
               <Alert title={error} tone="danger" />
@@ -33,14 +36,14 @@ function ReplaceDocumentForm({ docId }: { docId: string }) {
             </div>
           )}
           {state.error === "confirm_required" ? (
-            <label className={styles.replaceConfirm}>
-              <input name="confirmLongDocument" type="checkbox" value="on" />
+            <label className={styles.replaceConfirm} htmlFor="confirmLongDocument">
+              <Checkbox name="confirmLongDocument" value="on" />
               <span>{upload.confirmLong}</span>
             </label>
           ) : null}
-          <label className={styles.replaceField}>
+          <label className={styles.replaceField} htmlFor="text">
             <span className={styles.replaceLabel}>{doc.replaceTextLabel}</span>
-            <textarea
+            <Textarea
               className={styles.replaceTextarea}
               defaultValue={state.text}
               name="text"
@@ -48,9 +51,9 @@ function ReplaceDocumentForm({ docId }: { docId: string }) {
               rows={10}
             />
           </label>
-          <label className={styles.replaceFile}>
+          <label className={styles.replaceFile} htmlFor="file">
             <span className={styles.replaceLabel}>{doc.replaceFileLabel}</span>
-            <input accept=".pdf,application/pdf,.txt,text/plain" name="file" type="file" />
+            <Input accept=".pdf,application/pdf,.txt,text/plain" name="file" type="file" />
             <span className={styles.hint}>{upload.fileHint}</span>
           </label>
           <Button disabled={pending} size="m" type="submit" variant="secondary">

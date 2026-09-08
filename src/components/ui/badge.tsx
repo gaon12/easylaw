@@ -1,27 +1,31 @@
-import styles from "./badge.module.css";
+import { Badge as ShadcnBadge } from "@/components/shadcn/ui/badge";
+import { cn } from "@/lib/utils";
 import { Icon } from "./icon";
 import type { BadgeTone, IconName } from "./types";
 
-/**
- * 배지. `DESIGN.md` §6 · §3.4
- *
- * 규격: 13px bold, `radius-xsmall`, outlined가 기본.
- *
- * **상태는 아이콘 + 라벨 + 색 3중으로 전달한다**(§11). 색만으로 구분하면 색을 구별하지
- * 못하는 사람에게는 아무 정보도 아니다. 그래서 톤마다 아이콘이 정해져 있고, 라벨은
- * 반드시 글자로 들어온다.
- *
- * `solid`는 화면에서 가장 무거운 사실 하나에만 쓴다 — 판결 결과 같은 것. 주 액션 색을
- * 나눠 쓰는 셈이라 여러 개를 두면 무엇이 중요한지 흐려진다(§11 "화면당 주 액션 하나").
- */
-
-/** 톤마다 아이콘이 정해져 있다. 부르는 쪽이 고르게 두면 같은 뜻에 다른 그림이 붙는다. */
 const ICONS: Readonly<Record<BadgeTone, IconName>> = {
   grounded: "check",
   "needs-check": "alert",
   ungrounded: "cross",
   neutral: "info",
 };
+
+const OUTLINED = {
+  grounded:
+    "border-[var(--el-grounded-line)] bg-[var(--el-grounded-bg)] text-[var(--el-grounded-fg)]",
+  "needs-check":
+    "border-[var(--el-needs-check-line)] bg-[var(--el-needs-check-bg)] text-[var(--el-needs-check-fg)]",
+  ungrounded:
+    "border-[var(--el-ungrounded-line)] bg-[var(--el-ungrounded-bg)] text-[var(--el-ungrounded-fg)]",
+  neutral: "border-[var(--el-border-default)] bg-[var(--el-bg-subtle)] text-[var(--el-fg-2)]",
+} as const;
+
+const SOLID = {
+  grounded: "border-transparent bg-[var(--el-grounded-line)] text-[var(--el-fg-inverse)]",
+  "needs-check": "border-transparent bg-[var(--el-needs-check-line)] text-[var(--el-fg-inverse)]",
+  ungrounded: "border-transparent bg-[var(--el-ungrounded-line)] text-[var(--el-fg-inverse)]",
+  neutral: "border-transparent bg-[var(--el-bg-inverse)] text-[var(--el-fg-inverse)]",
+} as const;
 
 function Badge({
   tone = "neutral",
@@ -31,17 +35,21 @@ function Badge({
 }: {
   tone?: BadgeTone;
   variant?: "outlined" | "solid";
-  /** 긴 설명형 상태에서만 여러 줄을 허용한다. */
   wrap?: boolean;
   children: string;
 }) {
   return (
-    <span
-      className={`${styles.badge} ${styles[tone]} ${styles[variant]} ${wrap ? styles.wrap : ""}`}
+    <ShadcnBadge
+      className={cn(
+        "h-auto gap-1 rounded-[var(--el-radius-xs)] px-2 py-0.5 text-[length:var(--el-text-body-xs)] font-bold leading-[var(--el-leading-tight)]",
+        variant === "solid" ? SOLID[tone] : OUTLINED[tone],
+        wrap && "max-w-full items-start whitespace-normal [overflow-wrap:anywhere]",
+      )}
+      variant="outline"
     >
       <Icon name={ICONS[tone]} size={16} />
       {children}
-    </span>
+    </ShadcnBadge>
   );
 }
 

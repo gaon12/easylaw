@@ -19,6 +19,8 @@ type PlaceholderState =
   /** 지금 만들고 있다. 내가 눌렀든 남이 눌렀든 화면이 하는 말은 같다(§5.3). */
   | { readonly kind: "running"; readonly stage: Stage | null }
   | { readonly kind: "failed"; readonly reason: string | null }
+  /** 공개 설명은 만들어졌지만 운영자 검수·게시 전이다. */
+  | { readonly kind: "reviewing" }
   /** 만들 수 있다. */
   | { readonly kind: "ready" };
 

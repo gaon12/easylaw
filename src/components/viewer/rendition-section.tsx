@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PaperFigure } from "@/components/ui/paper-figure";
@@ -30,6 +31,7 @@ type Level = Exclude<ViewLevel, "L0">;
 const PLACEHOLDER_COPY = {
   off: { title: viewer.generatorOffTitle, body: viewer.generatorOffBody },
   limited: { title: viewer.limitTitle, body: viewer.limitBody },
+  reviewing: { title: viewer.reviewingTitle, body: viewer.reviewingBody },
   ready: { title: viewer.generateHint, body: viewer.generateBody },
 } as const;
 
@@ -69,9 +71,9 @@ function GenerateForm({
   return (
     <form action={action}>
       {Object.entries(fields).map(([name, value]) => (
-        <input key={name} name={name} type="hidden" value={value} />
+        <Input key={name} name={name} type="hidden" value={value} />
       ))}
-      <input name="level" type="hidden" value={level} />
+      <Input name="level" type="hidden" value={level} />
       <Button size="l" type="submit">
         {label}
       </Button>
@@ -118,6 +120,8 @@ function OutdatedNotice({
         </ButtonLink>
       </>
     );
+  } else if (state.kind === "reviewing") {
+    body = viewer.reviewingBody;
   } else {
     actions = (
       <GenerateForm

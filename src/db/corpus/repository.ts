@@ -13,6 +13,8 @@ import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
 import {
   audioUsage,
+  contentRelease,
+  contentReleaseRendition,
   generationJob,
   generationUsage,
   judgment,
@@ -23,6 +25,7 @@ import {
   lookupMiss,
   nodeSpan,
   rendition,
+  renditionAudio,
   renditionSentence,
   structureGenerationJob,
   structureNode,
@@ -36,6 +39,7 @@ type StructureKind = (typeof structureNode.kind.enumValues)[number];
 type Confidence = (typeof renditionSentence.confidence.enumValues)[number];
 type ReviewState = (typeof rendition.reviewState.enumValues)[number];
 type Outcome = (typeof judgment.outcome.enumValues)[number];
+type ReleaseState = "missing" | "draft" | "reviewing" | "published" | "stale" | "rejected";
 
 interface JudgmentInput {
   caseNoCanonical: string;
@@ -332,6 +336,467 @@ function findApprovedRendition(
     )
     .orderBy(desc(rendition.generatedAt))
     .get();
+}
+
+/**
+ * 현재 공개 릴리스가 가리키는 변환본.
+ *
+ * 승인 상태만으로 공개하지 않는다. 판결문의 공개 포인터, 릴리스의 원문판, 변환본의
+ * 원문판과 레벨이 모두 맞아야 한다. 원문 포인터가 바뀌는 순간 옛 설명이 자동으로
+ * 조회되지 않는 이유도 이 네 조건에 있다.
+ */
+function findPublishedRendition(db: CorpusDb, judgmentId: string, level: Level) {
+  const owner = db
+    .select({
+      currentRevisionId: judgment.currentRevisionId,
+      currentContentReleaseId: judgment.currentContentReleaseId,
+    })
+    .from(judgment)
+    .where(eq(judgment.id, judgmentId))
+    .get();
+  if (
+    owner === undefined ||
+    owner.currentRevisionId === null ||
+    owner.currentContentReleaseId === null
+  ) {
+    return;
+  }
+
+  return db
+    .select({ rendition })
+    .from(contentRelease)
+    .innerJoin(contentReleaseRendition, eq(contentReleaseRendition.releaseId, contentRelease.id))
+    .innerJoin(rendition, eq(rendition.id, contentReleaseRendition.renditionId))
+    .where(
+      and(
+        eq(contentRelease.id, owner.currentContentReleaseId),
+        eq(contentRelease.judgmentId, judgmentId),
+        eq(contentRelease.sourceRevisionId, owner.currentRevisionId),
+        eq(contentReleaseRendition.level, level),
+        eq(rendition.judgmentId, judgmentId),
+        eq(rendition.sourceRevisionId, owner.currentRevisionId),
+        eq(rendition.level, level),
+        eq(rendition.reviewState, "approved"),
+      ),
+    )
+    .get()?.rendition;
+}
+
+/** 현재 공개 릴리스에 든 문장의 음성만 돌려준다. */
+function findPublishedAudio(db: CorpusDb, sentenceId: string) {
+  return db
+    .select({ bytes: renditionAudio.bytes, format: renditionAudio.format })
+    .from(renditionAudio)
+    .innerJoin(renditionSentence, eq(renditionSentence.id, renditionAudio.sentenceId))
+    .innerJoin(rendition, eq(rendition.id, renditionSentence.renditionId))
+    .innerJoin(judgment, eq(judgment.id, rendition.judgmentId))
+    .innerJoin(contentReleaseRendition, eq(contentReleaseRendition.renditionId, rendition.id))
+    .innerJoin(
+      contentRelease,
+      and(
+        eq(contentRelease.id, contentReleaseRendition.releaseId),
+        eq(contentRelease.id, judgment.currentContentReleaseId),
+      ),
+    )
+    .where(
+      and(
+        eq(renditionAudio.sentenceId, sentenceId),
+        eq(rendition.reviewState, "approved"),
+        eq(rendition.sourceRevisionId, judgment.currentRevisionId),
+        eq(contentRelease.sourceRevisionId, judgment.currentRevisionId),
+      ),
+    )
+    .get();
+}
+
+type ReleaseMutationResult =
+  | { readonly ok: true; readonly changed: boolean; readonly releaseId: string | null }
+  | {
+      readonly ok: false;
+      readonly reason: "not_found" | "no_source_revision" | "stale" | "empty" | "ungrounded";
+    };
+
+function sameReleaseItems(
+  left: readonly { level: Level; renditionId: string }[],
+  right: readonly { level: Level; renditionId: string }[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((item) =>
+      right.some((other) => other.level === item.level && other.renditionId === item.renditionId),
+    )
+  );
+}
+
+function insertContentRelease(
+  tx: Pick<CorpusDb, "insert" | "update">,
+  input: {
+    judgmentId: string;
+    sourceRevisionId: string;
+    action: "publish" | "withdraw" | "restore";
+    actorId?: string | null;
+    items: readonly { level: Level; renditionId: string }[];
+  },
+): string {
+  const releaseId = newId();
+  tx.insert(contentRelease)
+    .values({
+      id: releaseId,
+      judgmentId: input.judgmentId,
+      sourceRevisionId: input.sourceRevisionId,
+      action: input.action,
+      actorId: input.actorId ?? null,
+    })
+    .run();
+  if (input.items.length > 0) {
+    tx.insert(contentReleaseRendition)
+      .values(input.items.map((item) => ({ releaseId, ...item })))
+      .run();
+  }
+  tx.update(judgment)
+    .set({ currentContentReleaseId: releaseId })
+    .where(eq(judgment.id, input.judgmentId))
+    .run();
+  return releaseId;
+}
+
+/** 현재 릴리스에서 그대로 이어 갈 레벨별 변환본을 읽는다. */
+function activeReleaseItems(
+  db: Pick<CorpusDb, "select">,
+  input: { judgmentId: string; releaseId: string | null; sourceRevisionId: string },
+) {
+  if (input.releaseId === null) {
+    return [];
+  }
+  const release = db
+    .select({ id: contentRelease.id })
+    .from(contentRelease)
+    .where(
+      and(
+        eq(contentRelease.id, input.releaseId),
+        eq(contentRelease.judgmentId, input.judgmentId),
+        eq(contentRelease.sourceRevisionId, input.sourceRevisionId),
+      ),
+    )
+    .get();
+  if (release === undefined) {
+    return [];
+  }
+  return db
+    .select({
+      level: contentReleaseRendition.level,
+      renditionId: contentReleaseRendition.renditionId,
+    })
+    .from(contentReleaseRendition)
+    .where(eq(contentReleaseRendition.releaseId, release.id))
+    .all();
+}
+
+/** 검수한 변환본을 기존 공개 레벨들과 함께 새 불변 릴리스로 게시한다. */
+function publishRendition(
+  db: CorpusDb,
+  input: { judgmentId: string; renditionId: string; actorId?: string | null },
+): ReleaseMutationResult {
+  return db.transaction(
+    (tx) => {
+      const owner = tx
+        .select({
+          currentRevisionId: judgment.currentRevisionId,
+          currentContentReleaseId: judgment.currentContentReleaseId,
+        })
+        .from(judgment)
+        .where(eq(judgment.id, input.judgmentId))
+        .get();
+      const selected = tx
+        .select()
+        .from(rendition)
+        .where(and(eq(rendition.id, input.renditionId), eq(rendition.judgmentId, input.judgmentId)))
+        .get();
+      if (owner === undefined || selected === undefined) {
+        return { ok: false, reason: "not_found" } as const;
+      }
+      if (owner.currentRevisionId === null) {
+        return { ok: false, reason: "no_source_revision" } as const;
+      }
+      if (selected.sourceRevisionId !== owner.currentRevisionId) {
+        return { ok: false, reason: "stale" } as const;
+      }
+
+      const sentences = tx
+        .select({ confidence: renditionSentence.confidence })
+        .from(renditionSentence)
+        .where(eq(renditionSentence.renditionId, selected.id))
+        .all();
+      if (sentences.length === 0) {
+        return { ok: false, reason: "empty" } as const;
+      }
+      if (sentences.some(({ confidence }) => confidence === "ungrounded")) {
+        return { ok: false, reason: "ungrounded" } as const;
+      }
+
+      const previous = activeReleaseItems(tx, {
+        judgmentId: input.judgmentId,
+        releaseId: owner.currentContentReleaseId,
+        sourceRevisionId: owner.currentRevisionId,
+      });
+      if (previous.find(({ level }) => level === selected.level)?.renditionId === selected.id) {
+        return { ok: true, changed: false, releaseId: owner.currentContentReleaseId } as const;
+      }
+
+      const items = [
+        ...previous.filter(({ level }) => level !== selected.level),
+        { level: selected.level, renditionId: selected.id },
+      ];
+      tx.update(rendition)
+        .set({ reviewState: "approved" })
+        .where(eq(rendition.id, selected.id))
+        .run();
+      const releaseId = insertContentRelease(tx, {
+        judgmentId: input.judgmentId,
+        sourceRevisionId: owner.currentRevisionId,
+        action: "publish",
+        actorId: input.actorId,
+        items,
+      });
+      return { ok: true, changed: true, releaseId } as const;
+    },
+    { behavior: "immediate" },
+  );
+}
+
+/** 한 레벨을 빼고 새 릴리스를 만든다. 빈 묶음도 남겨 철회 이력을 보존한다. */
+function withdrawPublishedRendition(
+  db: CorpusDb,
+  input: { judgmentId: string; level: Level; actorId?: string | null },
+): ReleaseMutationResult {
+  return db.transaction(
+    (tx) => {
+      const owner = tx
+        .select({
+          currentRevisionId: judgment.currentRevisionId,
+          currentContentReleaseId: judgment.currentContentReleaseId,
+        })
+        .from(judgment)
+        .where(eq(judgment.id, input.judgmentId))
+        .get();
+      if (owner === undefined) {
+        return { ok: false, reason: "not_found" } as const;
+      }
+      if (owner.currentRevisionId === null) {
+        return { ok: false, reason: "no_source_revision" } as const;
+      }
+      const previous = activeReleaseItems(tx, {
+        judgmentId: input.judgmentId,
+        releaseId: owner.currentContentReleaseId,
+        sourceRevisionId: owner.currentRevisionId,
+      });
+      if (!previous.some(({ level }) => level === input.level)) {
+        return { ok: true, changed: false, releaseId: owner.currentContentReleaseId } as const;
+      }
+
+      const items = previous.filter(({ level }) => level !== input.level);
+      const releaseId = insertContentRelease(tx, {
+        judgmentId: input.judgmentId,
+        sourceRevisionId: owner.currentRevisionId,
+        action: "withdraw",
+        actorId: input.actorId,
+        items,
+      });
+      return { ok: true, changed: true, releaseId } as const;
+    },
+    { behavior: "immediate" },
+  );
+}
+
+/** 현재 원문판의 과거 공개 묶음을 복사해 새 복원 릴리스로 전환한다. */
+function restoreContentRelease(
+  db: CorpusDb,
+  input: { judgmentId: string; releaseId: string; actorId?: string | null },
+): ReleaseMutationResult {
+  return db.transaction(
+    (tx) => {
+      const owner = tx
+        .select({
+          currentRevisionId: judgment.currentRevisionId,
+          currentContentReleaseId: judgment.currentContentReleaseId,
+        })
+        .from(judgment)
+        .where(eq(judgment.id, input.judgmentId))
+        .get();
+      if (owner === undefined) {
+        return { ok: false, reason: "not_found" } as const;
+      }
+      if (owner.currentRevisionId === null) {
+        return { ok: false, reason: "no_source_revision" } as const;
+      }
+      const source = tx
+        .select({ id: contentRelease.id })
+        .from(contentRelease)
+        .where(
+          and(
+            eq(contentRelease.id, input.releaseId),
+            eq(contentRelease.judgmentId, input.judgmentId),
+            eq(contentRelease.sourceRevisionId, owner.currentRevisionId),
+          ),
+        )
+        .get();
+      if (source === undefined) {
+        return { ok: false, reason: "stale" } as const;
+      }
+      const items = activeReleaseItems(tx, {
+        judgmentId: input.judgmentId,
+        releaseId: source.id,
+        sourceRevisionId: owner.currentRevisionId,
+      });
+      const current = activeReleaseItems(tx, {
+        judgmentId: input.judgmentId,
+        releaseId: owner.currentContentReleaseId,
+        sourceRevisionId: owner.currentRevisionId,
+      });
+      if (sameReleaseItems(items, current)) {
+        return { ok: true, changed: false, releaseId: owner.currentContentReleaseId } as const;
+      }
+
+      const releaseId = insertContentRelease(tx, {
+        judgmentId: input.judgmentId,
+        sourceRevisionId: owner.currentRevisionId,
+        action: "restore",
+        actorId: input.actorId,
+        items,
+      });
+      return { ok: true, changed: true, releaseId } as const;
+    },
+    { behavior: "immediate" },
+  );
+}
+
+interface RenditionReleaseOverview {
+  readonly level: Level;
+  readonly state: ReleaseState;
+  readonly latest: ReturnType<typeof findLatestRendition>;
+  readonly publishedRenditionId: string | null;
+  readonly sentences: number;
+  readonly needsCheck: number;
+  readonly ungrounded: number;
+}
+
+/** 관리자 화면의 네 레벨 상태. 쿼리 수는 레벨 수와 무관하게 고정한다. */
+function listRenditionReleaseOverview(
+  db: CorpusDb,
+  judgmentId: string,
+): RenditionReleaseOverview[] {
+  const owner = db
+    .select({
+      currentRevisionId: judgment.currentRevisionId,
+      currentContentReleaseId: judgment.currentContentReleaseId,
+    })
+    .from(judgment)
+    .where(eq(judgment.id, judgmentId))
+    .get();
+  const all = db
+    .select()
+    .from(rendition)
+    .where(eq(rendition.judgmentId, judgmentId))
+    .orderBy(desc(rendition.generatedAt))
+    .all();
+  const current = all.filter(
+    ({ sourceRevisionId }) => sourceRevisionId === owner?.currentRevisionId,
+  );
+  const latestByLevel = new Map<Level, (typeof all)[number]>();
+  for (const row of current) {
+    if (!latestByLevel.has(row.level)) {
+      latestByLevel.set(row.level, row);
+    }
+  }
+  const latestIds = [...latestByLevel.values()].map(({ id }) => id);
+  const stats = new Map<string, { sentences: number; needsCheck: number; ungrounded: number }>();
+  if (latestIds.length > 0) {
+    for (const sentence of db
+      .select({
+        renditionId: renditionSentence.renditionId,
+        confidence: renditionSentence.confidence,
+      })
+      .from(renditionSentence)
+      .where(inArray(renditionSentence.renditionId, latestIds))
+      .all()) {
+      const value = stats.get(sentence.renditionId) ?? {
+        sentences: 0,
+        needsCheck: 0,
+        ungrounded: 0,
+      };
+      value.sentences += 1;
+      if (sentence.confidence === "needs_check") {
+        value.needsCheck += 1;
+      }
+      if (sentence.confidence === "ungrounded") {
+        value.ungrounded += 1;
+      }
+      stats.set(sentence.renditionId, value);
+    }
+  }
+  const published = new Map(
+    owner?.currentRevisionId === null || owner === undefined
+      ? []
+      : activeReleaseItems(db, {
+          judgmentId,
+          releaseId: owner.currentContentReleaseId,
+          sourceRevisionId: owner.currentRevisionId,
+        }).map(({ level, renditionId }) => [level, renditionId] as const),
+  );
+
+  const levels: readonly Level[] = ["L1", "L2", "L3", "L4"];
+  return levels.map((level) => {
+    const latest = latestByLevel.get(level);
+    const publishedRenditionId = published.get(level) ?? null;
+    let state: ReleaseState;
+    if (publishedRenditionId !== null) {
+      state = "published";
+    } else if (latest?.reviewState === "pending") {
+      state = "reviewing";
+    } else if (latest?.reviewState === "rejected") {
+      state = "rejected";
+    } else if (latest !== undefined) {
+      state = "draft";
+    } else if (all.some((row) => row.level === level)) {
+      state = "stale";
+    } else {
+      state = "missing";
+    }
+    return {
+      level,
+      state,
+      latest,
+      publishedRenditionId,
+      ...(latest === undefined
+        ? { sentences: 0, needsCheck: 0, ungrounded: 0 }
+        : (stats.get(latest.id) ?? { sentences: 0, needsCheck: 0, ungrounded: 0 })),
+    };
+  });
+}
+
+function listContentReleases(db: CorpusDb, judgmentId: string) {
+  const releases = db
+    .select()
+    .from(contentRelease)
+    .where(eq(contentRelease.judgmentId, judgmentId))
+    .orderBy(desc(contentRelease.createdAt))
+    .all();
+  const ids = releases.map(({ id }) => id);
+  const items =
+    ids.length === 0
+      ? []
+      : db
+          .select({
+            releaseId: contentReleaseRendition.releaseId,
+            level: contentReleaseRendition.level,
+          })
+          .from(contentReleaseRendition)
+          .where(inArray(contentReleaseRendition.releaseId, ids))
+          .all();
+  return releases.map((release) => ({
+    ...release,
+    levels: items.filter(({ releaseId }) => releaseId === release.id).map(({ level }) => level),
+  }));
 }
 
 function listSentences(db: CorpusDb, renditionId: string) {
@@ -1530,6 +1995,8 @@ export {
   claimStructureGenerationJob,
   countGenerationsOn,
   findApprovedRendition,
+  findPublishedAudio,
+  findPublishedRendition,
   findCurrentJudgmentRevisionId,
   findJudgmentByCaseNo,
   findJudgmentById,
@@ -1549,16 +2016,20 @@ export {
   listLawArticles,
   listJudgmentRevisions,
   listJudgmentRevisionSummaries,
+  listContentReleases,
   listLawNameEntries,
   listLawSections,
   listSentences,
   listSpans,
   countAudioOn,
   listRecentGenerationFailures,
+  listRenditionReleaseOverview,
   reserveAudioSlot,
   listStructureNodes,
   recordLookupMiss,
   reserveGenerationSlot,
+  publishRendition,
+  restoreContentRelease,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,
@@ -1568,6 +2039,7 @@ export {
   setGenerationStage,
   upsertJudgment,
   upsertLawVersions,
+  withdrawPublishedRendition,
 };
 export type {
   GenerationFailure,
@@ -1584,6 +2056,9 @@ export type {
   Level,
   Outcome,
   ReviewState,
+  ReleaseMutationResult,
+  ReleaseState,
+  RenditionReleaseOverview,
   SentenceInput,
   SpanInput,
   StructureKind,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Button } from "@/components/shadcn/ui/button";
 import { auth, disclaimer, site } from "@/lib/strings";
 import { logOut } from "@/server/auth-actions";
 import { currentSession, displayName } from "@/server/owner";
@@ -57,9 +58,9 @@ async function AccountNav() {
       </Link>
       {/* 로그아웃은 상태를 바꾸는 동작이라 링크가 아니라 폼이어야 한다. */}
       <form action={logOut}>
-        <button className={styles.navButton} type="submit">
+        <Button className={styles.navButton} type="submit" variant="ghost">
           {auth.logOut}
-        </button>
+        </Button>
       </form>
     </>
   );

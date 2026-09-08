@@ -72,6 +72,11 @@ const judgment = sqliteTable(
     textCachedAt: integer("text_cached_at", { mode: "timestamp_ms" }),
     /** 현재 공개 원문판. 이전 판은 지우지 않고 이 포인터만 바꾼다. */
     currentRevisionId: text("current_revision_id"),
+    /**
+     * 현재 공개 설명 묶음. `content_release`가 뒤에서 이 표를 참조하므로 DB 외래 키는
+     * 걸지 않고, 저장소 트랜잭션에서 같은 판결문인지 확인한 뒤 포인터를 바꾼다.
+     */
+    currentContentReleaseId: text("current_content_release_id"),
     createdAt: createdAt(),
   },
   (table) => [
@@ -270,6 +275,50 @@ const rendition = sqliteTable(
     unique("rendition_variant_unique").on(table.judgmentId, table.level, table.promptVersion),
     index("rendition_lookup_idx").on(table.judgmentId, table.level),
     index("rendition_revision_idx").on(table.sourceRevisionId, table.level),
+  ],
+);
+
+/**
+ * 공개 설명의 불변 릴리스.
+ *
+ * 한 행은 같은 원문판을 기준으로 함께 공개한 L1~L4 묶음이다. 레벨 하나를 바꾸거나
+ * 철회해도 기존 행을 고치지 않고 새 릴리스를 만든 뒤 `judgment`의 포인터만 옮긴다.
+ * 이후 그림·FAQ를 같은 묶음에 넣어도 공개 전환 경계는 그대로 쓸 수 있다.
+ */
+const contentRelease = sqliteTable(
+  "content_release",
+  {
+    id: text("id").primaryKey(),
+    judgmentId: text("judgment_id")
+      .notNull()
+      .references(() => judgment.id, { onDelete: "cascade" }),
+    sourceRevisionId: text("source_revision_id")
+      .notNull()
+      .references(() => judgmentRevision.id, { onDelete: "cascade" }),
+    action: text("action", { enum: ["publish", "withdraw", "restore"] }).notNull(),
+    /** app DB의 user.id. 두 DB 사이에는 외래 키를 걸 수 없어 식별값만 남긴다. */
+    actorId: text("actor_id"),
+    createdAt: createdAt(),
+  },
+  (table) => [index("content_release_judgment_idx").on(table.judgmentId, table.createdAt)],
+);
+
+/** 릴리스에 포함된 정확한 레벨별 변환본. 없는 레벨은 공개하지 않는다. */
+const contentReleaseRendition = sqliteTable(
+  "content_release_rendition",
+  {
+    releaseId: text("release_id")
+      .notNull()
+      .references(() => contentRelease.id, { onDelete: "cascade" }),
+    level: text("level", { enum: LEVELS }).notNull(),
+    renditionId: text("rendition_id")
+      .notNull()
+      .references(() => rendition.id),
+  },
+  (table) => [
+    primaryKey({ columns: [table.releaseId, table.level] }),
+    unique("content_release_rendition_unique").on(table.releaseId, table.renditionId),
+    index("content_release_rendition_idx").on(table.renditionId),
   ],
 );
 
@@ -602,6 +651,8 @@ const corpusSchema = {
   audioUsage,
   renditionAudio,
   apiCache,
+  contentRelease,
+  contentReleaseRendition,
   generationJob,
   generationUsage,
   judgment,
@@ -623,6 +674,8 @@ export {
   audioUsage,
   renditionAudio,
   apiCache,
+  contentRelease,
+  contentReleaseRendition,
   corpusSchema,
   CONFIDENCES,
   generationJob,

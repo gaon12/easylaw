@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { Checkbox } from "@/components/shadcn/ui/checkbox";
+import { NativeSelect } from "@/components/shadcn/ui/native-select";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,15 +48,19 @@ export default async function ServicePage() {
             <legend className={styles.groupTitle}>{setup.timeZoneTitle}</legend>
             <p className={styles.groupBody}>{setup.timeZoneBody}</p>
 
-            <label className={styles.field}>
+            <label className={styles.field} htmlFor="time_zone">
               <span className={styles.label}>{setup.timeZoneLabel}</span>
-              <select className={styles.input} defaultValue={siteTimeZone(db)} name="time_zone">
+              <NativeSelect
+                className={styles.input}
+                defaultValue={siteTimeZone(db)}
+                name="time_zone"
+              >
                 {zones.map((zone) => (
                   <option key={zone} value={zone}>
                     {zone}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               <span className={styles.hint}>{setup.timeZoneHint}</span>
             </label>
           </fieldset>
@@ -71,12 +77,11 @@ export default async function ServicePage() {
               {setup.httpsWarn}
             </Alert>
 
-            <label className={styles.checkboxRow}>
-              <input
+            <label className={styles.checkboxRow} htmlFor="secure_cookies">
+              <Checkbox
                 className={styles.checkbox}
                 defaultChecked={shouldUseSecureCookies(db)}
                 name="secure_cookies"
-                type="checkbox"
                 value="true"
               />
               <span className={styles.label}>{setup.httpsLabel}</span>

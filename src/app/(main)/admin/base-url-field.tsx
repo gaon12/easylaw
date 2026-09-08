@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { baseUrlAdvice, checkBaseUrl } from "@/lib/llm/base-url";
 import { setup } from "@/lib/strings";
 import styles from "./admin.module.css";
@@ -35,7 +36,7 @@ function BaseUrlField({
       <label className={styles.label} htmlFor={name}>
         {label}
       </label>
-      <input
+      <Input
         aria-describedby={hintId}
         aria-invalid={problem !== undefined}
         autoComplete="off"

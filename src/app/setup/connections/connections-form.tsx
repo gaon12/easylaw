@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -69,9 +70,9 @@ function BaseUrlField({
   const problem = checkBaseUrl(value);
 
   return (
-    <label className={styles.field}>
+    <label className={styles.field} htmlFor="llm_base_url">
       <span className={styles.label}>{setup.llmBaseUrlLabel}</span>
-      <input
+      <Input
         aria-describedby={hintId}
         aria-invalid={problem !== undefined}
         autoComplete="url"
@@ -117,9 +118,9 @@ function ConnectionsForm({
           <fieldset className={styles.group}>
             <legend className={styles.groupTitle}>{setup.lawApiTitle}</legend>
             <p className={styles.groupBody}>{setup.lawApiBody}</p>
-            <label className={styles.field}>
+            <label className={styles.field} htmlFor="law_api_oc">
               <span className={styles.label}>{setup.lawApiLabel}</span>
-              <input
+              <Input
                 autoComplete="off"
                 className={styles.input}
                 name="law_api_oc"
@@ -135,9 +136,9 @@ function ConnectionsForm({
             <legend className={styles.groupTitle}>{setup.llmTitle}</legend>
             <p className={styles.groupBody}>{setup.llmBody}</p>
             <BaseUrlField onChange={setValue("llm_base_url")} value={values.llm_base_url} />
-            <label className={styles.field}>
+            <label className={styles.field} htmlFor="llm_api_key">
               <span className={styles.label}>{setup.llmApiKeyLabel}</span>
-              <input
+              <Input
                 autoComplete="new-password"
                 className={styles.input}
                 name="llm_api_key"
@@ -146,9 +147,9 @@ function ConnectionsForm({
                 value={values.llm_api_key}
               />
             </label>
-            <label className={styles.field}>
+            <label className={styles.field} htmlFor="llm_model">
               <span className={styles.label}>{setup.llmModelLabel}</span>
-              <input
+              <Input
                 className={styles.input}
                 name="llm_model"
                 onChange={setValue("llm_model")}
@@ -157,9 +158,9 @@ function ConnectionsForm({
               />
               <span className={styles.hint}>{setup.llmModelHint}</span>
             </label>
-            <label className={styles.field}>
+            <label className={styles.field} htmlFor="generation_daily_limit">
               <span className={styles.label}>{setup.limitLabel}</span>
-              <input
+              <Input
                 className={styles.input}
                 defaultValue={dailyLimit}
                 inputMode="numeric"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,9 +40,9 @@ function AdminForm() {
           </div>
         )}
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="email">
           <span className={styles.label}>{auth.emailLabel}</span>
-          <input
+          <Input
             autoComplete="email"
             className={styles.input}
             defaultValue={state.email}
@@ -53,9 +54,9 @@ function AdminForm() {
           />
         </label>
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="password">
           <span className={styles.label}>{auth.passwordLabel}</span>
-          <input
+          <Input
             autoComplete="new-password"
             className={styles.input}
             minLength={PASSWORD_MIN}

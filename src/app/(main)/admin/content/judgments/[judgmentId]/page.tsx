@@ -1,14 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { NativeSelect } from "@/components/shadcn/ui/native-select";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { appDb, corpusDb } from "@/db/client";
-import { findJudgmentById, listJudgmentRevisionSummaries, listSpans } from "@/db/corpus/repository";
+import {
+  findJudgmentById,
+  listContentReleases,
+  listJudgmentRevisionSummaries,
+  listRenditionReleaseOverview,
+  listSentences,
+  listSpans,
+  type ReleaseState,
+  type RenditionReleaseOverview,
+} from "@/db/corpus/repository";
 import { formatDateTime } from "@/lib/format";
 import { admin } from "@/lib/strings";
 import { diffParagraphs, type Paragraph } from "@/lib/text/revision-diff";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../../../admin.module.css";
+import { ReleaseControls, RestoreReleaseControl } from "./release-controls";
 
 interface SearchParams {
   readonly from?: string | string[];
@@ -32,6 +44,7 @@ interface DiffRow {
 
 const HASH_PREVIEW_LENGTH = 12;
 const HASH_OPTION_LENGTH = 10;
+const RELEASE_ID_LENGTH = 8;
 
 const one = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
@@ -231,15 +244,20 @@ function Comparison({
             { name: "to", label: admin.revisionTo, selected: to?.id },
           ] as const
         ).map((field) => (
-          <label className={styles.field} key={field.name}>
+          <label className={styles.field} key={field.name} htmlFor={field.name}>
             <span className={styles.label}>{field.label}</span>
-            <select className={styles.select} defaultValue={field.selected} name={field.name}>
+            <NativeSelect
+              className={styles.select}
+              defaultValue={field.selected}
+              name={field.name}
+              id={field.name}
+            >
               {revisions.map((revision) => (
                 <option key={revision.id} value={revision.id}>
                   {revisionLabel(revision, at)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         ))}
         <Button type="submit" variant="secondary">
@@ -260,6 +278,197 @@ function Comparison({
   );
 }
 
+const releaseTone = (state: ReleaseState) => {
+  if (state === "published") {
+    return "grounded" as const;
+  }
+  if (state === "draft" || state === "reviewing") {
+    return "needs-check" as const;
+  }
+  if (state === "stale" || state === "rejected") {
+    return "ungrounded" as const;
+  }
+  return "neutral" as const;
+};
+
+function ReleaseCheck({ row }: { row: RenditionReleaseOverview }) {
+  if (row.ungrounded > 0) {
+    return <Badge tone="ungrounded">{admin.releaseUngrounded(row.ungrounded)}</Badge>;
+  }
+  if (row.needsCheck > 0) {
+    return <Badge tone="needs-check">{admin.releaseNeedsCheck(row.needsCheck)}</Badge>;
+  }
+  if (row.sentences > 0) {
+    return <Badge tone="grounded">{admin.releaseGrounded}</Badge>;
+  }
+  return "—";
+}
+
+function ReleaseTableRow({
+  row,
+  judgmentId,
+  caseNo,
+  at,
+  preview,
+}: {
+  row: RenditionReleaseOverview;
+  judgmentId: string;
+  caseNo: string;
+  at: (value: Date) => string;
+  preview: ReturnType<typeof listSentences>;
+}) {
+  return (
+    <tr>
+      <th scope="row">{row.level}</th>
+      <td>
+        <Badge tone={releaseTone(row.state)}>{admin.releaseStates[row.state]}</Badge>
+      </td>
+      <td>
+        {row.latest === undefined ? (
+          admin.releaseNoRendition
+        ) : (
+          <div className={styles.releaseLatest}>
+            <span>{at(row.latest.generatedAt)}</span>
+            <span>{admin.releaseSentenceCount(row.sentences)}</span>
+            <details>
+              <summary>{admin.releasePreview}</summary>
+              <ol className={styles.releasePreview}>
+                {preview.map((sentence) => (
+                  <li key={sentence.id}>{sentence.text}</li>
+                ))}
+              </ol>
+            </details>
+          </div>
+        )}
+      </td>
+      <td>
+        <ReleaseCheck row={row} />
+      </td>
+      <td>
+        <ReleaseControls
+          judgmentId={judgmentId}
+          latestRenditionId={row.latest?.id ?? null}
+          level={row.level}
+          publishBlocked={row.ungrounded > 0}
+          publishedRenditionId={row.publishedRenditionId}
+        />
+        {row.state === "published" ? (
+          <Link
+            className={styles.link}
+            href={`/case/${encodeURIComponent(caseNo)}?level=${row.level}`}
+          >
+            {admin.releasePublicView}
+          </Link>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+function ReleaseTable({
+  rows,
+  judgmentId,
+  caseNo,
+  at,
+  previews,
+}: {
+  rows: readonly RenditionReleaseOverview[];
+  judgmentId: string;
+  caseNo: string;
+  at: (value: Date) => string;
+  previews: ReadonlyMap<string, ReturnType<typeof listSentences>>;
+}) {
+  return (
+    <div className={styles.tableScroll}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th scope="col">{admin.releaseColumns.level}</th>
+            <th scope="col">{admin.releaseColumns.state}</th>
+            <th scope="col">{admin.releaseColumns.generatedAt}</th>
+            <th scope="col">{admin.releaseColumns.checks}</th>
+            <th scope="col">{admin.releaseColumns.action}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <ReleaseTableRow
+              at={at}
+              caseNo={caseNo}
+              judgmentId={judgmentId}
+              key={row.level}
+              preview={row.latest === undefined ? [] : (previews.get(row.latest.id) ?? [])}
+              row={row}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReleaseHistory({
+  releases,
+  currentReleaseId,
+  currentRevisionId,
+  judgmentId,
+  at,
+}: {
+  releases: ReturnType<typeof listContentReleases>;
+  currentReleaseId: string | null;
+  currentRevisionId: string | null;
+  judgmentId: string;
+  at: (value: Date) => string;
+}) {
+  if (releases.length === 0) {
+    return <p className={styles.empty}>{admin.releaseHistoryEmpty}</p>;
+  }
+  return (
+    <div className={styles.tableScroll}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th scope="col">{admin.releaseHistoryColumns.at}</th>
+            <th scope="col">{admin.releaseHistoryColumns.action}</th>
+            <th scope="col">{admin.releaseHistoryColumns.levels}</th>
+            <th scope="col">{admin.releaseHistoryColumns.id}</th>
+            <th scope="col">{admin.releaseHistoryColumns.actor}</th>
+            <th scope="col">{admin.releaseHistoryColumns.restore}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {releases.map((release) => (
+            <tr key={release.id}>
+              <td>{at(release.createdAt)}</td>
+              <td>
+                {admin.releaseActions[release.action]}
+                {release.id === currentReleaseId ? (
+                  <span className={styles.currentMark}>{admin.releaseCurrent}</span>
+                ) : null}
+              </td>
+              <td>
+                {release.levels.length > 0 ? release.levels.join(", ") : admin.releaseNoLevels}
+              </td>
+              <td title={release.id}>{release.id.slice(0, RELEASE_ID_LENGTH)}</td>
+              <td>{release.actorId === null ? "—" : admin.releaseActor}</td>
+              <td>
+                <RestoreReleaseControl
+                  disabled={
+                    release.id === currentReleaseId ||
+                    release.sourceRevisionId !== currentRevisionId
+                  }
+                  judgmentId={judgmentId}
+                  releaseId={release.id}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function JudgmentRevisionPage({
   params,
   searchParams,
@@ -276,6 +485,13 @@ export default async function JudgmentRevisionPage({
   }
 
   const revisions: RevisionView[] = listJudgmentRevisionSummaries(db, judgmentId);
+  const releaseRows = listRenditionReleaseOverview(db, judgmentId);
+  const releases = listContentReleases(db, judgmentId);
+  const previews = new Map(
+    releaseRows.flatMap((row) =>
+      row.latest === undefined ? [] : [[row.latest.id, listSentences(db, row.latest.id)] as const],
+    ),
+  );
   const requestedFrom = one(requested.from);
   const requestedTo = one(requested.to);
   const to = revisions.find(({ id }) => id === requestedTo) ?? revisions[0];
@@ -313,6 +529,29 @@ export default async function JudgmentRevisionPage({
           </div>
         </dl>
       </header>
+
+      <Card as="section" className={styles.usage}>
+        <h2 className={styles.sectionTitle}>{admin.releaseTitle}</h2>
+        <p className={styles.sectionBody}>{admin.releaseIntro}</p>
+        <ReleaseTable
+          at={at}
+          caseNo={judgment.caseNoCanonical}
+          judgmentId={judgmentId}
+          previews={previews}
+          rows={releaseRows}
+        />
+      </Card>
+
+      <Card as="section" className={styles.usage}>
+        <h2 className={styles.sectionTitle}>{admin.releaseHistory}</h2>
+        <ReleaseHistory
+          at={at}
+          currentReleaseId={judgment.currentContentReleaseId}
+          currentRevisionId={judgment.currentRevisionId}
+          judgmentId={judgmentId}
+          releases={releases}
+        />
+      </Card>
 
       <Card as="section" className={styles.usage}>
         <h2 className={styles.sectionTitle}>{admin.judgmentHistory}</h2>

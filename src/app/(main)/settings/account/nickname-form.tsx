@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,9 +55,9 @@ function NicknameForm({ current }: { current: string }) {
           <p className={styles.previewNote}>{account.avatarNote}</p>
         </div>
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="nickname">
           <span className={styles.label}>{auth.nicknameLabel}</span>
-          <input
+          <Input
             autoComplete="nickname"
             className={styles.input}
             maxLength={NICKNAME_MAX}

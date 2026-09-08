@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,9 +43,9 @@ function AuthForm({ action, submitLabel, submittingLabel, mode }: AuthFormProps)
           </div>
         )}
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="email">
           <span className={styles.label}>{auth.emailLabel}</span>
-          <input
+          <Input
             autoComplete="email"
             className={styles.input}
             defaultValue={state.email}
@@ -57,9 +58,9 @@ function AuthForm({ action, submitLabel, submittingLabel, mode }: AuthFormProps)
         </label>
 
         {mode === "signup" ? (
-          <label className={styles.field}>
+          <label className={styles.field} htmlFor="nickname">
             <span className={styles.label}>{auth.nicknameLabel}</span>
-            <input
+            <Input
               autoComplete="nickname"
               className={styles.input}
               defaultValue={state.nickname}
@@ -74,9 +75,9 @@ function AuthForm({ action, submitLabel, submittingLabel, mode }: AuthFormProps)
           </label>
         ) : null}
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="password">
           <span className={styles.label}>{auth.passwordLabel}</span>
-          <input
+          <Input
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             className={styles.input}
             minLength={mode === "signup" ? PASSWORD_MIN : undefined}

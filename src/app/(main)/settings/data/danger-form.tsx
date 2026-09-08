@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Input } from "@/components/shadcn/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -52,9 +53,9 @@ function DangerForm({
           </div>
         ) : null}
 
-        <label className={styles.field}>
+        <label className={styles.field} htmlFor="password">
           <span className={styles.label}>{strings.passwordLabel}</span>
-          <input
+          <Input
             autoComplete="current-password"
             className={styles.input}
             name="password"

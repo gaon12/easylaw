@@ -1,3 +1,6 @@
+import { Checkbox } from "@/components/shadcn/ui/checkbox";
+import { Input } from "@/components/shadcn/ui/input";
+import { NativeSelect } from "@/components/shadcn/ui/native-select";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,15 +50,15 @@ const SECRET_KEYS = new Set<string>(["law_api_oc", "llm_api_key", "tts_api_key"]
  */
 function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly string[] }) {
   return (
-    <label className={styles.field}>
+    <label className={styles.field} htmlFor="time_zone">
       <span className={styles.label}>{setup.settingNames.time_zone}</span>
-      <select className={styles.input} defaultValue={timeZone} name="time_zone">
+      <NativeSelect className={styles.input} defaultValue={timeZone} name="time_zone">
         {zones.map((zone) => (
           <option key={zone} value={zone}>
             {zone}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }
@@ -85,9 +88,9 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
   const hint = FIELD_HINTS[name];
 
   return (
-    <label className={styles.field}>
+    <label className={styles.field} htmlFor={name}>
       <span className={styles.label}>{setup.settingNames[name]}</span>
-      <input
+      <Input
         autoComplete="off"
         className={styles.input}
         defaultValue={value}
@@ -95,6 +98,7 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
         min={name === "llm_revision" ? 1 : undefined}
         name={name}
         type={name === "llm_revision" ? "number" : "text"}
+        id={name}
       />
       {hint === undefined ? null : <span className={styles.hint}>{hint}</span>}
     </label>
@@ -172,12 +176,11 @@ export default async function AdminSettingsPage(props: {
             https 설정은 값을 적는 칸이 아니라 켜고 끄는 것이라 따로 그린다.
             잘못 켜면 로그인이 조용히 막히므로 경고를 함께 둔다.
           */}
-          <label className={styles.checkboxRow}>
-            <input
+          <label className={styles.checkboxRow} htmlFor="secure_cookies">
+            <Checkbox
               className={styles.checkbox}
               defaultChecked={shouldUseSecureCookies(db)}
               name="secure_cookies"
-              type="checkbox"
               value="true"
             />
             <span className={styles.label}>{setup.httpsLabel}</span>
@@ -193,12 +196,11 @@ export default async function AdminSettingsPage(props: {
           */}
           {localTts ? (
             <>
-              <label className={styles.checkboxRow}>
-                <input
+              <label className={styles.checkboxRow} htmlFor="tts_uploads">
+                <Checkbox
                   className={styles.checkbox}
                   defaultChecked={uploadsOn}
                   name="tts_uploads"
-                  type="checkbox"
                   value="true"
                 />
                 <span className={styles.label}>{setup.settingNames.tts_uploads}</span>

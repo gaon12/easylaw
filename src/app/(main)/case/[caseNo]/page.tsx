@@ -14,10 +14,10 @@ import { WikiDocument } from "@/components/wiki/document";
 import { TableOfContents } from "@/components/wiki/toc";
 import { corpusDb } from "@/db/client";
 import {
-  findApprovedRendition,
   findGenerationProgress,
   findJudgmentByCaseNo,
-  findRendition,
+  findLatestRendition,
+  findPublishedRendition,
   listSentences,
   listSpans,
 } from "@/db/corpus/repository";
@@ -49,12 +49,9 @@ function placeholderState(
   judgmentId: string | null,
   level: Exclude<ViewLevel, "L0">,
 ): PlaceholderState {
-  if (llmConfig() === undefined) {
-    return { kind: "off" };
-  }
   // 코퍼스에 판결문이 없으면 걸릴 작업도 없다. 이 경우 만들기 버튼이 액션에서 막힌다.
   if (judgmentId === null) {
-    return { kind: "ready" };
+    return llmConfig() === undefined ? { kind: "off" } : { kind: "ready" };
   }
 
   /*
@@ -68,6 +65,14 @@ function placeholderState(
   });
   if (progress?.status === "running" || progress?.status === "queued") {
     return { kind: "running", stage: progress.stage };
+  }
+
+  // 생성기가 꺼져도 이미 만든 초안은 사라지지 않는다. 공개 전 검수 중임을 먼저 알린다.
+  if (findLatestRendition(corpusDb(), judgmentId, level) !== undefined) {
+    return { kind: "reviewing" };
+  }
+  if (llmConfig() === undefined) {
+    return { kind: "off" };
   }
 
   // 상한은 만들려는 사람에게만 의미가 있다. 생성기가 꺼져 있으면 세어 볼 것도 없다.
@@ -125,10 +130,7 @@ function loadJudgment(caseNoCanonical: string, level: ViewLevel) {
    * DB에 남기되 새 검사를 통과한 것처럼 본문, 점자, 음성으로 다시 전달하지 않는다.
    */
   const rendition =
-    row === undefined || level === "L0"
-      ? undefined
-      : (findApprovedRendition(db, row.id, level) ??
-        findRendition(db, row.id, level, currentPipelineVersion()));
+    row === undefined || level === "L0" ? undefined : findPublishedRendition(db, row.id, level);
 
   return {
     row,
