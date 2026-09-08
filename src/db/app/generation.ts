@@ -24,6 +24,7 @@ import {
   uploadNodeSpan,
   uploadRendition,
   uploadRenditionSentence,
+  uploadStructureGenerationJob,
   uploadStructureNode,
 } from "./schema";
 
@@ -422,6 +423,160 @@ type ClaimResult =
   | { readonly kind: "running"; readonly jobId: string }
   | { readonly kind: "done"; readonly jobId: string };
 
+function insertUploadStructureClaim(
+  db: AppDb,
+  input: {
+    uploadId: string;
+    sourceRevisionId: string | null;
+    promptVersion: string;
+    workerId: string;
+    now: Date;
+  },
+): string | undefined {
+  const rows = db
+    .insert(uploadStructureGenerationJob)
+    .values({
+      id: newId(),
+      uploadId: input.uploadId,
+      sourceRevisionId: input.sourceRevisionId,
+      promptVersion: versionForRevision(input.promptVersion, input.sourceRevisionId),
+      status: "running",
+      claimedBy: input.workerId,
+      heartbeatAt: input.now,
+      attempts: 1,
+    })
+    .onConflictDoNothing()
+    .returning({ id: uploadStructureGenerationJob.id })
+    .all();
+  return rows[0]?.id;
+}
+
+function findUploadStructureJob(
+  db: AppDb,
+  input: { uploadId: string; sourceRevisionId: string | null; promptVersion: string },
+) {
+  return db
+    .select()
+    .from(uploadStructureGenerationJob)
+    .where(
+      and(
+        eq(uploadStructureGenerationJob.uploadId, input.uploadId),
+        eq(
+          uploadStructureGenerationJob.promptVersion,
+          versionForRevision(input.promptVersion, input.sourceRevisionId),
+        ),
+        input.sourceRevisionId === null
+          ? isNull(uploadStructureGenerationJob.sourceRevisionId)
+          : eq(uploadStructureGenerationJob.sourceRevisionId, input.sourceRevisionId),
+      ),
+    )
+    .get();
+}
+
+function reclaimUploadStructureJob(
+  db: AppDb,
+  input: {
+    job: { id: string; attempts: number };
+    workerId: string;
+    now: Date;
+  },
+): boolean {
+  const staleBefore = new Date(input.now.getTime() - STALE_AFTER_MS);
+  return (
+    db
+      .update(uploadStructureGenerationJob)
+      .set({
+        status: "running",
+        claimedBy: input.workerId,
+        heartbeatAt: input.now,
+        attempts: input.job.attempts + 1,
+        error: null,
+        detail: null,
+        finishedAt: null,
+      })
+      .where(
+        and(
+          eq(uploadStructureGenerationJob.id, input.job.id),
+          or(
+            eq(uploadStructureGenerationJob.status, "failed"),
+            lt(uploadStructureGenerationJob.heartbeatAt, staleBefore),
+          ),
+        ),
+      )
+      .returning({ id: uploadStructureGenerationJob.id })
+      .all().length > 0
+  );
+}
+
+/** 원문판·추출 프롬프트별 구조 추출을 선점한다. 레벨은 이 키에 들어가지 않는다. */
+function claimUploadStructureGenerationJob(
+  db: AppDb,
+  input: {
+    uploadId: string;
+    sourceRevisionId?: string | null;
+    promptVersion: string;
+    workerId: string;
+    now?: Date;
+  },
+): ClaimResult {
+  const now = input.now ?? new Date();
+  const revisionId = sourceRevision(db, input.uploadId, input.sourceRevisionId);
+  const claimedId = insertUploadStructureClaim(db, { ...input, sourceRevisionId: revisionId, now });
+  if (claimedId !== undefined) {
+    return { kind: "claimed", jobId: claimedId };
+  }
+
+  const existing = findUploadStructureJob(db, {
+    uploadId: input.uploadId,
+    sourceRevisionId: revisionId,
+    promptVersion: input.promptVersion,
+  });
+  if (existing === undefined) {
+    return claimUploadStructureGenerationJob(db, { ...input, sourceRevisionId: revisionId, now });
+  }
+  if (existing.status === "done") {
+    return { kind: "done", jobId: existing.id };
+  }
+  if (reclaimUploadStructureJob(db, { job: existing, workerId: input.workerId, now })) {
+    return { kind: "claimed", jobId: existing.id };
+  }
+  return { kind: "running", jobId: existing.id };
+}
+
+function heartbeatUploadStructureGenerationJob(
+  db: AppDb,
+  jobId: string,
+  now: Date = new Date(),
+): void {
+  db.update(uploadStructureGenerationJob)
+    .set({ heartbeatAt: now })
+    .where(
+      and(
+        eq(uploadStructureGenerationJob.id, jobId),
+        eq(uploadStructureGenerationJob.status, "running"),
+      ),
+    )
+    .run();
+}
+
+function finishUploadStructureGenerationJob(
+  db: AppDb,
+  jobId: string,
+  result: JobOutcome,
+  now: Date = new Date(),
+): void {
+  db.update(uploadStructureGenerationJob)
+    .set({
+      status: result.ok ? "done" : "failed",
+      error: result.ok ? null : result.reason,
+      detail: result.ok ? null : result.detail,
+      heartbeatAt: now,
+      finishedAt: now,
+    })
+    .where(eq(uploadStructureGenerationJob.id, jobId))
+    .run();
+}
+
 function insertClaim(
   db: AppDb,
   input: {
@@ -670,11 +825,14 @@ function findUploadJobProgress(
 
 export {
   claimUploadJob,
+  claimUploadStructureGenerationJob,
   findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
   findUploadRenditionAtRevision,
   finishUploadJob,
+  finishUploadStructureGenerationJob,
+  heartbeatUploadStructureGenerationJob,
   listUploadSentences,
   listRecentUploadFailures,
   listUploadStructureNodes,

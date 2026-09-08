@@ -3,9 +3,12 @@ import type { JobOutcome } from "@/lib/job-outcome";
 import "server-only";
 import {
   claimUploadJob,
+  claimUploadStructureGenerationJob,
   findUploadJobProgress,
   findUploadRenditionAtRevision,
   finishUploadJob,
+  finishUploadStructureGenerationJob,
+  heartbeatUploadStructureGenerationJob,
   listUploadStructureNodes,
   saveUploadRendition,
   type saveUploadStructure,
@@ -16,10 +19,13 @@ import { findCurrentUploadRevisionId, listUploadSpans } from "@/db/app/repositor
 import { appDb, corpusDb } from "@/db/client";
 import {
   claimGenerationJob,
+  claimStructureGenerationJob,
   findCurrentJudgmentRevisionId,
   findGenerationProgress,
   findRenditionAtRevision,
   finishGenerationJob,
+  finishStructureGenerationJob,
+  heartbeatStructureGenerationJob,
   listSpans,
   listStructureNodes,
   saveRendition,
@@ -112,6 +118,9 @@ interface PipelineStore {
    */
   listNodes(extractVersion: string): readonly StoreNode[];
   saveNodes(extractVersion: string, nodes: readonly StoreNodeInput[]): void;
+  claimStructure(extractVersion: string, workerId: string): StoreClaim;
+  heartbeatStructure(jobId: string): void;
+  finishStructure(jobId: string, result: JobOutcome): void;
 
   claimJob(input: {
     level: StoreLevel;
@@ -159,6 +168,19 @@ function caseStore(judgmentId: string): PipelineStore {
         })),
         sourceRevisionId,
       });
+    },
+    claimStructure: (extractVersion, workerId) =>
+      claimStructureGenerationJob(db, {
+        judgmentId,
+        sourceRevisionId,
+        promptVersion: extractVersion,
+        workerId,
+      }),
+    heartbeatStructure: (jobId) => {
+      heartbeatStructureGenerationJob(db, jobId);
+    },
+    finishStructure: (jobId, result) => {
+      finishStructureGenerationJob(db, jobId, result);
     },
 
     claimJob: (input) => claimGenerationJob(db, { judgmentId, ...input, sourceRevisionId }),
@@ -208,6 +230,19 @@ function docStore(uploadId: string): PipelineStore {
           spanIds: node.spanIds,
         })),
       });
+    },
+    claimStructure: (extractVersion, workerId) =>
+      claimUploadStructureGenerationJob(db, {
+        uploadId,
+        sourceRevisionId,
+        promptVersion: extractVersion,
+        workerId,
+      }),
+    heartbeatStructure: (jobId) => {
+      heartbeatUploadStructureGenerationJob(db, jobId);
+    },
+    finishStructure: (jobId, result) => {
+      finishUploadStructureGenerationJob(db, jobId, result);
     },
 
     claimJob: (input) => claimUploadJob(db, { uploadId, ...input, sourceRevisionId }),

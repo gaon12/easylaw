@@ -449,6 +449,40 @@ const uploadGenerationJob = sqliteTable(
   ],
 );
 
+/** 공개 판례와 같은 구조 추출 자물쇠. 서로 다른 레벨의 중복 추출을 막는다. */
+const uploadStructureGenerationJob = sqliteTable(
+  "upload_structure_generation_job",
+  {
+    id: text("id").primaryKey(),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => upload.id, { onDelete: "cascade" }),
+    sourceRevisionId: text("source_revision_id").references(() => uploadRevision.id, {
+      onDelete: "set null",
+    }),
+    promptVersion: text("prompt_version").notNull(),
+    status: text("status", { enum: JOB_STATUSES }).notNull().default("running"),
+    claimedBy: text("claimed_by"),
+    heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    detail: text("detail"),
+    createdAt: timestampNow("created_at"),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    unique("upload_structure_generation_job_variant_unique").on(
+      table.uploadId,
+      table.promptVersion,
+    ),
+    index("upload_structure_generation_job_status_idx").on(table.status, table.heartbeatAt),
+    index("upload_structure_generation_job_revision_idx").on(
+      table.sourceRevisionId,
+      table.promptVersion,
+    ),
+  ],
+);
+
 /**
  * 감사 로그.
  *
@@ -484,6 +518,7 @@ const appSchema = {
   uploadRenditionSentence,
   uploadRevision,
   uploadSpan,
+  uploadStructureGenerationJob,
   uploadStructureNode,
   user,
 };
@@ -506,6 +541,7 @@ export {
   uploadRenditionSentence,
   uploadRevision,
   uploadSpan,
+  uploadStructureGenerationJob,
   uploadStructureNode,
   user,
 };

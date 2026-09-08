@@ -85,6 +85,13 @@
       "when": 1788846535513,
       "tag": "0011_slimy_prism",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788848382350,
+      "tag": "0012_clean_silver_sable",
+      "breakpoints": true
     }
   ]
 }

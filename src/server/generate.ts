@@ -147,6 +147,14 @@ type GenerateResult =
   | { readonly kind: "limited" }
   | { readonly kind: "failed"; readonly reason: string };
 
+const STRUCTURE_POLL_MS = 250;
+
+async function waitForStructure(signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  await new Promise<void>((resolve) => setTimeout(resolve, STRUCTURE_POLL_MS));
+  signal?.throwIfAborted();
+}
+
 /**
  * 구조를 확보한다. 이미 뽑아 둔 것이 있으면 다시 뽑지 않는다.
  *
@@ -166,22 +174,65 @@ async function ensureStructure(
     return { ok: true };
   }
 
-  const spans = store.listSpans();
-  if (spans.length === 0) {
-    return { ok: false, reason: viewer.failedReasons.noOriginal, detail: "원문이 없습니다." };
+  const workerId = randomUUID();
+  let claim = store.claimStructure(EXTRACT_VERSION, workerId);
+  while (claim.kind === "running") {
+    // biome-ignore lint/performance/noAwaitInLoops: 다른 작업의 완료·회수 가능성을 순서대로 확인한다.
+    await waitForStructure(signal);
+    if (store.listNodes(EXTRACT_VERSION).length > 0) {
+      return { ok: true };
+    }
+    claim = store.claimStructure(EXTRACT_VERSION, workerId);
   }
-
-  const extracted = await extractStructure(client, spans, signal);
-  if (extracted.nodes.length === 0) {
+  if (claim.kind === "done") {
+    if (store.listNodes(EXTRACT_VERSION).length > 0) {
+      return { ok: true };
+    }
     return {
       ok: false,
       reason: viewer.failedReasons.noStructure,
-      detail: "구조를 하나도 뽑지 못했습니다.",
+      detail: "구조 추출 작업은 끝났지만 저장된 구조가 없습니다.",
     };
   }
 
-  store.saveNodes(EXTRACT_VERSION, extracted.nodes);
-  return { ok: true };
+  const spans = store.listSpans();
+  if (spans.length === 0) {
+    const failure = {
+      ok: false as const,
+      reason: viewer.failedReasons.noOriginal,
+      detail: "원문이 없습니다.",
+    };
+    store.finishStructure(claim.jobId, failure);
+    return failure;
+  }
+
+  const beat = setInterval(() => {
+    store.heartbeatStructure(claim.jobId);
+  }, HEARTBEAT_MS);
+  beat.unref?.();
+  try {
+    const extracted = await extractStructure(client, spans, signal);
+    if (extracted.nodes.length === 0) {
+      const failure = {
+        ok: false as const,
+        reason: viewer.failedReasons.noStructure,
+        detail: "구조를 하나도 뽑지 못했습니다.",
+      };
+      store.finishStructure(claim.jobId, failure);
+      return failure;
+    }
+
+    store.saveNodes(EXTRACT_VERSION, extracted.nodes);
+    store.finishStructure(claim.jobId, { ok: true });
+    return { ok: true };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "알 수 없는 오류입니다.";
+    const reason = error instanceof LlmError ? error.publicMessage : viewer.failedReasons.unknown;
+    store.finishStructure(claim.jobId, { ok: false, reason, detail });
+    throw error;
+  } finally {
+    clearInterval(beat);
+  }
 }
 
 function sourcesForClaim(

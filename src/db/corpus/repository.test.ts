@@ -6,6 +6,7 @@ import type { CorpusDb } from "../client";
 import { createTestCorpusDb } from "../testing";
 import {
   claimGenerationJob,
+  claimStructureGenerationJob,
   countGenerationsOn,
   findApprovedRendition,
   findGenerationProgress,
@@ -17,7 +18,9 @@ import {
   findRendition,
   findRenditionAtRevision,
   finishGenerationJob,
+  finishStructureGenerationJob,
   heartbeatGenerationJob,
+  heartbeatStructureGenerationJob,
   listJudgmentRevisions,
   listLawArticles,
   listRecentGenerationFailures,
@@ -40,6 +43,7 @@ import {
   lookupMiss,
   rendition,
   renditionAudio,
+  structureGenerationJob,
   structureNode,
 } from "./schema";
 
@@ -378,6 +382,97 @@ describe("saveRendition", () => {
 
     expect(findRendition(db, judgmentId, "L2", "v1")).toBeDefined();
     expect(findRendition(db, judgmentId, "L2", "v2")).toBeDefined();
+  });
+});
+
+describe("claimStructureGenerationJob", () => {
+  it("서로 다른 레벨 작업도 같은 원문판·추출판에서는 구조를 한 번만 선점한다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+
+    const first = claimStructureGenerationJob(db, {
+      judgmentId,
+      promptVersion: PROMPT,
+      workerId: "l2-worker",
+    });
+    const second = claimStructureGenerationJob(db, {
+      judgmentId,
+      promptVersion: PROMPT,
+      workerId: "l4-worker",
+    });
+
+    expect(first.kind).toBe("claimed");
+    expect(second).toEqual({ kind: "running", jobId: first.jobId });
+    expect(db.select().from(structureGenerationJob).all()).toHaveLength(1);
+  });
+
+  it("완료된 구조 작업을 재사용하고 heartbeat가 끊긴 작업은 회수한다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const start = new Date("2026-09-08T00:00:00Z");
+    const first = claimStructureGenerationJob(db, {
+      judgmentId,
+      promptVersion: PROMPT,
+      workerId: "w1",
+      now: start,
+    });
+    if (first.kind !== "claimed") {
+      throw new Error("구조 작업을 선점하지 못했습니다.");
+    }
+    const beat = new Date(start.getTime() + STALE_AFTER_MS - 1_000);
+    heartbeatStructureGenerationJob(db, first.jobId, beat);
+    expect(
+      claimStructureGenerationJob(db, {
+        judgmentId,
+        promptVersion: PROMPT,
+        workerId: "w2",
+        now: new Date(start.getTime() + STALE_AFTER_MS + 1_000),
+      }).kind,
+    ).toBe("running");
+
+    const reclaimed = claimStructureGenerationJob(db, {
+      judgmentId,
+      promptVersion: PROMPT,
+      workerId: "w3",
+      now: new Date(beat.getTime() + STALE_AFTER_MS + 1_000),
+    });
+    expect(reclaimed).toEqual({ kind: "claimed", jobId: first.jobId });
+    finishStructureGenerationJob(db, first.jobId, { ok: true });
+    expect(
+      claimStructureGenerationJob(db, {
+        judgmentId,
+        promptVersion: PROMPT,
+        workerId: "w4",
+      }),
+    ).toEqual({ kind: "done", jobId: first.jobId });
+  });
+
+  it("원문판이 바뀌면 새 구조 작업을 별도로 선점한다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "첫 원문" },
+    ]);
+    const first = claimStructureGenerationJob(db, {
+      judgmentId,
+      promptVersion: PROMPT,
+      workerId: "w1",
+    });
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 5, text: "바뀐 원문" },
+    ]);
+    const second = claimStructureGenerationJob(db, {
+      judgmentId,
+      promptVersion: PROMPT,
+      workerId: "w2",
+    });
+
+    expect(first.kind).toBe("claimed");
+    expect(second.kind).toBe("claimed");
+    expect(second.jobId).not.toBe(first.jobId);
   });
 });
 

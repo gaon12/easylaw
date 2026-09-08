@@ -391,6 +391,39 @@ const generationJob = sqliteTable(
 );
 
 /**
+ * 레벨과 무관한 구조 추출 작업의 자물쇠.
+ *
+ * L1과 L4를 동시에 요청해도 구조 추출은 한 번만 실행한다. 레벨별 `generation_job`으로는
+ * 이 경합을 막을 수 없어서 원문판·추출 프롬프트 단위의 별도 작업을 둔다.
+ */
+const structureGenerationJob = sqliteTable(
+  "structure_generation_job",
+  {
+    id: text("id").primaryKey(),
+    judgmentId: text("judgment_id")
+      .notNull()
+      .references(() => judgment.id, { onDelete: "cascade" }),
+    sourceRevisionId: text("source_revision_id").references(() => judgmentRevision.id, {
+      onDelete: "set null",
+    }),
+    promptVersion: text("prompt_version").notNull(),
+    status: text("status", { enum: JOB_STATUSES }).notNull().default("running"),
+    claimedBy: text("claimed_by"),
+    heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    detail: text("detail"),
+    createdAt: createdAt(),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    unique("structure_generation_job_variant_unique").on(table.judgmentId, table.promptVersion),
+    index("structure_generation_job_status_idx").on(table.status, table.heartbeatAt),
+    index("structure_generation_job_revision_idx").on(table.sourceRevisionId, table.promptVersion),
+  ],
+);
+
+/**
  * 하루에 몇 번 만들었나. `FEATURES.md` [F-42] · `PRODUCT.md` §7
  *
  * **작업 표를 세지 않고 따로 센다.** `generation_job`은 (판결문·레벨·프롬프트 판)마다
@@ -581,6 +614,7 @@ const corpusSchema = {
   party,
   rendition,
   renditionSentence,
+  structureGenerationJob,
   structureNode,
   termGloss,
 };
@@ -607,6 +641,7 @@ export {
   party,
   rendition,
   renditionSentence,
+  structureGenerationJob,
   structureNode,
   termGloss,
 };

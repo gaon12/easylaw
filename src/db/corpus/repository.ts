@@ -24,6 +24,7 @@ import {
   nodeSpan,
   rendition,
   renditionSentence,
+  structureGenerationJob,
   structureNode,
 } from "./schema";
 import { searchLawIds } from "./search";
@@ -391,6 +392,155 @@ type ClaimResult =
   | { readonly kind: "running"; readonly jobId: string }
   /** 이미 끝났다. 변환본을 읽으면 된다. */
   | { readonly kind: "done"; readonly jobId: string };
+
+function insertStructureClaim(
+  db: CorpusDb,
+  input: {
+    judgmentId: string;
+    sourceRevisionId: string | null;
+    promptVersion: string;
+    workerId: string;
+    now: Date;
+  },
+): string | undefined {
+  const rows = db
+    .insert(structureGenerationJob)
+    .values({
+      id: newId(),
+      judgmentId: input.judgmentId,
+      sourceRevisionId: input.sourceRevisionId,
+      promptVersion: versionForRevision(input.promptVersion, input.sourceRevisionId),
+      status: "running",
+      claimedBy: input.workerId,
+      heartbeatAt: input.now,
+      attempts: 1,
+    })
+    .onConflictDoNothing()
+    .returning({ id: structureGenerationJob.id })
+    .all();
+  return rows[0]?.id;
+}
+
+function findStructureJob(
+  db: CorpusDb,
+  input: { judgmentId: string; sourceRevisionId: string | null; promptVersion: string },
+) {
+  return db
+    .select()
+    .from(structureGenerationJob)
+    .where(
+      and(
+        eq(structureGenerationJob.judgmentId, input.judgmentId),
+        eq(
+          structureGenerationJob.promptVersion,
+          versionForRevision(input.promptVersion, input.sourceRevisionId),
+        ),
+        input.sourceRevisionId === null
+          ? isNull(structureGenerationJob.sourceRevisionId)
+          : eq(structureGenerationJob.sourceRevisionId, input.sourceRevisionId),
+      ),
+    )
+    .get();
+}
+
+function reclaimStructureJob(
+  db: CorpusDb,
+  input: {
+    job: { id: string; attempts: number };
+    workerId: string;
+    now: Date;
+  },
+): boolean {
+  const staleBefore = new Date(input.now.getTime() - STALE_AFTER_MS);
+  return (
+    db
+      .update(structureGenerationJob)
+      .set({
+        status: "running",
+        claimedBy: input.workerId,
+        heartbeatAt: input.now,
+        attempts: input.job.attempts + 1,
+        error: null,
+        detail: null,
+        finishedAt: null,
+      })
+      .where(
+        and(
+          eq(structureGenerationJob.id, input.job.id),
+          or(
+            eq(structureGenerationJob.status, "failed"),
+            lt(structureGenerationJob.heartbeatAt, staleBefore),
+          ),
+        ),
+      )
+      .returning({ id: structureGenerationJob.id })
+      .all().length > 0
+  );
+}
+
+/** 원문판·추출 프롬프트별 구조 추출을 선점한다. 레벨은 이 키에 들어가지 않는다. */
+function claimStructureGenerationJob(
+  db: CorpusDb,
+  input: {
+    judgmentId: string;
+    sourceRevisionId?: string | null;
+    promptVersion: string;
+    workerId: string;
+    now?: Date;
+  },
+): ClaimResult {
+  const now = input.now ?? new Date();
+  const revisionId = sourceRevision(db, input.judgmentId, input.sourceRevisionId);
+  const claimedId = insertStructureClaim(db, { ...input, sourceRevisionId: revisionId, now });
+  if (claimedId !== undefined) {
+    return { kind: "claimed", jobId: claimedId };
+  }
+
+  const existing = findStructureJob(db, {
+    judgmentId: input.judgmentId,
+    sourceRevisionId: revisionId,
+    promptVersion: input.promptVersion,
+  });
+  if (existing === undefined) {
+    return claimStructureGenerationJob(db, { ...input, sourceRevisionId: revisionId, now });
+  }
+  if (existing.status === "done") {
+    return { kind: "done", jobId: existing.id };
+  }
+  if (reclaimStructureJob(db, { job: existing, workerId: input.workerId, now })) {
+    return { kind: "claimed", jobId: existing.id };
+  }
+  return { kind: "running", jobId: existing.id };
+}
+
+function heartbeatStructureGenerationJob(
+  db: CorpusDb,
+  jobId: string,
+  now: Date = new Date(),
+): void {
+  db.update(structureGenerationJob)
+    .set({ heartbeatAt: now })
+    .where(and(eq(structureGenerationJob.id, jobId), eq(structureGenerationJob.status, "running")))
+    .run();
+}
+
+function finishStructureGenerationJob(
+  db: CorpusDb,
+  jobId: string,
+  result: JobOutcome,
+  now: Date = new Date(),
+): void {
+  db.update(structureGenerationJob)
+    .set({
+      status: result.ok ? "done" : "failed",
+      error: result.ok ? null : result.reason,
+      detail: result.ok ? null : result.detail,
+      heartbeatAt: now,
+      finishedAt: now,
+    })
+    .where(eq(structureGenerationJob.id, jobId))
+    .run();
+}
 
 /* 좀비 판정 기준은 `lib/timing.ts` 하나뿐이다. 여기서 따로 정하면 어긋난다. */
 
@@ -1340,6 +1490,7 @@ function recordLookupMiss(db: CorpusDb, caseNoCanonical: string, now: Date = new
 
 export {
   claimGenerationJob,
+  claimStructureGenerationJob,
   countGenerationsOn,
   findApprovedRendition,
   findCurrentJudgmentRevisionId,
@@ -1353,7 +1504,9 @@ export {
   findLawVersionByMst,
   findRendition,
   finishGenerationJob,
+  finishStructureGenerationJob,
   heartbeatGenerationJob,
+  heartbeatStructureGenerationJob,
   listLawArticles,
   listJudgmentRevisions,
   listLawNameEntries,

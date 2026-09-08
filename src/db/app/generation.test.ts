@@ -6,11 +6,14 @@ import type { AppDb } from "../client";
 import { createTestAppDb } from "../testing";
 import {
   claimUploadJob,
+  claimUploadStructureGenerationJob,
   findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
   findUploadRenditionAtRevision,
   finishUploadJob,
+  finishUploadStructureGenerationJob,
+  heartbeatUploadStructureGenerationJob,
   listUploadSentences,
   listUploadStructureNodes,
   saveUploadRendition,
@@ -24,7 +27,7 @@ import {
   saveUpload,
   saveUploadRevision,
 } from "./repository";
-import { uploadGenerationJob, uploadRendition } from "./schema";
+import { uploadGenerationJob, uploadRendition, uploadStructureGenerationJob } from "./schema";
 
 let db: AppDb;
 let close: () => void;
@@ -373,6 +376,92 @@ describe("saveUploadRendition", () => {
 
     db.run("delete from upload");
     expect(findUploadRendition(db, uploadId, "L2", "v1")).toBeUndefined();
+  });
+});
+
+describe("claimUploadStructureGenerationJob", () => {
+  it("서로 다른 레벨 작업도 같은 원문판·추출판에서는 구조를 한 번만 선점한다", () => {
+    const { uploadId } = seedUpload();
+    const first = claimUploadStructureGenerationJob(db, {
+      uploadId,
+      promptVersion: PROMPT,
+      workerId: "l2-worker",
+    });
+    const second = claimUploadStructureGenerationJob(db, {
+      uploadId,
+      promptVersion: PROMPT,
+      workerId: "l4-worker",
+    });
+
+    expect(first.kind).toBe("claimed");
+    expect(second).toEqual({ kind: "running", jobId: first.jobId });
+    expect(db.select().from(uploadStructureGenerationJob).all()).toHaveLength(1);
+  });
+
+  it("완료된 구조 작업을 재사용하고 heartbeat가 끊긴 작업은 회수한다", () => {
+    const { uploadId } = seedUpload();
+    const start = new Date("2026-09-08T00:00:00Z");
+    const first = claimUploadStructureGenerationJob(db, {
+      uploadId,
+      promptVersion: PROMPT,
+      workerId: "w1",
+      now: start,
+    });
+    if (first.kind !== "claimed") {
+      throw new Error("구조 작업을 선점하지 못했습니다.");
+    }
+    const beat = new Date(start.getTime() + STALE_AFTER_MS - 1_000);
+    heartbeatUploadStructureGenerationJob(db, first.jobId, beat);
+    expect(
+      claimUploadStructureGenerationJob(db, {
+        uploadId,
+        promptVersion: PROMPT,
+        workerId: "w2",
+        now: new Date(start.getTime() + STALE_AFTER_MS + 1_000),
+      }).kind,
+    ).toBe("running");
+
+    const reclaimed = claimUploadStructureGenerationJob(db, {
+      uploadId,
+      promptVersion: PROMPT,
+      workerId: "w3",
+      now: new Date(beat.getTime() + STALE_AFTER_MS + 1_000),
+    });
+    expect(reclaimed).toEqual({ kind: "claimed", jobId: first.jobId });
+    finishUploadStructureGenerationJob(db, first.jobId, { ok: true });
+    expect(
+      claimUploadStructureGenerationJob(db, {
+        uploadId,
+        promptVersion: PROMPT,
+        workerId: "w4",
+      }),
+    ).toEqual({ kind: "done", jobId: first.jobId });
+  });
+
+  it("원문판이 바뀌면 새 구조 작업을 별도로 선점한다", () => {
+    const { uploadId, userId } = seedUpload();
+    const first = claimUploadStructureGenerationJob(db, {
+      uploadId,
+      promptVersion: PROMPT,
+      workerId: "w1",
+    });
+    saveUploadRevision(db, {
+      uploadId,
+      userId,
+      docHash: "changed-structure-source",
+      charCount: 5,
+      spans: [{ paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 5, text: "새 원문" }],
+      maskCounts: {},
+    });
+    const second = claimUploadStructureGenerationJob(db, {
+      uploadId,
+      promptVersion: PROMPT,
+      workerId: "w2",
+    });
+
+    expect(first.kind).toBe("claimed");
+    expect(second.kind).toBe("claimed");
+    expect(second.jobId).not.toBe(first.jobId);
   });
 });
 
