@@ -13,17 +13,17 @@
  * 문서를 확인한 뒤 그 `uploadId`를 넘긴다 — 확인을 두 번 하면 한 번은 언젠가 빠진다.
  */
 
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
+import { findCurrentUploadRevisionId, listUploadSpans } from "./repository";
 import {
   uploadGenerationJob,
   uploadNodeSpan,
   uploadRendition,
   uploadRenditionSentence,
-  uploadSpan,
   uploadStructureNode,
 } from "./schema";
 
@@ -34,6 +34,19 @@ type JobStage = (typeof uploadGenerationJob.stage.enumValues)[number];
 type JobStatus = (typeof uploadGenerationJob.status.enumValues)[number];
 
 const newId = (): string => crypto.randomUUID();
+
+function sourceRevision(
+  db: AppDb,
+  uploadId: string,
+  pinned: string | null | undefined,
+): string | null {
+  return pinned === undefined ? findCurrentUploadRevisionId(db, uploadId) : pinned;
+}
+
+/** 기존 유일 키를 유지하면서 마스킹 원문판까지 캐시 식별자에 포함한다. */
+function versionForRevision(version: string, revisionId: string | null): string {
+  return revisionId === null ? version : `${version}::source:${revisionId}`;
+}
 
 /* 좀비 판정 기준은 `lib/timing.ts` 하나뿐이다. `corpus` 쪽과 같은 값을 쓴다. */
 
@@ -84,18 +97,23 @@ type AppTx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
 /** 노드와 근거 연결을 넣는다. 부르는 쪽이 이미 "넣어도 되는가"를 판단했다. */
 function insertStructure(
   tx: AppTx,
-  uploadId: string,
-  promptVersion: string,
-  nodes: readonly StructureNodeInput[],
+  input: {
+    uploadId: string;
+    sourceRevisionId: string | null;
+    promptVersion: string;
+    nodes: readonly StructureNodeInput[];
+  },
 ): string[] {
+  const { nodes } = input;
   const ids = nodes.map(() => newId());
 
   tx.insert(uploadStructureNode)
     .values(
       nodes.map((node, index) => ({
         id: ids[index] as string,
-        uploadId,
-        promptVersion,
+        uploadId: input.uploadId,
+        sourceRevisionId: input.sourceRevisionId,
+        promptVersion: input.promptVersion,
         kind: node.kind,
         payload: node.payload,
         occurredOn: node.occurredOn ?? null,
@@ -140,16 +158,28 @@ function saveUploadStructure(
   promptVersion: string,
   nodes: readonly StructureNodeInput[],
 ): string[] {
+  return saveUploadStructureAtRevision(db, {
+    uploadId,
+    promptVersion,
+    nodes,
+    sourceRevisionId: findCurrentUploadRevisionId(db, uploadId),
+  });
+}
+
+function saveUploadStructureAtRevision(
+  db: AppDb,
+  input: {
+    uploadId: string;
+    promptVersion: string;
+    nodes: readonly StructureNodeInput[];
+    sourceRevisionId: string | null;
+  },
+): string[] {
+  const { nodes, sourceRevisionId: revisionId, uploadId } = input;
+  const storedVersion = versionForRevision(input.promptVersion, revisionId);
   assertNodesGrounded(
     nodes,
-    new Set(
-      db
-        .select({ id: uploadSpan.id })
-        .from(uploadSpan)
-        .where(eq(uploadSpan.uploadId, uploadId))
-        .all()
-        .map((row) => row.id),
-    ),
+    new Set(listUploadSpans(db, uploadId, revisionId).map((row) => row.id)),
   );
 
   return db.transaction(
@@ -160,7 +190,10 @@ function saveUploadStructure(
         .where(
           and(
             eq(uploadStructureNode.uploadId, uploadId),
-            eq(uploadStructureNode.promptVersion, promptVersion),
+            eq(uploadStructureNode.promptVersion, storedVersion),
+            revisionId === null
+              ? isNull(uploadStructureNode.sourceRevisionId)
+              : eq(uploadStructureNode.sourceRevisionId, revisionId),
           ),
         )
         .orderBy(uploadStructureNode.orderIdx)
@@ -173,7 +206,12 @@ function saveUploadStructure(
         return [];
       }
 
-      return insertStructure(tx, uploadId, promptVersion, nodes);
+      return insertStructure(tx, {
+        uploadId,
+        sourceRevisionId: revisionId,
+        promptVersion: storedVersion,
+        nodes,
+      });
     },
     { behavior: "immediate" },
   );
@@ -184,14 +222,19 @@ function listUploadStructureNodes(
   db: AppDb,
   uploadId: string,
   promptVersion: string,
+  pinnedRevisionId?: string | null,
 ): StructureNodeRow[] {
+  const revisionId = sourceRevision(db, uploadId, pinnedRevisionId);
   const nodes = db
     .select()
     .from(uploadStructureNode)
     .where(
       and(
         eq(uploadStructureNode.uploadId, uploadId),
-        eq(uploadStructureNode.promptVersion, promptVersion),
+        eq(uploadStructureNode.promptVersion, versionForRevision(promptVersion, revisionId)),
+        revisionId === null
+          ? isNull(uploadStructureNode.sourceRevisionId)
+          : eq(uploadStructureNode.sourceRevisionId, revisionId),
       ),
     )
     .orderBy(uploadStructureNode.orderIdx)
@@ -236,6 +279,7 @@ function saveUploadRendition(
   db: AppDb,
   input: {
     uploadId: string;
+    sourceRevisionId?: string | null;
     level: Level;
     model: string;
     promptVersion: string;
@@ -243,15 +287,17 @@ function saveUploadRendition(
     sentences: readonly SentenceInput[];
   },
 ): string {
+  const revisionId = sourceRevision(db, input.uploadId, input.sourceRevisionId);
   return db.transaction((tx) => {
     const id = newId();
     tx.insert(uploadRendition)
       .values({
         id,
         uploadId: input.uploadId,
+        sourceRevisionId: revisionId,
         level: input.level,
         model: input.model,
-        promptVersion: input.promptVersion,
+        promptVersion: versionForRevision(input.promptVersion, revisionId),
         generationSnapshot: input.generationSnapshot,
       })
       .run();
@@ -278,6 +324,45 @@ function saveUploadRendition(
 }
 
 function findUploadRendition(db: AppDb, uploadId: string, level: Level, promptVersion: string) {
+  return findUploadRenditionAtRevision(db, {
+    uploadId,
+    level,
+    promptVersion,
+    sourceRevisionId: findCurrentUploadRevisionId(db, uploadId),
+  });
+}
+
+function findUploadRenditionAtRevision(
+  db: AppDb,
+  input: {
+    uploadId: string;
+    sourceRevisionId: string | null;
+    level: Level;
+    promptVersion: string;
+  },
+) {
+  return db
+    .select()
+    .from(uploadRendition)
+    .where(
+      and(
+        eq(uploadRendition.uploadId, input.uploadId),
+        eq(uploadRendition.level, input.level),
+        eq(
+          uploadRendition.promptVersion,
+          versionForRevision(input.promptVersion, input.sourceRevisionId),
+        ),
+        input.sourceRevisionId === null
+          ? isNull(uploadRendition.sourceRevisionId)
+          : eq(uploadRendition.sourceRevisionId, input.sourceRevisionId),
+      ),
+    )
+    .get();
+}
+
+/** 현재 마스킹 원문판에서 프롬프트 버전을 가리지 않고 가장 최근 설명을 읽는다. */
+function findLatestUploadRendition(db: AppDb, uploadId: string, level: Level) {
+  const revisionId = findCurrentUploadRevisionId(db, uploadId);
   return db
     .select()
     .from(uploadRendition)
@@ -285,18 +370,11 @@ function findUploadRendition(db: AppDb, uploadId: string, level: Level, promptVe
       and(
         eq(uploadRendition.uploadId, uploadId),
         eq(uploadRendition.level, level),
-        eq(uploadRendition.promptVersion, promptVersion),
+        revisionId === null
+          ? isNull(uploadRendition.sourceRevisionId)
+          : eq(uploadRendition.sourceRevisionId, revisionId),
       ),
     )
-    .get();
-}
-
-/** 프롬프트 버전을 가리지 않고 이 문서·레벨에서 가장 최근에 만든 설명을 읽는다. */
-function findLatestUploadRendition(db: AppDb, uploadId: string, level: Level) {
-  return db
-    .select()
-    .from(uploadRendition)
-    .where(and(eq(uploadRendition.uploadId, uploadId), eq(uploadRendition.level, level)))
     .orderBy(desc(uploadRendition.generatedAt))
     .get();
 }
@@ -348,6 +426,7 @@ function insertClaim(
   db: AppDb,
   input: {
     uploadId: string;
+    sourceRevisionId: string | null;
     level: Level;
     promptVersion: string;
     generationSnapshot?: GenerationSnapshot;
@@ -360,8 +439,9 @@ function insertClaim(
     .values({
       id: newId(),
       uploadId: input.uploadId,
+      sourceRevisionId: input.sourceRevisionId,
       level: input.level,
-      promptVersion: input.promptVersion,
+      promptVersion: versionForRevision(input.promptVersion, input.sourceRevisionId),
       generationSnapshot: input.generationSnapshot,
       status: "running",
       claimedBy: input.workerId,
@@ -374,15 +454,29 @@ function insertClaim(
   return rows[0]?.id;
 }
 
-function findJob(db: AppDb, uploadId: string, level: Level, promptVersion: string) {
+function findJob(
+  db: AppDb,
+  input: {
+    uploadId: string;
+    sourceRevisionId: string | null;
+    level: Level;
+    promptVersion: string;
+  },
+) {
   return db
     .select()
     .from(uploadGenerationJob)
     .where(
       and(
-        eq(uploadGenerationJob.uploadId, uploadId),
-        eq(uploadGenerationJob.level, level),
-        eq(uploadGenerationJob.promptVersion, promptVersion),
+        eq(uploadGenerationJob.uploadId, input.uploadId),
+        eq(uploadGenerationJob.level, input.level),
+        eq(
+          uploadGenerationJob.promptVersion,
+          versionForRevision(input.promptVersion, input.sourceRevisionId),
+        ),
+        input.sourceRevisionId === null
+          ? isNull(uploadGenerationJob.sourceRevisionId)
+          : eq(uploadGenerationJob.sourceRevisionId, input.sourceRevisionId),
       ),
     )
     .get();
@@ -433,6 +527,7 @@ function claimUploadJob(
   db: AppDb,
   input: {
     uploadId: string;
+    sourceRevisionId?: string | null;
     level: Level;
     promptVersion: string;
     generationSnapshot?: GenerationSnapshot;
@@ -441,15 +536,21 @@ function claimUploadJob(
   },
 ): ClaimResult {
   const now = input.now ?? new Date();
+  const revisionId = sourceRevision(db, input.uploadId, input.sourceRevisionId);
 
-  const claimedId = insertClaim(db, { ...input, now });
+  const claimedId = insertClaim(db, { ...input, sourceRevisionId: revisionId, now });
   if (claimedId !== undefined) {
     return { kind: "claimed", jobId: claimedId };
   }
 
-  const existing = findJob(db, input.uploadId, input.level, input.promptVersion);
+  const existing = findJob(db, {
+    uploadId: input.uploadId,
+    sourceRevisionId: revisionId,
+    level: input.level,
+    promptVersion: input.promptVersion,
+  });
   if (!existing) {
-    return claimUploadJob(db, { ...input, now });
+    return claimUploadJob(db, { ...input, sourceRevisionId: revisionId, now });
   }
   if (existing.status === "done") {
     return { kind: "done", jobId: existing.id };
@@ -545,9 +646,17 @@ interface JobProgress {
 
 function findUploadJobProgress(
   db: AppDb,
-  input: { uploadId: string; level: Level; promptVersion: string },
+  input: {
+    uploadId: string;
+    sourceRevisionId?: string | null;
+    level: Level;
+    promptVersion: string;
+  },
 ): JobProgress | undefined {
-  const row = findJob(db, input.uploadId, input.level, input.promptVersion);
+  const row = findJob(db, {
+    ...input,
+    sourceRevisionId: sourceRevision(db, input.uploadId, input.sourceRevisionId),
+  });
   if (row === undefined) {
     return;
   }
@@ -564,12 +673,14 @@ export {
   findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
+  findUploadRenditionAtRevision,
   finishUploadJob,
   listUploadSentences,
   listRecentUploadFailures,
   listUploadStructureNodes,
   saveUploadRendition,
   saveUploadStructure,
+  saveUploadStructureAtRevision,
   setUploadJobStage,
 };
 export type {

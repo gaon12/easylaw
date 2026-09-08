@@ -11,22 +11,25 @@ import {
   deleteExpiredUploads,
   deleteSession,
   deleteUpload,
+  findCurrentUploadRevisionId,
   findLiveSession,
   findUploadForOwner,
   findUserByEmail,
   findUserById,
   listMaskCounts,
+  listUploadRevisions,
   listUploadSpans,
   listUploadsForOwner,
   listUsersForAdmin,
   saveUpload,
+  saveUploadRevision,
   setUserRole,
   summarizeOwnerData,
   type UploadInput,
   updateNickname,
   updateRetention,
 } from "./repository";
-import { auditLog, session, upload, uploadMask, uploadSpan } from "./schema";
+import { auditLog, session, upload, uploadMask, uploadRevision, uploadSpan } from "./schema";
 
 let db: AppDb;
 let close: () => void;
@@ -207,6 +210,120 @@ describe("saveUpload", () => {
     expect(second.duplicate).toBe(false);
     expect(listUploadsForOwner(db, a)).toHaveLength(1);
     expect(listUploadsForOwner(db, b)).toHaveLength(1);
+  });
+});
+
+describe("업로드 원문판", () => {
+  it("처음 저장할 때 UUID 원문판에 span과 마스킹 건수를 고정한다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    const revisionId = findCurrentUploadRevisionId(db, id);
+
+    expect(revisionId).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(db.select().from(uploadRevision).all()).toHaveLength(1);
+    expect(listUploadSpans(db, id).every((span) => span.revisionId === revisionId)).toBe(true);
+    expect(
+      db
+        .select()
+        .from(uploadMask)
+        .all()
+        .every((mask) => mask.revisionId === revisionId),
+    ).toBe(true);
+  });
+
+  it("새 원문판으로 전환해도 과거 span과 마스킹 요약을 보존한다", () => {
+    const userId = makeUser();
+    const { id } = saveUpload(db, uploadInput(userId));
+    const oldRevisionId = findCurrentUploadRevisionId(db, id) as string;
+    const oldSpanIds = listUploadSpans(db, id).map((span) => span.id);
+
+    const changed = saveUploadRevision(db, {
+      uploadId: id,
+      userId,
+      docHash: "hash-b",
+      charCount: 12,
+      spans: [{ paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 12, text: "새 마스킹 문장" }],
+      maskCounts: { address: 1 },
+    });
+
+    expect(changed?.created).toBe(true);
+    expect(changed?.revisionId).not.toBe(oldRevisionId);
+    expect(listUploadRevisions(db, id)).toHaveLength(2);
+    expect(listUploadSpans(db, id).map((span) => span.text)).toEqual(["새 마스킹 문장"]);
+    expect(listUploadSpans(db, id, oldRevisionId).map((span) => span.id)).toEqual(oldSpanIds);
+    expect(listMaskCounts(db, id)).toEqual([{ kind: "address", count: 1 }]);
+    expect(listMaskCounts(db, id, oldRevisionId)).toEqual([
+      { kind: "name", count: 2 },
+      { kind: "phone", count: 1 },
+    ]);
+  });
+
+  it("같은 span 판은 재사용하고 남의 문서는 갱신하지 않는다", () => {
+    const owner = makeUser();
+    const stranger = makeUser();
+    const input = uploadInput(owner);
+    const { id } = saveUpload(db, input);
+    const firstRevisionId = findCurrentUploadRevisionId(db, id);
+
+    expect(
+      saveUploadRevision(db, {
+        uploadId: id,
+        userId: owner,
+        docHash: input.docHash,
+        charCount: input.charCount,
+        spans: input.spans,
+        maskCounts: input.maskCounts,
+      }),
+    ).toEqual({ revisionId: firstRevisionId, created: false });
+    expect(
+      saveUploadRevision(db, {
+        uploadId: id,
+        userId: stranger,
+        docHash: "hash-c",
+        charCount: 3,
+        spans: [{ paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "침범" }],
+        maskCounts: {},
+      }),
+    ).toBeUndefined();
+    expect(listUploadRevisions(db, id)).toHaveLength(1);
+  });
+
+  it("문장이 같아도 마스킹 요약이 달라지면 별도 원문판으로 보존한다", () => {
+    const userId = makeUser();
+    const input = uploadInput(userId);
+    const { id } = saveUpload(db, input);
+    const firstRevisionId = findCurrentUploadRevisionId(db, id);
+
+    const changed = saveUploadRevision(db, {
+      uploadId: id,
+      userId,
+      docHash: input.docHash,
+      charCount: input.charCount,
+      spans: input.spans,
+      maskCounts: { name: 3, phone: 1 },
+    });
+
+    expect(changed?.created).toBe(true);
+    expect(changed?.revisionId).not.toBe(firstRevisionId);
+    expect(listUploadRevisions(db, id)).toHaveLength(2);
+    expect(listMaskCounts(db, id)).toEqual([
+      { kind: "name", count: 3 },
+      { kind: "phone", count: 1 },
+    ]);
+  });
+
+  it("다른 업로드의 revision ID로 span과 마스킹 요약을 넘겨 읽지 않는다", () => {
+    const firstUser = makeUser();
+    const secondUser = makeUser();
+    const first = saveUpload(db, uploadInput(firstUser));
+    const second = saveUpload(db, {
+      ...uploadInput(secondUser),
+      docHash: "second-hash",
+    });
+    const secondRevisionId = findCurrentUploadRevisionId(db, second.id);
+
+    expect(listUploadSpans(db, first.id, secondRevisionId)).toEqual([]);
+    expect(listMaskCounts(db, first.id, secondRevisionId)).toEqual([]);
   });
 });
 

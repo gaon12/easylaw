@@ -141,6 +141,8 @@ const upload = sqliteTable(
     charCount: integer("char_count").notNull(),
     /** 사용자가 사건번호를 적었다면 보관한다. 공개 판례 연결에 쓴다. 검증하지 않는다. */
     caseNoCanonical: text("case_no_canonical"),
+    /** 현재 기본으로 읽을 마스킹 원문판. 과거 판은 지우지 않고 포인터만 바꾼다. */
+    currentRevisionId: text("current_revision_id"),
     uploadedAt: timestampNow("uploaded_at"),
     /** 마스킹을 마친 시각. null이면 아직 처리 전이다 — 그 상태로는 보여 주지 않는다. */
     maskedAt: integer("masked_at", { mode: "timestamp_ms" }),
@@ -158,6 +160,29 @@ const upload = sqliteTable(
 );
 
 /**
+ * 올린 문서의 불변 마스킹 원문판.
+ *
+ * 가리기 전 원문이나 그 해시는 여기에도 남기지 않는다. `contentHash`는 마스킹된 span의
+ * 좌표와 텍스트로 계산해, 본문이 같아도 파서가 만든 근거 앵커가 달라지면 새 판으로 본다.
+ */
+const uploadRevision = sqliteTable(
+  "upload_revision",
+  {
+    id: text("id").primaryKey(),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => upload.id, { onDelete: "cascade" }),
+    /** 새 판은 SHA-256. 마이그레이션한 기존 판은 소급 계산하지 않아 null이다. */
+    contentHash: text("content_hash"),
+    createdAt: timestampNow("created_at"),
+  },
+  (table) => [
+    unique("upload_revision_content_unique").on(table.uploadId, table.contentHash),
+    index("upload_revision_upload_idx").on(table.uploadId, table.createdAt),
+  ],
+);
+
+/**
  * 문장 단위 원문. `corpus`의 `judgment_span`과 **모양이 같다**.
  *
  * 같은 모양을 유지하는 이유는 변환 파이프라인과 뷰어를 양쪽에 그대로 쓰기 위해서다.
@@ -171,13 +196,20 @@ const uploadSpan = sqliteTable(
     uploadId: text("upload_id")
       .notNull()
       .references(() => upload.id, { onDelete: "cascade" }),
+    revisionId: text("revision_id").references(() => uploadRevision.id, {
+      onDelete: "cascade",
+    }),
     paraIdx: integer("para_idx").notNull(),
     sentIdx: integer("sent_idx").notNull(),
     charStart: integer("char_start").notNull(),
     charEnd: integer("char_end").notNull(),
     text: text("text").notNull(),
   },
-  (table) => [index("upload_span_order_idx").on(table.uploadId, table.paraIdx, table.sentIdx)],
+  (table) => [
+    unique("upload_span_position_unique").on(table.revisionId, table.paraIdx, table.sentIdx),
+    index("upload_span_order_idx").on(table.uploadId, table.paraIdx, table.sentIdx),
+    index("upload_span_revision_idx").on(table.revisionId),
+  ],
 );
 
 /**
@@ -193,10 +225,16 @@ const uploadMask = sqliteTable(
     uploadId: text("upload_id")
       .notNull()
       .references(() => upload.id, { onDelete: "cascade" }),
+    revisionId: text("revision_id").references(() => uploadRevision.id, {
+      onDelete: "cascade",
+    }),
     kind: text("kind", { enum: MASK_KINDS }).notNull(),
     count: integer("count").notNull(),
   },
-  (table) => [unique("upload_mask_unique").on(table.uploadId, table.kind)],
+  (table) => [
+    unique("upload_mask_unique").on(table.revisionId, table.kind),
+    index("upload_mask_upload_idx").on(table.uploadId),
+  ],
 );
 
 /**
@@ -248,6 +286,9 @@ const uploadStructureNode = sqliteTable(
     uploadId: text("upload_id")
       .notNull()
       .references(() => upload.id, { onDelete: "cascade" }),
+    sourceRevisionId: text("source_revision_id").references(() => uploadRevision.id, {
+      onDelete: "set null",
+    }),
     kind: text("kind", {
       enum: ["fact_event", "issue", "claim", "holding", "conclusion", "citation"],
     }).notNull(),
@@ -272,6 +313,7 @@ const uploadStructureNode = sqliteTable(
   (table) => [
     index("upload_structure_node_upload_idx").on(table.uploadId, table.orderIdx),
     index("upload_structure_node_version_idx").on(table.uploadId, table.promptVersion),
+    index("upload_structure_node_revision_idx").on(table.sourceRevisionId, table.promptVersion),
   ],
 );
 
@@ -316,6 +358,9 @@ const uploadRendition = sqliteTable(
     uploadId: text("upload_id")
       .notNull()
       .references(() => upload.id, { onDelete: "cascade" }),
+    sourceRevisionId: text("source_revision_id").references(() => uploadRevision.id, {
+      onDelete: "set null",
+    }),
     level: text("level", { enum: LEVELS }).notNull(),
     model: text("model").notNull(),
     promptVersion: text("prompt_version").notNull(),
@@ -329,6 +374,7 @@ const uploadRendition = sqliteTable(
   (table) => [
     unique("upload_rendition_variant_unique").on(table.uploadId, table.level, table.promptVersion),
     index("upload_rendition_lookup_idx").on(table.uploadId, table.level),
+    index("upload_rendition_revision_idx").on(table.sourceRevisionId, table.level),
   ],
 );
 
@@ -373,6 +419,9 @@ const uploadGenerationJob = sqliteTable(
     uploadId: text("upload_id")
       .notNull()
       .references(() => upload.id, { onDelete: "cascade" }),
+    sourceRevisionId: text("source_revision_id").references(() => uploadRevision.id, {
+      onDelete: "set null",
+    }),
     level: text("level", { enum: LEVELS }).notNull(),
     promptVersion: text("prompt_version").notNull(),
     /** 작업을 선점할 때 고정한 공급자·모델·규칙. */
@@ -396,6 +445,7 @@ const uploadGenerationJob = sqliteTable(
       table.promptVersion,
     ),
     index("upload_generation_job_status_idx").on(table.status, table.heartbeatAt),
+    index("upload_generation_job_revision_idx").on(table.sourceRevisionId, table.level),
   ],
 );
 
@@ -432,6 +482,7 @@ const appSchema = {
   uploadNodeSpan,
   uploadRendition,
   uploadRenditionSentence,
+  uploadRevision,
   uploadSpan,
   uploadStructureNode,
   user,
@@ -453,6 +504,7 @@ export {
   uploadNodeSpan,
   uploadRendition,
   uploadRenditionSentence,
+  uploadRevision,
   uploadSpan,
   uploadStructureNode,
   user,

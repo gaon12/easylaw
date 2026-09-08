@@ -7,10 +7,11 @@
  * "조회한 다음 컴포넌트에서 주인을 비교"하는 방식은 언젠가 비교를 빠뜨린다.
  */
 
-import { and, count, desc, eq, gt, inArray, isNotNull, lte, sum } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, count, desc, eq, gt, inArray, isNotNull, isNull, lte, sum } from "drizzle-orm";
 import type { MaskKind } from "@/lib/text/mask";
 import type { AppDb } from "../client";
-import { auditLog, session, upload, uploadMask, uploadSpan, user } from "./schema";
+import { auditLog, session, upload, uploadMask, uploadRevision, uploadSpan, user } from "./schema";
 
 interface SpanInput {
   paraIdx: number;
@@ -40,9 +41,69 @@ interface SaveResult {
   duplicate: boolean;
 }
 
+interface UploadRevisionInput {
+  uploadId: string;
+  userId: string;
+  /** 마스킹된 본문의 해시. 중복 업로드 정책도 이 값으로 유지한다. */
+  docHash: string;
+  charCount: number;
+  spans: readonly SpanInput[];
+  maskCounts: Readonly<Partial<Record<MaskKind, number>>>;
+}
+
 type UserRole = (typeof user.role.enumValues)[number];
 
 const newId = (): string => crypto.randomUUID();
+
+function uploadContentHash(
+  spans: readonly SpanInput[],
+  maskCounts: UploadRevisionInput["maskCounts"],
+): string {
+  const masks = Object.entries(maskCounts)
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        spans: spans.map(({ paraIdx, sentIdx, charStart, charEnd, text }) => ({
+          paraIdx,
+          sentIdx,
+          charStart,
+          charEnd,
+          text,
+        })),
+        masks,
+      }),
+    )
+    .digest("hex");
+}
+
+function findCurrentUploadRevisionId(db: AppDb, uploadId: string): string | null {
+  return (
+    db
+      .select({ revisionId: upload.currentRevisionId })
+      .from(upload)
+      .where(eq(upload.id, uploadId))
+      .get()?.revisionId ?? null
+  );
+}
+
+function uploadSourceRevision(
+  db: AppDb,
+  uploadId: string,
+  pinned: string | null | undefined,
+): string | null {
+  return pinned === undefined ? findCurrentUploadRevisionId(db, uploadId) : pinned;
+}
+
+function listUploadRevisions(db: AppDb, uploadId: string) {
+  return db
+    .select()
+    .from(uploadRevision)
+    .where(eq(uploadRevision.uploadId, uploadId))
+    .orderBy(desc(uploadRevision.createdAt))
+    .all();
+}
 
 /** 관리자가 하나라도 있는가. 설치 마법사의 첫 단계를 다시 열지 말지 여기서 갈린다. */
 function hasAdmin(db: AppDb): boolean {
@@ -232,6 +293,68 @@ function deleteExpiredSessions(db: AppDb, now: Date = new Date()): number {
   return db.delete(session).where(lte(session.expiresAt, now)).run().changes;
 }
 
+type AppTx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
+/** 마스킹 원문판과 그 span·마스킹 건수를 같은 트랜잭션에 넣는다. */
+function insertUploadRevision(
+  tx: AppTx,
+  input: {
+    uploadId: string;
+    revisionId: string;
+    spans: readonly SpanInput[];
+    maskCounts: UploadRevisionInput["maskCounts"];
+  },
+): void {
+  tx.insert(uploadRevision)
+    .values({
+      id: input.revisionId,
+      uploadId: input.uploadId,
+      contentHash: uploadContentHash(input.spans, input.maskCounts),
+    })
+    .run();
+  if (input.spans.length > 0) {
+    tx.insert(uploadSpan)
+      .values(
+        input.spans.map((span) => ({
+          id: newId(),
+          uploadId: input.uploadId,
+          revisionId: input.revisionId,
+          ...span,
+        })),
+      )
+      .run();
+  }
+  const masks = Object.entries(input.maskCounts).filter(([, count]) => count > 0);
+  if (masks.length > 0) {
+    tx.insert(uploadMask)
+      .values(
+        masks.map(([kind, count]) => ({
+          uploadId: input.uploadId,
+          revisionId: input.revisionId,
+          kind: kind as MaskKind,
+          count,
+        })),
+      )
+      .run();
+  }
+}
+
+function activateUploadRevision(
+  tx: AppTx,
+  input: Pick<UploadRevisionInput, "uploadId" | "docHash" | "charCount">,
+  revisionId: string,
+): void {
+  tx.update(upload)
+    .set({
+      currentRevisionId: revisionId,
+      docHash: input.docHash,
+      charCount: input.charCount,
+      maskedAt: new Date(),
+    })
+    .where(eq(upload.id, input.uploadId))
+    .run();
+}
+
 /**
  * 문서 한 건을 저장한다. 문장과 마스킹 요약까지 **한 트랜잭션**에서 넣는다.
  *
@@ -248,6 +371,7 @@ function saveUpload(db: AppDb, input: UploadInput): SaveResult {
   }
 
   const id = newId();
+  const revisionId = newId();
   db.transaction((tx) => {
     tx.insert(upload)
       .values({
@@ -258,24 +382,19 @@ function saveUpload(db: AppDb, input: UploadInput): SaveResult {
         docHash: input.docHash,
         charCount: input.charCount,
         caseNoCanonical: input.caseNoCanonical,
+        currentRevisionId: revisionId,
         retentionUntil: input.retentionUntil,
         // 저장 시점에 이미 마스킹을 마친 본문만 들어온다.
         maskedAt: new Date(),
       })
       .run();
 
-    if (input.spans.length > 0) {
-      tx.insert(uploadSpan)
-        .values(input.spans.map((span) => ({ id: newId(), uploadId: id, ...span })))
-        .run();
-    }
-
-    const masks = Object.entries(input.maskCounts).filter(([, count]) => count > 0);
-    if (masks.length > 0) {
-      tx.insert(uploadMask)
-        .values(masks.map(([kind, count]) => ({ uploadId: id, kind: kind as MaskKind, count })))
-        .run();
-    }
+    insertUploadRevision(tx, {
+      uploadId: id,
+      revisionId,
+      spans: input.spans,
+      maskCounts: input.maskCounts,
+    });
 
     tx.insert(auditLog)
       .values({
@@ -290,6 +409,58 @@ function saveUpload(db: AppDb, input: UploadInput): SaveResult {
   });
 
   return { id, duplicate: false };
+}
+
+/**
+ * 기존 업로드의 새 마스킹 원문판을 저장한다. 이전 span과 생성물은 그대로 두고 current만 바꾼다.
+ * 주인 조건을 첫 조회부터 걸어, 남의 문서 존재 여부도 드러내지 않는다.
+ */
+function saveUploadRevision(
+  db: AppDb,
+  input: UploadRevisionInput,
+): { readonly revisionId: string; readonly created: boolean } | undefined {
+  return db.transaction(
+    (tx) => {
+      const owned = tx
+        .select({ id: upload.id })
+        .from(upload)
+        .where(and(eq(upload.id, input.uploadId), eq(upload.userId, input.userId)))
+        .get();
+      if (owned === undefined) {
+        return;
+      }
+
+      const existing = tx
+        .select({ id: uploadRevision.id })
+        .from(uploadRevision)
+        .where(
+          and(
+            eq(uploadRevision.uploadId, input.uploadId),
+            eq(uploadRevision.contentHash, uploadContentHash(input.spans, input.maskCounts)),
+          ),
+        )
+        .get();
+      if (existing !== undefined) {
+        activateUploadRevision(tx, input, existing.id);
+        return { revisionId: existing.id, created: false };
+      }
+
+      const revisionId = newId();
+      insertUploadRevision(tx, { ...input, revisionId });
+      activateUploadRevision(tx, input, revisionId);
+      tx.insert(auditLog)
+        .values({
+          id: newId(),
+          actor: input.userId,
+          action: "upload.revision_created",
+          target: input.uploadId,
+          meta: { revisionId, spans: input.spans.length, chars: input.charCount },
+        })
+        .run();
+      return { revisionId, created: true };
+    },
+    { behavior: "immediate" },
+  );
 }
 
 /** 주인이 아니면 undefined. "없음"과 "남의 것"을 구분하지 않는다 — 존재 여부도 정보다. */
@@ -310,21 +481,33 @@ function listUploadsForOwner(db: AppDb, userId: string) {
     .all();
 }
 
-function listUploadSpans(db: AppDb, uploadId: string) {
+function listUploadSpans(db: AppDb, uploadId: string, pinnedRevisionId?: string | null) {
+  const revisionId = uploadSourceRevision(db, uploadId, pinnedRevisionId);
   return db
     .select()
     .from(uploadSpan)
-    .where(eq(uploadSpan.uploadId, uploadId))
+    .where(
+      and(
+        eq(uploadSpan.uploadId, uploadId),
+        revisionId === null ? isNull(uploadSpan.revisionId) : eq(uploadSpan.revisionId, revisionId),
+      ),
+    )
     .orderBy(uploadSpan.paraIdx, uploadSpan.sentIdx)
     .all();
 }
 
 /** 무엇을 몇 건 가렸는지. 가린 내용은 저장하지 않으므로 종류와 수만 나온다. */
-function listMaskCounts(db: AppDb, uploadId: string) {
+function listMaskCounts(db: AppDb, uploadId: string, pinnedRevisionId?: string | null) {
+  const revisionId = uploadSourceRevision(db, uploadId, pinnedRevisionId);
   return db
     .select({ kind: uploadMask.kind, count: uploadMask.count })
     .from(uploadMask)
-    .where(eq(uploadMask.uploadId, uploadId))
+    .where(
+      and(
+        eq(uploadMask.uploadId, uploadId),
+        revisionId === null ? isNull(uploadMask.revisionId) : eq(uploadMask.revisionId, revisionId),
+      ),
+    )
     .all();
 }
 
@@ -542,8 +725,11 @@ export {
   listUsersForAdmin,
   listMaskCounts,
   listUploadSpans,
+  listUploadRevisions,
+  findCurrentUploadRevisionId,
   listUploadsForOwner,
   saveUpload,
+  saveUploadRevision,
   summarizeOwnerData,
   touchSession,
   touchUser,
@@ -551,4 +737,4 @@ export {
   updateRetention,
   setUserRole,
 };
-export type { RoleChangeResult, SaveResult, SpanInput, UploadInput, UserRole };
+export type { RoleChangeResult, SaveResult, SpanInput, UploadInput, UploadRevisionInput, UserRole };

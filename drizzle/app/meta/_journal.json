@@ -78,6 +78,13 @@
       "when": 1788845117665,
       "tag": "0010_narrow_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1788846535513,
+      "tag": "0011_slimy_prism",
+      "breakpoints": true
     }
   ]
 }

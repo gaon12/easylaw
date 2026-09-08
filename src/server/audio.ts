@@ -347,10 +347,12 @@ function findDocAudio(sentenceId: string): { bytes: Buffer; format: string } | u
       eq(uploadRenditionSentence.id, uploadRenditionAudio.sentenceId),
     )
     .innerJoin(uploadRendition, eq(uploadRendition.id, uploadRenditionSentence.renditionId))
+    .innerJoin(upload, eq(upload.id, uploadRendition.uploadId))
     .where(
       and(
         eq(uploadRenditionAudio.sentenceId, sentenceId),
-        eq(uploadRendition.promptVersion, currentPipelineVersion()),
+        like(uploadRendition.promptVersion, `${currentPipelineVersion()}::source:%`),
+        eq(uploadRendition.sourceRevisionId, upload.currentRevisionId),
       ),
     )
     .all()
@@ -374,7 +376,8 @@ function ownsDocSentence(sentenceId: string, userId: string): boolean {
         and(
           eq(uploadRenditionSentence.id, sentenceId),
           eq(upload.userId, userId),
-          eq(uploadRendition.promptVersion, currentPipelineVersion()),
+          like(uploadRendition.promptVersion, `${currentPipelineVersion()}::source:%`),
+          eq(uploadRendition.sourceRevisionId, upload.currentRevisionId),
         ),
       )
       .all().length > 0

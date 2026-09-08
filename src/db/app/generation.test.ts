@@ -9,6 +9,7 @@ import {
   findLatestUploadRendition,
   findUploadJobProgress,
   findUploadRendition,
+  findUploadRenditionAtRevision,
   finishUploadJob,
   listUploadSentences,
   listUploadStructureNodes,
@@ -16,7 +17,13 @@ import {
   saveUploadStructure,
   setUploadJobStage,
 } from "./generation";
-import { createUser, listUploadSpans, saveUpload } from "./repository";
+import {
+  createUser,
+  findCurrentUploadRevisionId,
+  listUploadSpans,
+  saveUpload,
+  saveUploadRevision,
+} from "./repository";
 import { uploadGenerationJob, uploadRendition } from "./schema";
 
 let db: AppDb;
@@ -33,7 +40,7 @@ afterEach(() => {
 let seq = 0;
 
 /** 문서 하나와 그 원문 두 문장. 생성물이 매달릴 자리다. */
-function seedUpload(): { uploadId: string; spanIds: string[] } {
+function seedUpload(): { uploadId: string; userId: string; spanIds: string[] } {
   seq += 1;
   const userId = createUser(db, { email: `user${seq}@example.com`, passwordHash: "hash" });
   if (userId === undefined) {
@@ -56,6 +63,7 @@ function seedUpload(): { uploadId: string; spanIds: string[] } {
 
   return {
     uploadId: saved.id,
+    userId,
     spanIds: listUploadSpans(db, saved.id).map((span) => span.id),
   };
 }
@@ -174,6 +182,76 @@ describe("saveUploadStructure", () => {
 });
 
 describe("saveUploadRendition", () => {
+  it("원문판이 바뀌면 구 설명을 현재 판의 캐시로 반환하지 않는다", () => {
+    const { uploadId, userId } = seedUpload();
+    const oldRevisionId = findCurrentUploadRevisionId(db, uploadId) as string;
+    const renditionId = saveUploadRendition(db, {
+      uploadId,
+      level: "L4",
+      model: "test-model",
+      promptVersion: "v1",
+      sentences: [],
+    });
+
+    saveUploadRevision(db, {
+      uploadId,
+      userId,
+      docHash: `changed-${uploadId}`,
+      charCount: 8,
+      spans: [{ paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 8, text: "새 문장" }],
+      maskCounts: {},
+    });
+
+    expect(findUploadRendition(db, uploadId, "L4", "v1")).toBeUndefined();
+    expect(
+      findUploadRenditionAtRevision(db, {
+        uploadId,
+        sourceRevisionId: oldRevisionId,
+        level: "L4",
+        promptVersion: "v1",
+      })?.id,
+    ).toBe(renditionId);
+  });
+
+  it("원문판 전환 뒤에는 구 구조와 작업 잠금을 현재 판에서 재사용하지 않는다", () => {
+    const { uploadId, userId, spanIds } = seedUpload();
+    const oldRevisionId = findCurrentUploadRevisionId(db, uploadId) as string;
+    saveUploadStructure(db, uploadId, PROMPT, [
+      {
+        kind: "holding",
+        payload: { text: "옛 판단" },
+        orderIdx: 0,
+        spanIds: [spanIds[0] as string],
+      },
+    ]);
+    const oldJob = claimUploadJob(db, {
+      uploadId,
+      level: "L2",
+      promptVersion: "pipeline-v1",
+      workerId: "old-worker",
+    });
+
+    saveUploadRevision(db, {
+      uploadId,
+      userId,
+      docHash: `new-${uploadId}`,
+      charCount: 8,
+      spans: [{ paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 8, text: "새 근거" }],
+      maskCounts: {},
+    });
+
+    expect(listUploadStructureNodes(db, uploadId, PROMPT)).toEqual([]);
+    expect(listUploadStructureNodes(db, uploadId, PROMPT, oldRevisionId)).toHaveLength(1);
+    const newJob = claimUploadJob(db, {
+      uploadId,
+      level: "L2",
+      promptVersion: "pipeline-v1",
+      workerId: "new-worker",
+    });
+    expect(newJob.kind).toBe("claimed");
+    expect(newJob.jobId).not.toBe(oldJob.jobId);
+  });
+
   it("생성 설정 스냅샷을 결과와 함께 보존한다", () => {
     const { uploadId } = seedUpload();
     saveUploadRendition(db, {
@@ -277,7 +355,7 @@ describe("saveUploadRendition", () => {
 
     expect(findLatestUploadRendition(db, uploadId, "L2")).toMatchObject({
       id: newerId,
-      promptVersion: "new-prompt",
+      promptVersion: expect.stringMatching(/^new-prompt::source:/u),
       generatedAt: new Date("2026-09-02T00:00:00Z"),
     });
     expect(findLatestUploadRendition(db, uploadId, "L4")?.id).toBe(otherLevelId);

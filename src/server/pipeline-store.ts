@@ -4,14 +4,15 @@ import "server-only";
 import {
   claimUploadJob,
   findUploadJobProgress,
-  findUploadRendition,
+  findUploadRenditionAtRevision,
   finishUploadJob,
   listUploadStructureNodes,
   saveUploadRendition,
-  saveUploadStructure,
+  type saveUploadStructure,
+  saveUploadStructureAtRevision,
   setUploadJobStage,
 } from "@/db/app/generation";
-import { listUploadSpans } from "@/db/app/repository";
+import { findCurrentUploadRevisionId, listUploadSpans } from "@/db/app/repository";
 import { appDb, corpusDb } from "@/db/client";
 import {
   claimGenerationJob,
@@ -184,29 +185,32 @@ function caseStore(judgmentId: string): PipelineStore {
 /** 올린 판결문. `app` DB. 같은 인터페이스, 다른 파일. */
 function docStore(uploadId: string): PipelineStore {
   const db = appDb();
+  /** 공개 판례와 같이 생성 요청 시작 때 마스킹 원문판을 고정한다. */
+  const sourceRevisionId = findCurrentUploadRevisionId(db, uploadId);
 
   return {
     kind: "doc",
     documentId: uploadId,
 
-    listSpans: () => listUploadSpans(db, uploadId),
-    listNodes: (extractVersion) => listUploadStructureNodes(db, uploadId, extractVersion),
+    listSpans: () => listUploadSpans(db, uploadId, sourceRevisionId),
+    listNodes: (extractVersion) =>
+      listUploadStructureNodes(db, uploadId, extractVersion, sourceRevisionId),
     saveNodes: (extractVersion, nodes) => {
-      saveUploadStructure(
-        db,
+      saveUploadStructureAtRevision(db, {
         uploadId,
-        extractVersion,
-        nodes.map((node) => ({
+        promptVersion: extractVersion,
+        sourceRevisionId,
+        nodes: nodes.map((node) => ({
           kind: node.kind as Parameters<typeof saveUploadStructure>[3][number]["kind"],
           payload: node.payload,
           occurredOn: node.occurredOn ?? null,
           orderIdx: node.orderIdx,
           spanIds: node.spanIds,
         })),
-      );
+      });
     },
 
-    claimJob: (input) => claimUploadJob(db, { uploadId, ...input }),
+    claimJob: (input) => claimUploadJob(db, { uploadId, ...input, sourceRevisionId }),
     setStage: (jobId, stage) => {
       setUploadJobStage(db, jobId, stage);
     },
@@ -214,11 +218,16 @@ function docStore(uploadId: string): PipelineStore {
       finishUploadJob(db, jobId, result);
     },
     findProgress: (level, promptVersion) =>
-      findUploadJobProgress(db, { uploadId, level, promptVersion }),
+      findUploadJobProgress(db, { uploadId, level, promptVersion, sourceRevisionId }),
 
-    saveRendition: (input) => saveUploadRendition(db, { uploadId, ...input }),
+    saveRendition: (input) => saveUploadRendition(db, { uploadId, ...input, sourceRevisionId }),
     findRenditionId: (level, promptVersion) =>
-      findUploadRendition(db, uploadId, level, promptVersion)?.id,
+      findUploadRenditionAtRevision(db, {
+        uploadId,
+        level,
+        promptVersion,
+        sourceRevisionId,
+      })?.id,
   };
 }
 
