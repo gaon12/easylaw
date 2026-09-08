@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { deleteExpiredUploads, saveUpload } from "@/db/app/repository";
+import { deleteExpiredUploads, saveUpload, saveUploadRevision } from "@/db/app/repository";
 import type { AppDb } from "@/db/client";
 import { toCanonicalCaseNumber } from "@/lib/case-number/normalize";
 import { DAY_MS } from "@/lib/format";
@@ -33,6 +33,18 @@ interface IngestInput {
 type IngestResult =
   | { readonly kind: "saved"; readonly docId: string; readonly duplicate: boolean }
   | { readonly kind: "rejected"; readonly reason: RejectReason };
+
+interface RevisionInput {
+  ownerId: string;
+  uploadId: string;
+  /** 붙여넣기 또는 파일에서 읽은 새 원문. */
+  raw: string;
+}
+
+type RevisionResult =
+  | { readonly kind: "saved"; readonly revisionId: string; readonly created: boolean }
+  | { readonly kind: "rejected"; readonly reason: RejectReason }
+  | { readonly kind: "not_found" };
 
 function isRetentionChoice(value: string): value is RetentionChoice {
   return (RETENTION_CHOICES as readonly string[]).includes(value);
@@ -86,6 +98,30 @@ function ingestUpload(db: AppDb, input: IngestInput, now: Date = new Date()): In
 }
 
 /**
+ * 기존 문서의 새 원문판을 저장한다.
+ *
+ * 새 내용도 먼저 마스킹하며 가리기 전 원문은 저장소로 넘기지 않는다. 저장소는 소유자를
+ * 조건에 포함하고, 동일한 마스킹 결과라면 새 판을 만들지 않고 기존 판을 다시 활성화한다.
+ */
+function ingestUploadRevision(db: AppDb, input: RevisionInput): RevisionResult {
+  const prepared = prepareDocument(input.raw);
+  if (!prepared.ok) {
+    return { kind: "rejected", reason: prepared.reason };
+  }
+
+  const { document } = prepared;
+  const saved = saveUploadRevision(db, {
+    uploadId: input.uploadId,
+    userId: input.ownerId,
+    docHash: createHash("sha256").update(document.text).digest("hex"),
+    charCount: document.charCount,
+    spans: document.spans,
+    maskCounts: document.maskCounts,
+  });
+  return saved === undefined ? { kind: "not_found" } : { kind: "saved", ...saved };
+}
+
+/**
  * 보관 기간이 지난 문서를 치운다.
  *
  * 스케줄러를 두지 않고 문서를 읽는 화면에서 부른다. 사용자가 고른 기간은 약속이고,
@@ -95,5 +131,12 @@ function purgeExpiredUploads(db: AppDb, now: Date = new Date()): number {
   return deleteExpiredUploads(db, now);
 }
 
-export { ingestUpload, isRetentionChoice, purgeExpiredUploads, RETENTION_CHOICES, retentionUntil };
-export type { IngestInput, IngestResult, RetentionChoice };
+export {
+  ingestUpload,
+  ingestUploadRevision,
+  isRetentionChoice,
+  purgeExpiredUploads,
+  RETENTION_CHOICES,
+  retentionUntil,
+};
+export type { IngestInput, IngestResult, RetentionChoice, RevisionInput, RevisionResult };

@@ -54,6 +54,76 @@
   justify-items: start;
 }
 
+.replace {
+  border-top: 1px solid var(--el-border-default);
+  border-bottom: 1px solid var(--el-border-default);
+}
+
+.replaceSummary {
+  padding: var(--el-space-4) 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.replaceBody,
+.replaceForm,
+.replaceField,
+.replaceFile {
+  display: grid;
+}
+
+.replaceBody {
+  gap: var(--el-space-4);
+  padding: 0 0 var(--el-space-5);
+}
+
+.replaceForm {
+  gap: var(--el-space-4);
+  justify-items: start;
+}
+
+.replaceField,
+.replaceFile {
+  gap: var(--el-space-2);
+  width: 100%;
+}
+
+.replaceLabel {
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.replaceTextarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-canvas);
+  line-height: var(--el-leading-body);
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
+.replaceTextarea:hover {
+  border-color: var(--el-fg-3);
+}
+
+.replaceConfirm {
+  display: flex;
+  gap: var(--el-space-2);
+  align-items: flex-start;
+  padding: var(--el-space-3);
+  border: 1px solid var(--el-border-default);
+  border-radius: var(--el-radius-s);
+  background: var(--el-bg-subtle);
+}
+
+.replaceConfirm input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
 @media (max-width: 640px) {
   .page {
     padding: var(--el-space-6) var(--el-space-4) var(--el-space-12);

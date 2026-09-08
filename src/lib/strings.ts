@@ -256,6 +256,21 @@ export const doc = {
   charCount: (count: number) => `${count.toLocaleString("ko-KR")}자`,
   metaSeparator: " · ",
   uploadedAt: (date: string) => `${date}에 올리셨어요.`,
+  replaceTitle: "새 원문으로 바꾸기",
+  replaceBody:
+    "새 판결문을 넣으면 개인정보를 다시 가리고 현재 원문으로 바꿔요. 이전 원문과 그때 만든 설명은 기록으로 보존하며, 새 원문에는 새 설명을 만들어야 해요.",
+  replaceTextLabel: "새 판결문 내용",
+  replaceFileLabel: "또는 새 파일 고르기",
+  replaceSubmit: "새 원문으로 저장",
+  replaceSubmitting: "가리고 저장하고 있어요…",
+  replaceSuccess: {
+    created: "새 원문판으로 바꿨어요. 이 원문에 맞는 설명을 새로 만들어 주세요.",
+    same: "이미 저장된 원문과 같아요. 그 원문판을 현재 판으로 열었어요.",
+  },
+  replaceErrors: {
+    ...upload.errors,
+    not_found: "문서를 찾을 수 없어요. 다시 로그인한 뒤 내 문서함에서 열어 주세요.",
+  },
   deleteTitle: "이 문서 지우기",
   deleteBody: "지우면 되돌릴 수 없어요. 문장과 가린 기록까지 모두 사라져요.",
   deleteSubmit: "지울게요",

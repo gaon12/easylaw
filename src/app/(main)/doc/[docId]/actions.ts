@@ -6,9 +6,33 @@ import { after } from "next/server";
 import { deleteUpload, findUploadForOwner } from "@/db/app/repository";
 import { appDb } from "@/db/client";
 import type { Level } from "@/db/corpus/repository";
+import { checkDocumentLength } from "@/lib/generation-limit";
+import type { RejectReason } from "@/lib/text/prepare";
+import { MAX_CHARS } from "@/lib/text/prepare";
+import { type FileProblem, readUploadedFile } from "@/lib/text/upload-file";
 import { beginGeneration, runGeneration } from "@/server/generate";
 import { currentOwnerId } from "@/server/owner";
 import { docStore } from "@/server/pipeline-store";
+import { ingestUploadRevision } from "@/server/upload";
+
+type ReplaceError =
+  | RejectReason
+  | FileProblem
+  | "sign_in_required"
+  | "not_found"
+  | "confirm_required";
+interface ReplaceState {
+  readonly error?: ReplaceError;
+  readonly success?: "created" | "same";
+  readonly text?: string;
+}
+
+const DOCUMENT_CONFIRM_AFTER = 80_000;
+
+function field(formData: FormData, name: string): string {
+  const value = formData.get(name);
+  return typeof value === "string" ? value : "";
+}
 
 /**
  * 문서 삭제. `PAGES.md` §15 · §17
@@ -31,6 +55,53 @@ async function deleteDoc(formData: FormData): Promise<void> {
   deleteUpload(appDb(), docId, ownerId);
 
   redirect("/cases");
+}
+
+/** 같은 문서의 새 원문판. 과거 판과 그 설명은 보존하고 현재 포인터만 바꾼다. */
+async function replaceDocRevision(
+  _previous: ReplaceState,
+  formData: FormData,
+): Promise<ReplaceState> {
+  const docId = field(formData, "docId");
+  const pasted = field(formData, "text");
+  const file = formData.get("file");
+  let raw = pasted;
+
+  if (file instanceof File && file.size > 0) {
+    const read = await readUploadedFile(file);
+    if ("error" in read) {
+      return { error: read.error, text: pasted };
+    }
+    raw = read.text;
+  }
+
+  const length = checkDocumentLength({
+    charCount: raw.length,
+    confirmAfter: DOCUMENT_CONFIRM_AFTER,
+    maxChars: MAX_CHARS,
+    confirmed: field(formData, "confirmLongDocument") === "on",
+  });
+  if (length.kind === "too_long") {
+    return { error: "too_long", text: pasted };
+  }
+  if (length.kind === "confirm") {
+    return { error: "confirm_required", text: pasted };
+  }
+
+  const ownerId = await currentOwnerId();
+  if (ownerId === undefined) {
+    return { error: "sign_in_required", text: pasted };
+  }
+  const result = ingestUploadRevision(appDb(), { ownerId, uploadId: docId, raw });
+  if (result.kind === "rejected") {
+    return { error: result.reason, text: pasted };
+  }
+  if (result.kind === "not_found") {
+    return { error: "not_found", text: pasted };
+  }
+
+  revalidatePath(`/doc/${docId}`);
+  return { success: result.created ? "created" : "same" };
 }
 
 /**
@@ -76,4 +147,5 @@ async function requestDocGeneration(formData: FormData): Promise<void> {
   revalidatePath(`/doc/${docId}`);
 }
 
-export { deleteDoc, requestDocGeneration };
+export { deleteDoc, replaceDocRevision, requestDocGeneration };
+export type { ReplaceError, ReplaceState };

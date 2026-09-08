@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createUser,
+  findCurrentUploadRevisionId,
   findUploadForOwner,
   listMaskCounts,
+  listUploadRevisions,
   listUploadSpans,
 } from "@/db/app/repository";
 import type { AppDb } from "@/db/client";
 import { createTestAppDb } from "@/db/testing";
-import { ingestUpload, isRetentionChoice, purgeExpiredUploads } from "./upload";
+import {
+  ingestUpload,
+  ingestUploadRevision,
+  isRetentionChoice,
+  purgeExpiredUploads,
+} from "./upload";
 
 let db: AppDb;
 let ownerId: string;
@@ -141,6 +148,73 @@ describe("ingestUpload", () => {
       throw new Error("저장에 실패했다");
     }
     expect(again).toEqual({ kind: "saved", docId: first.docId, duplicate: true });
+  });
+});
+
+describe("ingestUploadRevision", () => {
+  it("새 원문을 다시 가린 뒤 현재 판만 전환하고 과거 판을 보존한다", () => {
+    const first = ingestUpload(db, input());
+    if (first.kind !== "saved") {
+      throw new Error("첫 문서를 저장하지 못했다");
+    }
+    const oldRevisionId = findCurrentUploadRevisionId(db, first.docId) as string;
+    const oldText = listUploadSpans(db, first.docId, oldRevisionId)
+      .map((span) => span.text)
+      .join("\n");
+    const changedRaw = `${JUDGMENT}\n피고의 새 전화번호는 010-9999-8888이다.`;
+
+    const changed = ingestUploadRevision(db, {
+      ownerId,
+      uploadId: first.docId,
+      raw: changedRaw,
+    });
+
+    expect(changed.kind).toBe("saved");
+    if (changed.kind !== "saved") {
+      throw new Error("새 원문판을 저장하지 못했다");
+    }
+    expect(changed.created).toBe(true);
+    expect(changed.revisionId).not.toBe(oldRevisionId);
+    expect(listUploadRevisions(db, first.docId)).toHaveLength(2);
+    expect(
+      listUploadSpans(db, first.docId, oldRevisionId)
+        .map((span) => span.text)
+        .join("\n"),
+    ).toBe(oldText);
+    const currentText = listUploadSpans(db, first.docId)
+      .map((span) => span.text)
+      .join("\n");
+    expect(currentText).not.toContain("010-9999-8888");
+    expect(currentText).toContain("[전화번호]");
+  });
+
+  it("동일한 마스킹 원문이면 기존 판을 재사용한다", () => {
+    const first = ingestUpload(db, input());
+    if (first.kind !== "saved") {
+      throw new Error("첫 문서를 저장하지 못했다");
+    }
+
+    expect(
+      ingestUploadRevision(db, { ownerId, uploadId: first.docId, raw: JUDGMENT }),
+    ).toMatchObject({ kind: "saved", created: false });
+    expect(listUploadRevisions(db, first.docId)).toHaveLength(1);
+  });
+
+  it("다른 사람의 문서는 존재 여부를 드러내지 않고 바꾸지 않는다", () => {
+    const first = ingestUpload(db, input());
+    const stranger = createUser(db, { email: "stranger@example.com", passwordHash: "hash" });
+    if (first.kind !== "saved" || stranger === undefined) {
+      throw new Error("시험 자료를 만들지 못했다");
+    }
+
+    expect(
+      ingestUploadRevision(db, {
+        ownerId: stranger,
+        uploadId: first.docId,
+        raw: `${JUDGMENT}\n다른 내용이 이어진다.`,
+      }),
+    ).toEqual({ kind: "not_found" });
+    expect(listUploadRevisions(db, first.docId)).toHaveLength(1);
   });
 });
 

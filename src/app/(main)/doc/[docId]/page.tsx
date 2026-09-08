@@ -28,6 +28,7 @@ import { llmConfig, siteTimeZone } from "@/server/settings";
 import { purgeExpiredUploads } from "@/server/upload";
 import { deleteDoc, requestDocGeneration } from "./actions";
 import styles from "./page.module.css";
+import { ReplaceDocumentForm } from "./replace-form";
 
 const MAX_TOC_DEPTH = 3;
 
@@ -267,6 +268,7 @@ export default async function DocPage(props: {
         timeZone={timeZone}
       />
       <DocOriginal citations={citations} headings={headings} level={level} spans={spans} />
+      <ReplaceDocumentForm docId={docId} />
       <DeleteDocPanel docId={docId} />
     </div>
   );
