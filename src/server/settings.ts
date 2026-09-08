@@ -35,6 +35,8 @@ const SETTINGS = {
   llm_base_url: { secret: false },
   llm_api_key: { secret: true },
   llm_model: { secret: false },
+  /** 같은 모델 alias의 실제 대상이 바뀌었을 때 운영자가 올리는 명시적 판. */
+  llm_revision: { secret: false },
   /**
    * 음성 합성. `llm_*`과 같은 모양이다 — 주소·키·모델 세 칸이면 어느 제공자든 꽂힌다.
    *
@@ -181,6 +183,7 @@ interface LlmConfig {
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly model: string;
+  readonly modelRevision?: string;
 }
 
 /** LLM 설정. 셋 중 하나라도 없으면 생성 기능은 꺼진 것으로 본다. */
@@ -190,10 +193,29 @@ function llmConfig(db: AppDb = appDb()): LlmConfig | undefined {
   if (baseUrl === undefined || apiKey === undefined) {
     return;
   }
-  return { baseUrl, apiKey, model: readSetting(db, "llm_model") ?? DEFAULT_LLM_MODEL };
+  return {
+    baseUrl,
+    apiKey,
+    model: readSetting(db, "llm_model") ?? DEFAULT_LLM_MODEL,
+    modelRevision: llmModelRevision(db),
+  };
 }
 
 const DEFAULT_LLM_MODEL = "claude-sonnet-5";
+const DEFAULT_LLM_MODEL_REVISION = "1";
+
+/**
+ * 제공자가 같은 모델 이름 뒤의 실제 대상을 바꿔도 알아볼 수 있게 하는 운영 판.
+ * 숫자가 아닌 저장값은 예전 결과와 뜻없이 다른 키를 만들지 않고 기본 1판으로 돌린다.
+ */
+function llmModelRevision(db: AppDb = appDb()): string {
+  return normalizeLlmModelRevision(readSetting(db, "llm_revision"));
+}
+
+function normalizeLlmModelRevision(raw: string | undefined): string {
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? String(parsed) : DEFAULT_LLM_MODEL_REVISION;
+}
 
 interface TtsConfig {
   readonly baseUrl: string;
@@ -334,6 +356,7 @@ export {
   DEFAULT_GENERATION_IP_LIMIT,
   DEFAULT_GENERATION_SESSION_LIMIT,
   DEFAULT_LLM_MODEL,
+  DEFAULT_LLM_MODEL_REVISION,
   DEFAULT_TIME_ZONE,
   generationDailyLimit,
   generationIpLimit,
@@ -343,7 +366,9 @@ export {
   listSettings,
   listSettingsForEditing,
   llmConfig,
+  llmModelRevision,
   markSetupComplete,
+  normalizeLlmModelRevision,
   readSetting,
   SETTING_KEYS,
   siteTimeZone,

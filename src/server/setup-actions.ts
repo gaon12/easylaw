@@ -7,7 +7,13 @@ import { checkBaseUrl, trimBaseUrl } from "@/lib/llm/base-url";
 import type { AuthProblem } from "./auth";
 import { signIn, signUp } from "./auth";
 import { currentSession } from "./owner";
-import { isSetupComplete, markSetupComplete, type SettingKey, writeSettings } from "./settings";
+import {
+  isSetupComplete,
+  markSetupComplete,
+  normalizeLlmModelRevision,
+  type SettingKey,
+  writeSettings,
+} from "./settings";
 
 /**
  * 설치 마법사 서버 액션. `PAGES.md` §17
@@ -171,6 +177,7 @@ async function saveSettings(formData: FormData): Promise<void> {
     llm_base_url: trimBaseUrl(baseUrl),
     llm_api_key: field(formData, "llm_api_key"),
     llm_model: field(formData, "llm_model"),
+    llm_revision: normalizeLlmModelRevision(field(formData, "llm_revision")),
     tts_base_url: field(formData, "tts_base_url"),
     tts_api_key: field(formData, "tts_api_key"),
     tts_model: field(formData, "tts_model"),

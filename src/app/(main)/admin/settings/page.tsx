@@ -5,6 +5,7 @@ import { appDb } from "@/db/client";
 import { baseUrlAdvice, isBaseUrlProblem } from "@/lib/llm/base-url";
 import { admin, setup } from "@/lib/strings";
 import {
+  DEFAULT_LLM_MODEL_REVISION,
   isLocalUrl,
   listSettingsForEditing,
   shouldUseSecureCookies,
@@ -23,6 +24,7 @@ const EDITABLE = [
   "llm_base_url",
   "llm_api_key",
   "llm_model",
+  "llm_revision",
   "tts_base_url",
   "tts_api_key",
   "tts_model",
@@ -69,6 +71,7 @@ function TimeZoneField({ timeZone, zones }: { timeZone: string; zones: readonly 
 const FIELD_HINTS: Partial<Record<EditableKey, string>> = {
   llm_base_url: setup.llmBaseUrlHint,
   llm_model: setup.llmModelHint,
+  llm_revision: setup.llmRevisionHint,
   tts_base_url: setup.ttsBaseUrlHint,
   tts_model: setup.ttsModelHint,
   tts_voice: setup.ttsVoiceHint,
@@ -88,8 +91,10 @@ function TextField({ name, value }: { name: EditableKey; value: string | undefin
         autoComplete="off"
         className={styles.input}
         defaultValue={value}
+        inputMode={name === "llm_revision" ? "numeric" : undefined}
+        min={name === "llm_revision" ? 1 : undefined}
         name={name}
-        type="text"
+        type={name === "llm_revision" ? "number" : "text"}
       />
       {hint === undefined ? null : <span className={styles.hint}>{hint}</span>}
     </label>
@@ -144,7 +149,8 @@ export default async function AdminSettingsPage(props: {
       <form action={saveSettings}>
         <Card className={styles.form}>
           {EDITABLE.map((key) => {
-            const value = settings.find((entry) => entry.key === key)?.value;
+            const stored = settings.find((entry) => entry.key === key)?.value;
+            const value = key === "llm_revision" ? (stored ?? DEFAULT_LLM_MODEL_REVISION) : stored;
 
             if (key === "time_zone") {
               return <TimeZoneField key={key} timeZone={timeZone} zones={zones} />;

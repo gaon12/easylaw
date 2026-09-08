@@ -45,6 +45,8 @@ interface LlmClient {
   /** API 키를 드러내지 않고 같은 연결 설정인지 구분하는 식별자. */
   readonly providerId: string;
   readonly model: string;
+  /** 같은 모델 alias의 실제 대상이 바뀐 것을 구분하는 운영 판. */
+  readonly modelRevision?: string;
   /** 텍스트 하나를 받는다. */
   complete(request: CompletionRequest, signal?: AbortSignal): Promise<Completion>;
   /** JSON을 받아 호출자가 준 검증기를 통과시킨다. 통과 못 하면 던진다. */
@@ -489,6 +491,7 @@ function createLlmClient(config: LlmConfig): LlmClient {
   return {
     providerId: `openai-compatible:${stableId(trimBaseUrl(config.baseUrl))}`,
     model: config.model,
+    modelRevision: config.modelRevision,
 
     complete(request, signal) {
       return requestCompletion(config, request, signal);

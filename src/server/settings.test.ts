@@ -13,6 +13,7 @@ import {
   lawApiKey,
   listSettings,
   llmConfig,
+  llmModelRevision,
   markSetupComplete,
   readSetting,
   writeSetting,
@@ -74,7 +75,16 @@ describe("법제처 · LLM 설정", () => {
       baseUrl: "https://example.com",
       apiKey: "sk-test",
       model: DEFAULT_LLM_MODEL,
+      modelRevision: "1",
     });
+  });
+
+  it("모델 운영 판은 양의 정수만 쓰고 표기를 정규화한다", () => {
+    expect(llmModelRevision(db)).toBe("1");
+    writeSetting(db, "llm_revision", "002");
+    expect(llmModelRevision(db)).toBe("2");
+    writeSetting(db, "llm_revision", "latest");
+    expect(llmModelRevision(db)).toBe("1");
   });
 
   it("생성 상한은 잘못된 값이면 기본값으로 돌아간다", () => {

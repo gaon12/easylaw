@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { LlmClient } from "@/lib/llm/client";
 import { createGenerationSnapshot, generationSnapshotId } from "./generation-snapshot";
 
-function fakeClient(providerId: string, model: string): LlmClient {
+function fakeClient(providerId: string, model: string, modelRevision = "1"): LlmClient {
   return {
     providerId,
     model,
+    modelRevision,
     complete: () => Promise.reject(new Error("쓰지 않는다")),
     completeJson: () => Promise.reject(new Error("쓰지 않는다")),
   };
@@ -21,7 +22,16 @@ describe("generation snapshot", () => {
       providerId: "provider-a",
       generationModel: "model-a",
       verificationModel: "model-a",
+      modelRevision: "1",
     });
+  });
+
+  it("모델 이름이 같아도 운영 판을 올리면 캐시 식별자가 달라진다", () => {
+    const first = createGenerationSnapshot(fakeClient("provider-a", "stable-alias", "1"));
+    const replaced = createGenerationSnapshot(fakeClient("provider-a", "stable-alias", "2"));
+
+    expect(generationSnapshotId(replaced)).not.toBe(generationSnapshotId(first));
+    expect(replaced).toMatchObject({ schemaVersion: "generation-snapshot-v2", modelRevision: "2" });
   });
 
   it("공급자나 모델이 바뀌면 캐시 식별자도 바뀐다", () => {

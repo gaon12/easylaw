@@ -869,6 +869,8 @@ export const setup = {
   llmModelLabel: "모델 이름",
   /** `models/` 접두사를 붙이면 그대로 모델 이름으로 나가 404가 된다. */
   llmModelHint: "모델 이름만 넣어 주세요. 예: gemini-2.5-flash · gpt-4o-mini",
+  llmRevisionHint:
+    "같은 모델 이름의 실제 배포가 바뀌었을 때 숫자를 올리세요. 기존 설명은 보존하고 새 판으로 다시 만들어요.",
 
   /**
    * 음성 칸 안내.
@@ -916,6 +918,7 @@ export const setup = {
     llm_base_url: "AI API 주소",
     llm_api_key: "AI API 키",
     llm_model: "AI 모델",
+    llm_revision: "AI 모델 운영 판",
     tts_base_url: "음성 API 주소",
     tts_api_key: "음성 API 키",
     tts_model: "음성 모델",

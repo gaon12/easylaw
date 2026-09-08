@@ -12,7 +12,7 @@ import { stableId } from "@/lib/stable-id";
  * base URL을 그대로 남기면 내부 주소가 운영 화면이나 백업에 드러날 수 있다. 그래서
  * 클라이언트가 만든 비가역 provider 식별자와 사람이 판단할 수 있는 버전만 저장한다.
  */
-interface GenerationSnapshot {
+interface GenerationSnapshotV1 {
   readonly schemaVersion: "generation-snapshot-v1";
   readonly providerId: string;
   readonly generationModel: string;
@@ -25,12 +25,21 @@ interface GenerationSnapshot {
   readonly safetyPolicyVersion: "grounded-output-v1";
 }
 
+interface GenerationSnapshotV2 extends Omit<GenerationSnapshotV1, "schemaVersion"> {
+  readonly schemaVersion: "generation-snapshot-v2";
+  /** 같은 모델 이름 뒤의 실제 배포가 바뀌었을 때 운영자가 올린 판. */
+  readonly modelRevision: string;
+}
+
+type GenerationSnapshot = GenerationSnapshotV1 | GenerationSnapshotV2;
+
 function createGenerationSnapshot(client: LlmClient): GenerationSnapshot {
   return {
-    schemaVersion: "generation-snapshot-v1",
+    schemaVersion: "generation-snapshot-v2",
     providerId: client.providerId,
     generationModel: client.model,
     verificationModel: client.model,
+    modelRevision: client.modelRevision ?? "1",
     extractPromptVersion: EXTRACT_PROMPT_VERSION,
     renderPromptVersion: RENDER_PROMPT_VERSION,
     entailPromptVersion: ENTAIL_PROMPT_VERSION,
