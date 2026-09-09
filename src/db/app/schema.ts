@@ -42,6 +42,7 @@ const MEDIA_REPORT_REASONS = [
   "broken",
   "other",
 ] as const;
+const ERROR_EVENT_SOURCES = ["server", "browser"] as const;
 
 /**
  * "지금" 기본값이 붙은 시각 컬럼. 컬럼 이름을 인자로 받는다 —
@@ -548,6 +549,30 @@ const mediaReport = sqliteTable(
   ],
 );
 
+/** 오류 화면의 공개 번호로 운영자가 실제 서버 원인을 찾기 위한 기록. */
+const errorEvent = sqliteTable(
+  "error_event",
+  {
+    id: text("id").primaryKey(),
+    publicCode: text("public_code").notNull(),
+    digest: text("digest"),
+    source: text("source", { enum: ERROR_EVENT_SOURCES }).notNull(),
+    name: text("name").notNull(),
+    message: text("message").notNull(),
+    stack: text("stack"),
+    requestPath: text("request_path"),
+    method: text("method"),
+    routePath: text("route_path"),
+    routeType: text("route_type"),
+    createdAt: timestampNow("created_at"),
+  },
+  (table) => [
+    index("error_event_code_idx").on(table.publicCode, table.createdAt),
+    index("error_event_digest_idx").on(table.digest, table.createdAt),
+    index("error_event_created_idx").on(table.createdAt),
+  ],
+);
+
 /**
  * 감사 로그.
  *
@@ -575,6 +600,7 @@ const appSchema = {
   auditLog,
   contentReport,
   mediaReport,
+  errorEvent,
   session,
   setting,
   upload,
@@ -596,9 +622,11 @@ export {
   auditLog,
   contentReport,
   mediaReport,
+  errorEvent,
   CONTENT_REPORT_REASONS,
   CONTENT_REPORT_STATUSES,
   MEDIA_REPORT_REASONS,
+  ERROR_EVENT_SOURCES,
   CONFIDENCES,
   JOB_STAGES,
   JOB_STATUSES,

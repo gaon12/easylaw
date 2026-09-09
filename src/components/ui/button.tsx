@@ -47,6 +47,7 @@ function Button({
   return (
     <ShadcnButton
       className={cn(EASYLAW_SIZES[size], className)}
+      data-variant={VARIANTS[variant]}
       size={SIZES[size]}
       type={type}
       variant={VARIANTS[variant]}
@@ -76,6 +77,8 @@ function ButtonLink({
         EASYLAW_SIZES[size],
         className,
       )}
+      data-slot="button"
+      data-variant={VARIANTS[variant]}
       href={href}
     >
       {children}

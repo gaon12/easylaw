@@ -68,24 +68,10 @@
   text-decoration: none;
 }
 
-/*
- * 흰 머리띠에서 유일한 색 덩어리다. 진한 브랜드색 위에 흰 `§`를 얹는다.
- */
 .brandMark {
-  display: inline-grid;
-  place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--el-radius-s);
-  background: var(--el-brand-strong);
-  color: var(--el-fg-inverse);
-  font-size: var(--el-text-body-m);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.brandMark::before {
-  content: "§";
+  flex: 0 0 auto;
 }
 
 .nav {

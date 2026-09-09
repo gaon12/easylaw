@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "@/components/shadcn/ui/button";
+import { LogoMark } from "@/components/ui/logo-mark";
 import { auth, disclaimer, site } from "@/lib/strings";
 import { logOut } from "@/server/auth-actions";
 import { currentSession, displayName } from "@/server/owner";
@@ -87,7 +88,7 @@ function SiteShell({ children }: { children: ReactNode }) {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link className={styles.brand} href="/">
-            <span aria-hidden="true" className={styles.brandMark} />
+            <LogoMark className={styles.brandMark} />
             {/*
               아주 좁은 화면(≤360px)에서는 글자를 감추고 표식만 남긴다. 320px 기기에서
               브랜드(114px)와 계정(171px)이 한 줄에 못 들어가 **문서 전체가 옆으로

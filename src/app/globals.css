@@ -122,7 +122,19 @@ a {
   text-underline-offset: 0.2em;
 }
 
-button,
+/* 전역 링크 색이 Tailwind layer보다 뒤에서 버튼 링크의 글자색을 덮지 않게 한다. */
+[data-slot="button"][data-variant="default"] {
+  color: var(--primary-foreground);
+}
+
+[data-slot="button"][data-variant="secondary"] {
+  color: var(--secondary-foreground);
+}
+
+[data-slot="button"][data-variant="outline"] {
+  color: var(--foreground);
+}
+
 input,
 select,
 textarea {

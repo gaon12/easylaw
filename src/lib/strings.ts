@@ -981,6 +981,7 @@ export const admin = {
    */
   nav: {
     overview: "한눈에",
+    errors: "오류 추적",
     audio: "설명 음성",
     content: "자료",
     reports: "오류 신고",
@@ -995,7 +996,6 @@ export const admin = {
   consoleTitle: "관리자 콘솔",
   consoleSubtitle: "EasyLaw 운영과 콘텐츠 상태",
   returnToService: "서비스 화면",
-  brandMark: "EL",
   brandName: "EasyLaw",
   navGroups: { operate: "운영", content: "콘텐츠", manage: "관리" },
 
@@ -1012,6 +1012,18 @@ export const admin = {
   metricFailures: "최근 실패",
   metricUnit: { times: "번", cases: "건", clips: "개", people: "명" },
   seeMore: "자세히 보기",
+
+  errorsTitle: "오류 추적",
+  errorsIntro: "이용자가 알려 준 오류 번호로 실제 서버 원인과 발생 경로를 찾습니다.",
+  errorsSearchLabel: "오류 번호",
+  errorsSearchPlaceholder: "EL-7AbC-xYz9",
+  errorsSearch: "찾기",
+  errorsReset: "최근 오류 보기",
+  errorsEmpty: "저장된 오류가 없어요.",
+  errorsNoMatch: "이 번호로 저장된 오류를 찾지 못했어요.",
+  errorColumns: { at: "발생 시각", code: "오류 번호", source: "기록", path: "경로", cause: "원인" },
+  errorSources: { server: "서버", browser: "브라우저" },
+  errorStack: "기술 정보 보기",
 
   mediaRecipesTitle: "이미지 레시피",
   mediaRecipesIntro:
@@ -1694,18 +1706,24 @@ export const outcomes = {
  * 오류는 **원인과 다음 단계를 함께** 적고 사용자를 막다른 곳에 두지 않는다.
  * 사과를 늘어놓지 않고, 느낌표를 쓰지 않고, 무엇을 하면 되는지를 말한다.
  *
- * 화면이 차갑지 않도록 그림을 하나 두되(`PaperFigure`) 문구는 담담하게 둔다 —
+ * 화면이 차갑지 않도록 서비스 안내 캐릭터를 두되 문구는 담담하게 둔다 —
  * 판결문을 다루다 막힌 사람에게 명랑한 말투는 도움이 아니라 소음이다.
  */
 export const errors = {
+  notFoundEyebrow: "404 · 문서를 찾을 수 없음",
   notFoundTitle: "찾는 문서가 없어요",
   notFoundBody:
     "주소가 바뀌었거나 문서가 지워졌을 수 있어요. 올리신 문서를 찾고 계시다면 로그인하셨는지 확인해 주세요.",
-  genericTitle: "문제가 생겼어요",
-  genericBody: "저희 쪽 문제예요. 잠시 뒤에 다시 해 보시면 될 때가 많아요.",
+  genericEyebrow: "서비스 오류",
+  genericTitle: "페이지를 불러오지 못했어요",
+  genericBody:
+    "입력하신 내용은 그대로 두고 잠시 뒤 다시 시도해 주세요. 계속되면 아래 번호를 관리자에게 알려 주세요.",
   /** 오류 식별자. 문의할 때 이 값이 있으면 서버 기록에서 바로 찾을 수 있다. */
-  errorCode: (digest: string) => `오류 번호: ${digest}`,
-  errorCodeHint: "문의하실 때 이 번호를 함께 알려 주시면 빨리 찾을 수 있어요.",
+  errorCode: (code: string) => `오류 번호 ${code}`,
+  errorCodeLabel: "오류 번호",
+  errorCodeCopy: "번호 복사",
+  errorCodeCopied: "복사됨",
+  errorCodeHint: "관리자는 이 번호로 오류가 난 경로와 서버 원인을 확인할 수 있어요.",
   backHome: "처음으로 가기",
   toSearch: "사건번호로 찾아보기",
   toUpload: "판결문 올리기",

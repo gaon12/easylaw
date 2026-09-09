@@ -102,11 +102,13 @@
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: linear-gradient(145deg, #1269e7, #5148cc);
-  color: #fff;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  border: 1px solid #dce5f0;
+  background: #f5f8fc;
+}
+
+.navBrand > span svg {
+  width: 27px;
+  height: 27px;
 }
 
 .navBrand > strong {
@@ -609,6 +611,73 @@
 .table th {
   color: var(--el-fg-2);
   font-weight: 700;
+}
+
+.errorSearch {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 420px) auto auto;
+  gap: var(--el-space-3);
+  align-items: center;
+  padding: var(--el-space-5);
+  border: 1px solid #e1e6f0;
+  border-radius: var(--el-radius-l);
+  background: #fff;
+}
+
+.errorSearchLabel {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.errorSearchInput {
+  height: 42px;
+  font-family: var(--el-font-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+}
+
+.errorCode,
+.errorPath {
+  font-family: var(--el-font-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  font-size: var(--el-text-body-xs);
+}
+
+.errorCode {
+  color: #1d4f91;
+  font-weight: 800;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.errorMessage {
+  max-width: 54ch;
+  margin: var(--el-space-1) 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.errorStack {
+  max-width: 68ch;
+  max-height: 320px;
+  overflow: auto;
+  margin: var(--el-space-2) 0 0;
+  padding: var(--el-space-3);
+  border-radius: var(--el-radius-s);
+  background: #172033;
+  color: #edf3ff;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+  .errorSearch {
+    grid-template-columns: 1fr auto;
+  }
+
+  .errorSearch label,
+  .errorSearch .link {
+    grid-column: 1 / -1;
+  }
 }
 
 .rowActions {

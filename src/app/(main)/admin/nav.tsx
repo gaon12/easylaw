@@ -2,6 +2,7 @@
 
 import {
   AudioLines,
+  CircleAlert,
   FlaskConical,
   Images,
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogoMark } from "@/components/ui/logo-mark";
 import type { UserRole } from "@/db/app/repository";
 import { admin } from "@/lib/strings";
 import styles from "./admin.module.css";
@@ -34,6 +36,7 @@ const GROUPS = [
     label: admin.navGroups.operate,
     items: [
       { href: "/admin", label: admin.nav.overview, icon: LayoutDashboard },
+      { href: "/admin/errors", label: admin.nav.errors, icon: CircleAlert },
       { href: "/admin/log", label: admin.nav.log, icon: ScrollText },
     ],
   },
@@ -74,7 +77,9 @@ function AdminNav({ role }: { role: UserRole }) {
   return (
     <nav aria-label={admin.navLabel} className={styles.nav}>
       <div className={styles.navBrand} aria-hidden="true">
-        <span>{admin.brandMark}</span>
+        <span>
+          <LogoMark />
+        </span>
         <strong>{admin.brandName}</strong>
       </div>
       {groups.map((group) => (
