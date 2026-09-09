@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/shadcn/ui/button";
 import { errorFingerprint, publicErrorCode } from "@/lib/error-code";
 import { errors } from "@/lib/strings";
 import styles from "./status.module.css";
@@ -40,9 +41,15 @@ function ErrorTrace({ error }: { error: Error & { digest?: string } }) {
         <span className={styles.traceLabel}>{errors.errorCodeLabel}</span>
         <code className={styles.codeValue}>{code}</code>
       </div>
-      <button className={styles.copyCode} onClick={copyCode} type="button">
+      <Button
+        className={styles.copyCode}
+        onClick={copyCode}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
         {copied ? errors.errorCodeCopied : errors.errorCodeCopy}
-      </button>
+      </Button>
       <p className={styles.codeHint}>{errors.errorCodeHint}</p>
     </div>
   );

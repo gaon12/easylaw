@@ -111,14 +111,11 @@
 .copyCode {
   min-height: 40px;
   padding: 0 var(--el-space-3);
-  border: 1px solid var(--el-border-default);
   border-radius: var(--el-radius-s);
   color: #29466d;
   background: var(--el-bg-canvas);
-  font: inherit;
   font-size: var(--el-text-body-s);
   font-weight: 700;
-  cursor: pointer;
 }
 
 .copyCode:hover {
