@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { browserSupportForUserAgent } from "@/lib/browser-support";
 
 /**
  * 보안 헤더. `CONVENTIONS.md` §7
@@ -76,19 +77,34 @@ function isHttps(request: NextRequest): boolean {
 /** 1년. HSTS는 https로 서비스할 때만 붙인다 — 사내망 http 설치를 잠가 버리면 안 된다. */
 const HSTS = "max-age=31536000; includeSubDomains";
 
-function proxy(request: NextRequest): NextResponse {
-  const nonce = crypto.randomUUID().replaceAll("-", "");
-  const csp = policy(nonce, IS_DEV);
+const UNSUPPORTED_BROWSER_PATH = "/unsupported-browser";
+const TEMPORARY_REDIRECT = 307;
 
-  /*
-   * 요청 헤더에도 넣는다. Next가 렌더 중에 이 값을 읽어 자기 스크립트에 nonce를 붙이고,
-   * 우리 레이아웃도 `x-nonce`로 같은 값을 받아 인라인 스크립트에 붙인다.
-   */
-  const headers = new Headers(request.headers);
-  headers.set("x-nonce", nonce);
-  headers.set("content-security-policy", csp);
+/** 브라우저 화면을 여는 요청만 판별한다. API와 RSC·정적 자원 요청은 그대로 통과시킨다. */
+function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return false;
+  }
+  if (
+    request.nextUrl.pathname === UNSUPPORTED_BROWSER_PATH ||
+    request.nextUrl.pathname === "/api" ||
+    request.nextUrl.pathname.startsWith("/api/")
+  ) {
+    return false;
+  }
 
-  const response = NextResponse.next({ request: { headers } });
+  const destination = request.headers.get("sec-fetch-dest");
+  if (destination && destination !== "document") {
+    return false;
+  }
+  return request.headers.get("accept")?.includes("text/html") ?? false;
+}
+
+function addSecurityHeaders(
+  response: NextResponse,
+  request: NextRequest,
+  csp: string,
+): NextResponse {
   response.headers.set("content-security-policy", csp);
   // MIME 스니핑 금지. 업로드한 파일을 되돌려 주는 경로가 생길 때 특히 중요하다.
   response.headers.set("x-content-type-options", "nosniff");
@@ -102,8 +118,36 @@ function proxy(request: NextRequest): NextResponse {
   if (isHttps(request)) {
     response.headers.set("strict-transport-security", HSTS);
   }
-
   return response;
+}
+
+function proxy(request: NextRequest): NextResponse {
+  const nonce = crypto.randomUUID().replaceAll("-", "");
+  const csp = policy(nonce, IS_DEV);
+
+  if (isDocumentNavigation(request)) {
+    const browser = browserSupportForUserAgent(request.headers.get("user-agent"));
+    if (browser.status === "unsupported") {
+      const destination = request.nextUrl.clone();
+      destination.pathname = UNSUPPORTED_BROWSER_PATH;
+      destination.search = `?reason=${browser.reason}`;
+      const response = NextResponse.redirect(destination, TEMPORARY_REDIRECT);
+      response.headers.set("cache-control", "private, no-store");
+      response.headers.set("vary", "User-Agent, Accept");
+      return addSecurityHeaders(response, request, csp);
+    }
+  }
+
+  /*
+   * 요청 헤더에도 넣는다. Next가 렌더 중에 이 값을 읽어 자기 스크립트에 nonce를 붙이고,
+   * 우리 레이아웃도 `x-nonce`로 같은 값을 받아 인라인 스크립트에 붙인다.
+   */
+  const headers = new Headers(request.headers);
+  headers.set("x-nonce", nonce);
+  headers.set("content-security-policy", csp);
+
+  const response = NextResponse.next({ request: { headers } });
+  return addSecurityHeaders(response, request, csp);
 }
 
 /**

@@ -20,7 +20,10 @@
     "gen:try": "tsx --conditions=react-server scripts/generate-once.ts",
     "case:example": "tsx --conditions=react-server scripts/seed-case-example.ts",
     "dict:sync": "tsx --conditions=react-server scripts/sync-dict.ts",
-    "tts:mock": "tsx scripts/mock-tts.ts"
+    "tts:mock": "tsx scripts/mock-tts.ts",
+    "browser-support:generate": "node scripts/generate-browser-support.mjs",
+    "browser-support:check": "node scripts/generate-browser-support.mjs --check",
+    "prebuild": "npm run browser-support:check"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -52,6 +55,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "browserslist": "^4.28.9",
     "drizzle-kit": "^0.31.10",
     "tailwindcss": "^4.3.3",
     "tsx": "4.23.13",
