@@ -1,8 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { appDb } from "@/db/client";
-import { isBulkLegalSyncSource, startLegalSync } from "./legal-sync";
+import { appDb, legalDb } from "@/db/client";
+import { findLegalDetailOverview } from "@/db/legal/detail-revisions";
+import { checkLegalDetailRevision } from "@/db/legal/revision-checks";
+import { isBulkLegalSyncSource, isLegalSyncSource, startLegalSync } from "./legal-sync";
 import { currentSession } from "./owner";
 import { writeSettings } from "./settings";
 
@@ -50,4 +52,28 @@ async function saveLegalSyncSchedule(formData: FormData): Promise<void> {
   redirect("/admin/content?sync=saved");
 }
 
-export { runLegalSync, saveLegalSyncSchedule };
+async function recheckLegalDetailRevision(formData: FormData): Promise<void> {
+  if ((await currentSession())?.role !== "admin") {
+    return;
+  }
+  const source = String(formData.get("source") ?? "");
+  const detailId = String(formData.get("detail_id") ?? "");
+  const revisionId = String(formData.get("revision_id") ?? "");
+  if (!isLegalSyncSource(source)) {
+    return;
+  }
+  const db = legalDb();
+  const detail = findLegalDetailOverview(db, source, detailId);
+  if (detail?.currentRevisionId !== revisionId) {
+    return;
+  }
+  checkLegalDetailRevision(db, {
+    source,
+    detailId,
+    detailKey: detail.detailKey,
+    revisionId,
+  });
+  redirect(`/admin/content/legal/${source}/${detailId}?checked=true`);
+}
+
+export { recheckLegalDetailRevision, runLegalSync, saveLegalSyncSchedule };

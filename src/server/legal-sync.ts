@@ -9,6 +9,7 @@ import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { legalDb } from "@/db/client";
 import { upsertLawVersions } from "@/db/corpus/repository";
 import { saveLegalDetailRevision } from "@/db/legal/detail-revisions";
+import { checkLegalDetailRevision, findLegalRevisionCheck } from "@/db/legal/revision-checks";
 import {
   lawVersion,
   legalResource,
@@ -331,12 +332,25 @@ async function syncItemDetail(input: {
   const db = legalDb();
   const existing = db
     .select({
+      detailId: legalResourceDetail.id,
       listHash: legalResourceDetail.listPayloadHash,
+      revisionId: legalResourceDetail.currentRevisionId,
     })
     .from(legalResourceDetail)
     .where(and(eq(legalResourceDetail.source, source), eq(legalResourceDetail.detailKey, key)))
     .get();
   if (existing?.listHash === listPayloadHash) {
+    if (
+      existing.revisionId !== null &&
+      findLegalRevisionCheck(db, existing.revisionId) === undefined
+    ) {
+      checkLegalDetailRevision(db, {
+        source,
+        detailId: existing.detailId,
+        detailKey: key,
+        revisionId: existing.revisionId,
+      });
+    }
     return true;
   }
   const fetched = await fetchDetail(source, key, oc);
@@ -355,6 +369,14 @@ async function syncItemDetail(input: {
     storedBytes: compressed.byteLength,
     fetchedAt: new Date(),
   });
+  if (result.status !== "unchanged") {
+    checkLegalDetailRevision(db, {
+      source,
+      detailId: result.detailId,
+      detailKey: key,
+      revisionId: result.revisionId,
+    });
+  }
   if (result.status === "added") {
     counters.added += 1;
   } else if (result.status === "changed") {

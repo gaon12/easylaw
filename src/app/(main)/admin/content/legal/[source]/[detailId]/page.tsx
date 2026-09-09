@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NativeSelect } from "@/components/shadcn/ui/native-select";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { appDb, legalDb } from "@/db/client";
@@ -10,10 +11,12 @@ import {
   listLegalDetailRevisions,
   readLegalDetailRevisionJsonForDetail,
 } from "@/db/legal/detail-revisions";
+import { listLegalRevisionChecks } from "@/db/legal/revision-checks";
 import { formatDateTime } from "@/lib/format";
 import { TARGETS } from "@/lib/law-api/targets";
 import { diffLegalPayload, type LegalDetailDiff } from "@/lib/legal-detail-diff";
 import { isLegalSyncSource } from "@/server/legal-sync";
+import { recheckLegalDetailRevision } from "@/server/legal-sync-actions";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../../../../admin.module.css";
 
@@ -28,7 +31,7 @@ const copy = {
   noChanges: "두 판의 필드 값이 같습니다.",
   diffColumns: ["JSON 경로", "이전 값", "새 값"],
   historyTitle: "원문판 이력",
-  historyColumns: ["판", "받은 시각", "본문 해시", "원본 크기", "동작"],
+  historyColumns: ["판", "받은 시각", "본문 해시", "원본 크기", "구조 검사", "동작"],
   current: "현재판",
   comparePrevious: "이전판과 비교",
   comparisonTitle: "원문판 비교",
@@ -38,7 +41,74 @@ const copy = {
   compare: "비교하기",
   failedTitle: "원문판을 비교하지 못했습니다",
   failedDetail: "저장한 원문판을 풀거나 JSON으로 읽지 못했습니다.",
+  recheck: "구조 검사",
+  checkedTitle: "구조 검사를 마쳤습니다",
+  checkedDetail: "현재 원문판을 바로 전 판과 다시 비교했습니다.",
 } as const;
+
+const checkCopy = {
+  passed: { label: "통과", tone: "grounded" },
+  needs_review: { label: "확인 필요", tone: "needs-check" },
+  failed: { label: "실패", tone: "ungrounded" },
+} as const;
+
+const issueCopy = {
+  empty_payload: "본문이 비어 있거나 JSON 객체·배열이 아닙니다.",
+  large_field_removal: "기준판 필드의 절반 넘게 사라졌습니다.",
+  root_shape_changed: "JSON 최상위 구조가 바뀌었습니다.",
+} as const;
+
+function issueLabel(issue: string): string {
+  return Object.hasOwn(issueCopy, issue) ? issueCopy[issue as keyof typeof issueCopy] : issue;
+}
+
+type RevisionCheck = ReturnType<typeof listLegalRevisionChecks>[number];
+
+function RevisionCheckBadge({ check }: { check: RevisionCheck | undefined }) {
+  if (check === undefined) {
+    return "미검사";
+  }
+  return (
+    <span title={check.issues.map(issueLabel).join(" ")}>
+      <Badge tone={checkCopy[check.state].tone}>{checkCopy[check.state].label}</Badge>
+    </span>
+  );
+}
+
+function RevisionActions({
+  source,
+  detailId,
+  revisionId,
+  isCurrent,
+  olderId,
+}: {
+  source: string;
+  detailId: string;
+  revisionId: string;
+  isCurrent: boolean;
+  olderId?: string;
+}) {
+  return (
+    <div className={styles.rowActions}>
+      {isCurrent ? (
+        <form action={recheckLegalDetailRevision}>
+          <input name="source" type="hidden" value={source} />
+          <input name="detail_id" type="hidden" value={detailId} />
+          <input name="revision_id" type="hidden" value={revisionId} />
+          <Button size="s" type="submit" variant="secondary">
+            {copy.recheck}
+          </Button>
+        </form>
+      ) : null}
+      {olderId === undefined ? null : (
+        <Link className={styles.link} href={`?from=${olderId}&to=${revisionId}`}>
+          {copy.comparePrevious}
+        </Link>
+      )}
+      {!isCurrent && olderId === undefined ? "—" : null}
+    </div>
+  );
+}
 
 const one = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
@@ -98,12 +168,44 @@ function DiffResult({ comparison }: { comparison: LegalDetailDiff }) {
   );
 }
 
+function compareRevisionPayloads(input: {
+  source: string;
+  detailId: string;
+  fromId?: string;
+  toId?: string;
+  revisionIds: readonly string[];
+}): { comparison?: LegalDetailDiff; comparisonError?: string } {
+  const { source, detailId, fromId, toId, revisionIds } = input;
+  if (
+    fromId === undefined ||
+    toId === undefined ||
+    fromId === toId ||
+    !revisionIds.includes(fromId) ||
+    !revisionIds.includes(toId)
+  ) {
+    return {};
+  }
+  try {
+    const before = readPayload(source, detailId, fromId);
+    const after = readPayload(source, detailId, toId);
+    return before === undefined || after === undefined
+      ? {}
+      : { comparison: diffLegalPayload(before, after) };
+  } catch {
+    return { comparisonError: copy.failedDetail };
+  }
+}
+
 export default async function LegalDetailRevisionPage({
   params,
   searchParams,
 }: {
   params: Promise<{ source: string; detailId: string }>;
-  searchParams: Promise<{ from?: string | string[]; to?: string | string[] }>;
+  searchParams: Promise<{
+    from?: string | string[];
+    to?: string | string[];
+    checked?: string | string[];
+  }>;
 }) {
   const { source, detailId } = await params;
   if (!isLegalSyncSource(source)) {
@@ -115,24 +217,24 @@ export default async function LegalDetailRevisionPage({
     notFound();
   }
   const revisions = listLegalDetailRevisions(db, source, detail.detailKey);
+  const checks = new Map(
+    listLegalRevisionChecks(
+      db,
+      revisions.map((revision) => revision.id),
+    ).map((check) => [check.revisionId, check]),
+  );
   const query = await searchParams;
   const fromId = one(query.from);
   const toId = one(query.to);
   const from = revisions.find((revision) => revision.id === fromId);
   const to = revisions.find((revision) => revision.id === toId);
-  let comparison: LegalDetailDiff | undefined;
-  let comparisonError: string | undefined;
-  if (from !== undefined && to !== undefined && from.id !== to.id) {
-    try {
-      const before = readPayload(source, detailId, from.id);
-      const after = readPayload(source, detailId, to.id);
-      if (before !== undefined && after !== undefined) {
-        comparison = diffLegalPayload(before, after);
-      }
-    } catch {
-      comparisonError = copy.failedDetail;
-    }
-  }
+  const { comparison, comparisonError } = compareRevisionPayloads({
+    source,
+    detailId,
+    fromId,
+    toId,
+    revisionIds: revisions.map((revision) => revision.id),
+  });
   const timeZone = siteTimeZone(appDb());
   const at = (value: Date) => formatDateTime(value, timeZone);
   const label = TARGETS[source].label;
@@ -153,6 +255,11 @@ export default async function LegalDetailRevisionPage({
 
       <Card as="section" className={styles.usage}>
         <h2 className={styles.sectionTitle}>{copy.historyTitle}</h2>
+        {one(query.checked) === "true" ? (
+          <Alert tone="success" title={copy.checkedTitle}>
+            {copy.checkedDetail}
+          </Alert>
+        ) : null}
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
@@ -167,6 +274,7 @@ export default async function LegalDetailRevisionPage({
             <tbody>
               {revisions.map((revision, index) => {
                 const older = revisions[index + 1];
+                const check = checks.get(revision.id);
                 return (
                   <tr key={revision.id}>
                     <td>
@@ -180,14 +288,15 @@ export default async function LegalDetailRevisionPage({
                       {revision.payloadHash.slice(0, HASH_LENGTH)}
                     </td>
                     <td>{`${revision.originalBytes.toLocaleString()} bytes`}</td>
+                    <td>{<RevisionCheckBadge check={check} />}</td>
                     <td>
-                      {older === undefined ? (
-                        "—"
-                      ) : (
-                        <Link className={styles.link} href={`?from=${older.id}&to=${revision.id}`}>
-                          {copy.comparePrevious}
-                        </Link>
-                      )}
+                      <RevisionActions
+                        detailId={detailId}
+                        isCurrent={revision.isCurrent}
+                        olderId={older?.id}
+                        revisionId={revision.id}
+                        source={source}
+                      />
                     </td>
                   </tr>
                 );

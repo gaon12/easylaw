@@ -12,6 +12,7 @@ import {
   readLegalDetailRevisionJsonForDetail,
   saveLegalDetailRevision,
 } from "./detail-revisions";
+import { checkLegalDetailRevision, findLegalRevisionCheck } from "./revision-checks";
 import { legalResourceDetail, legalResourceDetailRevision, legalSchema } from "./schema";
 
 describe("법령 상세 원문판", () => {
@@ -60,6 +61,17 @@ describe("법령 상세 원문판", () => {
       stored_bytes integer NOT NULL,
       fetched_at integer NOT NULL,
       UNIQUE(detail_id, payload_hash)
+    );
+    CREATE TABLE legal_detail_revision_check (
+      revision_id text PRIMARY KEY NOT NULL REFERENCES legal_resource_detail_revision(id) ON DELETE CASCADE,
+      baseline_revision_id text,
+      state text NOT NULL,
+      unchanged integer NOT NULL,
+      changed integer NOT NULL,
+      added integer NOT NULL,
+      removed integer NOT NULL,
+      issues text NOT NULL,
+      checked_at integer NOT NULL
     )`);
     db = drizzle(raw, { schema: legalSchema });
   });
@@ -83,6 +95,14 @@ describe("법령 상세 원문판", () => {
   it("본문이 바뀔 때만 새 불변판을 만들고 현재 포인터를 전환한다", () => {
     const first = save("hash-a", "list-a", "2026-09-09T00:00:00Z");
     expect(first.status).toBe("added");
+    expect(
+      checkLegalDetailRevision(db, {
+        source: "prec",
+        detailId: first.detailId,
+        detailKey: "123",
+        revisionId: first.revisionId,
+      }),
+    ).toMatchObject({ state: "passed" });
 
     const metadataOnly = save("hash-a", "list-b", "2026-09-09T01:00:00Z");
     expect(metadataOnly).toMatchObject({ status: "unchanged", revisionId: first.revisionId });
@@ -90,6 +110,19 @@ describe("법령 상세 원문판", () => {
 
     const changed = save("hash-b", "list-c", "2026-09-09T02:00:00Z");
     expect(changed.status).toBe("changed");
+    expect(
+      checkLegalDetailRevision(db, {
+        source: "prec",
+        detailId: changed.detailId,
+        detailKey: "123",
+        revisionId: changed.revisionId,
+      }),
+    ).toMatchObject({ state: "passed", changed: 1 });
+    expect(findLegalRevisionCheck(db, changed.revisionId)).toMatchObject({
+      baselineRevisionId: first.revisionId,
+      state: "passed",
+      changed: 1,
+    });
     expect(db.select().from(legalResourceDetailRevision).all()).toMatchObject([
       { id: first.revisionId, payloadHash: "hash-a" },
       { id: changed.revisionId, payloadHash: "hash-b" },

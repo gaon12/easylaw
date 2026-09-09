@@ -122,6 +122,25 @@ const legalResourceDetailRevision = sqliteTable(
   ],
 );
 
+/** 새 상세 원문판을 기준판과 대조한 결정론적 staging 검사 결과다. */
+const legalDetailRevisionCheck = sqliteTable(
+  "legal_detail_revision_check",
+  {
+    revisionId: text("revision_id")
+      .primaryKey()
+      .references(() => legalResourceDetailRevision.id, { onDelete: "cascade" }),
+    baselineRevisionId: text("baseline_revision_id"),
+    state: text("state", { enum: ["passed", "needs_review", "failed"] }).notNull(),
+    unchanged: integer("unchanged").notNull(),
+    changed: integer("changed").notNull(),
+    added: integer("added").notNull(),
+    removed: integer("removed").notNull(),
+    issues: text("issues", { mode: "json" }).$type<string[]>().notNull(),
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("legal_detail_check_state_idx").on(table.state, table.checkedAt)],
+);
+
 /** 별표·서식의 HWP/PDF는 파일로 두고 무결성과 위치만 DB에서 관리한다. */
 const legalResourceFile = sqliteTable(
   "legal_resource_file",
@@ -166,6 +185,7 @@ const legalSyncRun = sqliteTable(
 );
 
 const legalSchema = {
+  legalDetailRevisionCheck,
   lawArticle,
   lawVersion,
   legalResource,
@@ -176,6 +196,7 @@ const legalSchema = {
 };
 
 export {
+  legalDetailRevisionCheck,
   lawArticle,
   lawVersion,
   legalResource,
