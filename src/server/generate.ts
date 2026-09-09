@@ -236,13 +236,16 @@ async function ensureStructure(
 }
 
 function sourcesForClaim(
-  line: { role: string; structureNodeId: string | null },
+  line: {
+    role: string;
+    structureNodeId: string | null;
+    glossEvidence: { definition: string } | null;
+  },
   nodeSpans: ReadonlyMap<string, readonly string[]>,
   spanText: ReadonlyMap<string, string>,
-  glossDefinitions: readonly string[],
 ): string[] | readonly string[] {
   if (line.role === "gloss") {
-    return glossDefinitions;
+    return line.glossEvidence === null ? [] : [line.glossEvidence.definition];
   }
   if (line.structureNodeId === null) {
     return [];
@@ -259,17 +262,17 @@ function claimsFor(
     role: string;
     text: string;
     structureNodeId: string | null;
+    glossEvidence: { definition: string } | null;
   }[],
   nodeSpans: ReadonlyMap<string, readonly string[]>,
   spanText: ReadonlyMap<string, string>,
-  glossDefinitions: readonly string[],
 ): Claim[] {
   return lines
     .filter((line) => line.role === "body" || line.role === "gloss")
     .map((line) => ({
       orderIdx: line.orderIdx,
       text: line.text,
-      sources: sourcesForClaim(line, nodeSpans, spanText, glossDefinitions),
+      sources: sourcesForClaim(line, nodeSpans, spanText),
     }));
 }
 
@@ -372,16 +375,7 @@ async function attemptOnce(input: {
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
   const checks = await whileAlive(store, jobId, "verify", () =>
-    checkEntailment(
-      client,
-      claimsFor(
-        rendered.lines,
-        nodeSpans,
-        spanText,
-        glosses.map((gloss) => gloss.definition),
-      ),
-      signal,
-    ),
+    checkEntailment(client, claimsFor(rendered.lines, nodeSpans, spanText), signal),
   );
   const byOrder = new Map(checks.map((check) => [check.orderIdx, check]));
 
@@ -396,6 +390,7 @@ async function attemptOnce(input: {
       text: line.text,
       structureNodeId: line.structureNodeId,
       source: line.source,
+      glossEvidence: line.glossEvidence,
       confidence,
       checkReason: check?.reason ?? null,
     };

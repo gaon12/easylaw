@@ -24,6 +24,7 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
+import { GLOSS_DEFINITION_SOURCES } from "@/lib/gloss-evidence";
 import { MASK_KINDS } from "@/lib/text/mask";
 
 const USER_ROLES = ["viewer", "contributor", "reviewer", "publisher", "admin"] as const;
@@ -419,6 +420,25 @@ const uploadRenditionSentence = sqliteTable(
   ],
 );
 
+/** 공개 판례와 같은 낱말 뜻 근거 사본. 개인 원문은 포함하지 않는다. */
+const uploadRenditionGlossEvidence = sqliteTable(
+  "upload_rendition_gloss_evidence",
+  {
+    sentenceId: text("sentence_id")
+      .primaryKey()
+      .references(() => uploadRenditionSentence.id, { onDelete: "cascade" }),
+    definitionSource: text("definition_source", { enum: GLOSS_DEFINITION_SOURCES }).notNull(),
+    definitionId: text("definition_id").notNull(),
+    term: text("term").notNull(),
+    definition: text("definition").notNull(),
+    definitionHash: text("definition_hash").notNull(),
+    sourceLabel: text("source_label").notNull(),
+  },
+  (table) => [
+    index("upload_rendition_gloss_definition_idx").on(table.definitionSource, table.definitionId),
+  ],
+);
+
 /**
  * 올린 문서의 생성 작업.
  *
@@ -608,6 +628,7 @@ const appSchema = {
   uploadMask,
   uploadNodeSpan,
   uploadRendition,
+  uploadRenditionGlossEvidence,
   uploadRenditionSentence,
   uploadRevision,
   uploadSpan,
@@ -638,6 +659,7 @@ export {
   uploadMask,
   uploadNodeSpan,
   uploadRendition,
+  uploadRenditionGlossEvidence,
   uploadRenditionSentence,
   uploadRevision,
   uploadSpan,

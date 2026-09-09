@@ -247,6 +247,40 @@ describe("saveRendition", () => {
     expect(findRendition(db, judgmentId, "L1", "v1")?.reviewState).toBe("approved");
   });
 
+  it("낱말 뜻에 실제 사용한 사전 행과 정의 원문을 함께 보존한다", () => {
+    const judgmentId = seedJudgment();
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "test-model",
+      promptVersion: "gloss-evidence-v1",
+      sentences: [
+        {
+          orderIdx: 0,
+          role: "gloss",
+          text: "빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+          glossEvidence: {
+            definitionSource: "stdict",
+            definitionId: "386515-536210",
+            term: "변제",
+            definition: "남에게 진 빚을 갚음.",
+            sourceLabel: "표준국어대사전",
+          },
+        },
+      ],
+    });
+
+    expect(listSentences(db, renditionId)[0]?.glossEvidence).toMatchObject({
+      definitionSource: "stdict",
+      definitionId: "386515-536210",
+      term: "변제",
+      definition: "남에게 진 빚을 갚음.",
+      definitionHash: expect.stringMatching(/^[0-9a-f]{32}$/u),
+    });
+  });
+
   it("문장에 연결된 구조 노드의 원문 span을 함께 돌려준다", () => {
     const judgmentId = seedJudgment();
     saveJudgmentText(db, judgmentId, [
@@ -491,6 +525,53 @@ describe("사람이 고친 설명", () => {
         sentences: [{ id: sentence?.id ?? "", text: sentence?.text ?? "" }],
       }),
     ).toEqual({ ok: false, reason: "invalid_sentences" });
+  });
+
+  it("본문을 편집해 새 초안을 만들어도 낱말 뜻의 사전 근거 사본을 이어받는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 2, text: "원문" },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "model",
+      promptVersion: "edit-copy-gloss-v1",
+      sentences: [
+        { orderIdx: 0, role: "body", text: "빚을 갚았어요.", confidence: "grounded" },
+        {
+          orderIdx: 1,
+          role: "gloss",
+          text: "빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+          glossEvidence: {
+            definitionSource: "stdict",
+            definitionId: "386515-536210",
+            term: "변제",
+            definition: "남에게 진 빚을 갚음.",
+            sourceLabel: "표준국어대사전",
+          },
+        },
+      ],
+    });
+    const base = listSentences(db, baseRenditionId);
+    const result = createEditedRendition(db, {
+      judgmentId,
+      baseRenditionId,
+      sentences: base.map((sentence) => ({
+        id: sentence.id,
+        text: sentence.role === "body" ? "채무를 갚았어요." : sentence.text,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(
+      listSentences(db, result.renditionId).find(({ role }) => role === "gloss")?.glossEvidence,
+    ).toMatchObject({ definitionId: "386515-536210", definition: "남에게 진 빚을 갚음." });
   });
 
   it("원문판이 바뀐 뒤에는 옛 설명을 편집 초안으로 만들지 않는다", () => {

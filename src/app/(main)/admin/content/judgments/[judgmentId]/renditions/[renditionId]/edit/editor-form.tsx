@@ -14,16 +14,20 @@ interface EditableSentence {
   readonly text: string;
   readonly source: string | null;
   readonly evidence: readonly string[];
+  readonly evidenceId: string | null;
 }
 
 const HEADING_ROWS = 2;
 const BODY_ROWS = 4;
 const MAX_SENTENCE_LENGTH = 4000;
 
-function Evidence({ lines }: { lines: readonly string[] }) {
+function Evidence({ evidenceId, lines }: { evidenceId: string | null; lines: readonly string[] }) {
   return (
     <div className={styles.evidence}>
-      <strong>{admin.renditionEditEvidence}</strong>
+      <strong>
+        {evidenceId === null ? admin.renditionEditEvidence : admin.renditionEditGlossEvidence}
+      </strong>
+      {evidenceId === null ? null : <code className={styles.evidenceId}>{evidenceId}</code>}
       {lines.length === 0 ? (
         <p>{admin.renditionEditNoEvidence}</p>
       ) : (
@@ -57,7 +61,7 @@ function EditorForm({
           const label = admin.renditionEditRoles[sentence.role];
           return (
             <li className={styles.sentenceRow} key={sentence.id}>
-              <Evidence lines={sentence.evidence} />
+              <Evidence evidenceId={sentence.evidenceId} lines={sentence.evidence} />
               <div className={styles.editField}>
                 <div className={styles.sentenceMeta}>
                   <label

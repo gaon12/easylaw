@@ -17,6 +17,7 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
+import { GLOSS_DEFINITION_SOURCES } from "@/lib/gloss-evidence";
 
 /** 판결 결과. "일부"를 숨기지 않으려고 별도 값으로 둔다(`PRODUCT.md` §4-A). */
 const OUTCOMES = [
@@ -363,6 +364,25 @@ const renditionSentence = sqliteTable(
   ],
 );
 
+/** 낱말 뜻 문장이 실제로 사용한 사전 행과 정의 원문의 불변 사본. */
+const renditionGlossEvidence = sqliteTable(
+  "rendition_gloss_evidence",
+  {
+    sentenceId: text("sentence_id")
+      .primaryKey()
+      .references(() => renditionSentence.id, { onDelete: "cascade" }),
+    definitionSource: text("definition_source", { enum: GLOSS_DEFINITION_SOURCES }).notNull(),
+    definitionId: text("definition_id").notNull(),
+    term: text("term").notNull(),
+    definition: text("definition").notNull(),
+    definitionHash: text("definition_hash").notNull(),
+    sourceLabel: text("source_label").notNull(),
+  },
+  (table) => [
+    index("rendition_gloss_definition_idx").on(table.definitionSource, table.definitionId),
+  ],
+);
+
 /**
  * 법률용어 풀이.
  *
@@ -663,6 +683,7 @@ const corpusSchema = {
   nodeSpan,
   party,
   rendition,
+  renditionGlossEvidence,
   renditionSentence,
   structureGenerationJob,
   structureNode,
@@ -692,6 +713,7 @@ export {
   OUTCOMES,
   party,
   rendition,
+  renditionGlossEvidence,
   renditionSentence,
   structureGenerationJob,
   structureNode,

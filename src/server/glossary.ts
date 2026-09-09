@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { dictDb } from "@/db/client";
 import { dictEntry, dictSource, legalTerm } from "@/db/dict/schema";
 import { candidateTerms } from "@/lib/dict/terms";
+import type { GlossDefinitionSource } from "@/lib/gloss-evidence";
 import { lawApi } from "@/lib/law-api/client";
 import { stableId } from "@/lib/stable-id";
 
@@ -40,6 +41,9 @@ interface Gloss {
   readonly definition: string;
   /* 어디서 온 뜻인가. **화면과 프롬프트에 그대로 밝힌다.** */
   readonly source: string;
+  /** 사전 DB에서 실제로 선택한 정의 행. 결과 저장소가 이 행의 내용을 복제해 보존한다. */
+  readonly definitionId: string;
+  readonly definitionSource: GlossDefinitionSource;
   /** 법률 분야의 뜻인가. 아니면 일상 낱말 풀이다. */
   readonly legal: boolean;
 }
@@ -82,7 +86,7 @@ function addStandardLegalGlosses(
   found: Map<string, Gloss>,
 ): void {
   for (const row of db
-    .select({ word: dictEntry.word, definition: dictEntry.definition })
+    .select({ id: dictEntry.id, word: dictEntry.word, definition: dictEntry.definition })
     .from(dictEntry)
     .where(and(inArray(dictEntry.word, forms), eq(dictEntry.category, "법률")))
     .orderBy(desc(dictEntry.senseOrder))
@@ -91,6 +95,8 @@ function addStandardLegalGlosses(
       term: row.word,
       definition: row.definition,
       source: "표준국어대사전",
+      definitionId: row.id,
+      definitionSource: "stdict",
       legal: true,
     });
   }
@@ -106,7 +112,7 @@ function addSafeGeneralGlosses(
     return;
   }
   for (const row of db
-    .select({ word: dictEntry.word, definition: dictEntry.definition })
+    .select({ id: dictEntry.id, word: dictEntry.word, definition: dictEntry.definition })
     .from(dictEntry)
     .where(inArray(dictEntry.word, safeForms))
     .orderBy(dictEntry.senseOrder)
@@ -116,6 +122,8 @@ function addSafeGeneralGlosses(
         term: row.word,
         definition: row.definition,
         source: "표준국어대사전",
+        definitionId: row.id,
+        definitionSource: "stdict",
         legal: false,
       });
     }
@@ -137,6 +145,8 @@ function fromLegalCache(term: string): Gloss | undefined {
         term,
         definition: row.definition,
         source: row.source ?? row.dictionary ?? "법령용어",
+        definitionId: row.id,
+        definitionSource: "legal_term",
         legal: true,
       };
 }
@@ -181,12 +191,15 @@ async function fetchLegal(term: string): Promise<Gloss | undefined> {
     .run();
 
   const first = usable[0];
+  const firstId = first?.termId ?? `${term}-0`;
   return first === undefined
     ? undefined
     : {
         term,
         definition: first.definition,
         source: first.source ?? first.dictionary ?? "법령용어",
+        definitionId: firstId,
+        definitionSource: "legal_term",
         legal: true,
       };
 }
@@ -220,6 +233,8 @@ function fromDictionary(term: string): Gloss | undefined {
         term,
         definition: row.definition,
         source: "표준국어대사전",
+        definitionId: row.id,
+        definitionSource: "stdict",
         legal: row.category === "법률",
       };
 }
@@ -288,7 +303,12 @@ function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
     addSafeGeneralGlosses(db, chunk, found);
 
     for (const row of db
-      .select({ term: legalTerm.term, definition: legalTerm.definition, source: legalTerm.source })
+      .select({
+        id: legalTerm.id,
+        term: legalTerm.term,
+        definition: legalTerm.definition,
+        source: legalTerm.source,
+      })
       .from(legalTerm)
       .where(inArray(legalTerm.term, chunk))
       .all()) {
@@ -304,6 +324,8 @@ function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
         term: row.term,
         definition: row.definition,
         source: row.source ?? "법령용어",
+        definitionId: row.id,
+        definitionSource: "legal_term",
         legal: true,
       });
     }

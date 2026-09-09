@@ -15,6 +15,7 @@
 
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
+import { type GlossEvidence, glossEvidenceHash } from "@/lib/gloss-evidence";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { AppDb } from "../client";
@@ -23,6 +24,7 @@ import {
   uploadGenerationJob,
   uploadNodeSpan,
   uploadRendition,
+  uploadRenditionGlossEvidence,
   uploadRenditionSentence,
   uploadStructureGenerationJob,
   uploadStructureNode,
@@ -77,6 +79,7 @@ interface SentenceInput {
   confidence: Confidence;
   /** 낱말 뜻의 출처. 그 밖에는 null이다. */
   source?: string | null;
+  glossEvidence?: GlossEvidence | null;
   checkReason?: string | null;
 }
 
@@ -304,21 +307,39 @@ function saveUploadRendition(
       .run();
 
     if (input.sentences.length > 0) {
-      tx.insert(uploadRenditionSentence)
-        .values(
-          input.sentences.map((sentence) => ({
-            id: newId(),
-            renditionId: id,
-            orderIdx: sentence.orderIdx,
-            role: sentence.role ?? ("body" as const),
-            text: sentence.text,
-            structureNodeId: sentence.structureNodeId ?? null,
-            confidence: sentence.confidence,
-            source: sentence.source ?? null,
-            checkReason: sentence.checkReason ?? null,
-          })),
-        )
-        .run();
+      const sentenceRows = input.sentences.map((sentence) => {
+        const role = sentence.role ?? ("body" as const);
+        if (sentence.glossEvidence != null && role !== "gloss") {
+          throw new Error("사전 정의 근거는 낱말 뜻 문장에만 저장할 수 있습니다.");
+        }
+        return {
+          id: newId(),
+          renditionId: id,
+          orderIdx: sentence.orderIdx,
+          role,
+          text: sentence.text,
+          structureNodeId: sentence.structureNodeId ?? null,
+          confidence: sentence.confidence,
+          source: sentence.glossEvidence?.sourceLabel ?? sentence.source ?? null,
+          checkReason: sentence.checkReason ?? null,
+        };
+      });
+      tx.insert(uploadRenditionSentence).values(sentenceRows).run();
+      const evidenceRows = sentenceRows.flatMap((row, index) => {
+        const evidence = input.sentences[index]?.glossEvidence;
+        return evidence === undefined || evidence === null
+          ? []
+          : [
+              {
+                sentenceId: row.id,
+                ...evidence,
+                definitionHash: glossEvidenceHash(evidence),
+              },
+            ];
+      });
+      if (evidenceRows.length > 0) {
+        tx.insert(uploadRenditionGlossEvidence).values(evidenceRows).run();
+      }
     }
     return id;
   });
@@ -387,6 +408,20 @@ function listUploadSentences(db: AppDb, renditionId: string) {
     .where(eq(uploadRenditionSentence.renditionId, renditionId))
     .orderBy(uploadRenditionSentence.orderIdx)
     .all();
+  const sentenceIds = sentences.map(({ id }) => id);
+  const glosses =
+    sentenceIds.length === 0
+      ? []
+      : db
+          .select()
+          .from(uploadRenditionGlossEvidence)
+          .where(inArray(uploadRenditionGlossEvidence.sentenceId, sentenceIds))
+          .all();
+  const glossBySentence = new Map(glosses.map((gloss) => [gloss.sentenceId, gloss]));
+  const withGlossEvidence = sentences.map((sentence) => ({
+    ...sentence,
+    glossEvidence: glossBySentence.get(sentence.id) ?? null,
+  }));
 
   /*
    * 공개 판례와 같은 방식으로 설명 문장의 근거를 한 번에 붙인다. 문장마다
@@ -397,7 +432,10 @@ function listUploadSentences(db: AppDb, renditionId: string) {
     .map((sentence) => sentence.structureNodeId)
     .filter((id): id is string => id !== null);
   if (nodeIds.length === 0) {
-    return sentences.map((sentence) => ({ ...sentence, sourceSpanIds: [] as string[] }));
+    return withGlossEvidence.map((sentence) => ({
+      ...sentence,
+      sourceSpanIds: [] as string[],
+    }));
   }
 
   const spansByNode = new Map<string, string[]>();
@@ -411,7 +449,7 @@ function listUploadSentences(db: AppDb, renditionId: string) {
     spansByNode.set(row.structureNodeId, spans);
   }
 
-  return sentences.map((sentence) => ({
+  return withGlossEvidence.map((sentence) => ({
     ...sentence,
     sourceSpanIds:
       sentence.structureNodeId === null ? [] : (spansByNode.get(sentence.structureNodeId) ?? []),

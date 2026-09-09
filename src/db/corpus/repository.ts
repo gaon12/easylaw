@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
+import { type GlossEvidence, glossEvidenceHash } from "@/lib/gloss-evidence";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
 import type { CorpusDb } from "../client";
@@ -26,6 +27,7 @@ import {
   nodeSpan,
   rendition,
   renditionAudio,
+  renditionGlossEvidence,
   renditionSentence,
   structureGenerationJob,
   structureNode,
@@ -46,6 +48,7 @@ type RenditionEditResult =
 type CorpusTransaction = Parameters<Parameters<CorpusDb["transaction"]>[0]>[0];
 type RenditionRow = typeof rendition.$inferSelect;
 type RenditionSentenceRow = typeof renditionSentence.$inferSelect;
+type GlossEvidenceRow = typeof renditionGlossEvidence.$inferSelect;
 
 interface JudgmentInput {
   caseNoCanonical: string;
@@ -75,6 +78,7 @@ interface SentenceInput {
   confidence: Confidence;
   /** 낱말 뜻의 출처. 그 밖에는 null이다. */
   source?: string | null;
+  glossEvidence?: GlossEvidence | null;
   checkReason?: string | null;
 }
 
@@ -974,6 +978,20 @@ function listSentences(db: CorpusDb, renditionId: string) {
     .where(eq(renditionSentence.renditionId, renditionId))
     .orderBy(renditionSentence.orderIdx)
     .all();
+  const sentenceIds = sentences.map(({ id }) => id);
+  const glosses =
+    sentenceIds.length === 0
+      ? []
+      : db
+          .select()
+          .from(renditionGlossEvidence)
+          .where(inArray(renditionGlossEvidence.sentenceId, sentenceIds))
+          .all();
+  const glossBySentence = new Map(glosses.map((gloss) => [gloss.sentenceId, gloss]));
+  const withGlossEvidence = sentences.map((sentence) => ({
+    ...sentence,
+    glossEvidence: glossBySentence.get(sentence.id) ?? null,
+  }));
 
   /*
    * 근거 연결은 rendition_sentence → structure_node → node_span에 있다. 화면에서 문장마다
@@ -984,7 +1002,10 @@ function listSentences(db: CorpusDb, renditionId: string) {
     .map((sentence) => sentence.structureNodeId)
     .filter((id): id is string => id !== null);
   if (nodeIds.length === 0) {
-    return sentences.map((sentence) => ({ ...sentence, sourceSpanIds: [] as string[] }));
+    return withGlossEvidence.map((sentence) => ({
+      ...sentence,
+      sourceSpanIds: [] as string[],
+    }));
   }
 
   const spansByNode = new Map<string, string[]>();
@@ -998,7 +1019,7 @@ function listSentences(db: CorpusDb, renditionId: string) {
     spansByNode.set(row.structureNodeId, spans);
   }
 
-  return sentences.map((sentence) => ({
+  return withGlossEvidence.map((sentence) => ({
     ...sentence,
     sourceSpanIds:
       sentence.structureNodeId === null ? [] : (spansByNode.get(sentence.structureNodeId) ?? []),
@@ -1048,21 +1069,39 @@ function saveRendition(
       .run();
 
     if (input.sentences.length > 0) {
-      tx.insert(renditionSentence)
-        .values(
-          input.sentences.map((sentence) => ({
-            id: newId(),
-            renditionId: id,
-            orderIdx: sentence.orderIdx,
-            role: sentence.role ?? ("body" as const),
-            text: sentence.text,
-            structureNodeId: sentence.structureNodeId ?? null,
-            confidence: sentence.confidence,
-            source: sentence.source ?? null,
-            checkReason: sentence.checkReason ?? null,
-          })),
-        )
-        .run();
+      const sentenceRows = input.sentences.map((sentence) => {
+        const role = sentence.role ?? ("body" as const);
+        if (sentence.glossEvidence != null && role !== "gloss") {
+          throw new Error("사전 정의 근거는 낱말 뜻 문장에만 저장할 수 있습니다.");
+        }
+        return {
+          id: newId(),
+          renditionId: id,
+          orderIdx: sentence.orderIdx,
+          role,
+          text: sentence.text,
+          structureNodeId: sentence.structureNodeId ?? null,
+          confidence: sentence.confidence,
+          source: sentence.glossEvidence?.sourceLabel ?? sentence.source ?? null,
+          checkReason: sentence.checkReason ?? null,
+        };
+      });
+      tx.insert(renditionSentence).values(sentenceRows).run();
+      const evidenceRows = sentenceRows.flatMap((row, index) => {
+        const evidence = input.sentences[index]?.glossEvidence;
+        return evidence === undefined || evidence === null
+          ? []
+          : [
+              {
+                sentenceId: row.id,
+                ...evidence,
+                definitionHash: glossEvidenceHash(evidence),
+              },
+            ];
+      });
+      if (evidenceRows.length > 0) {
+        tx.insert(renditionGlossEvidence).values(evidenceRows).run();
+      }
     }
     return id;
   });
@@ -1103,12 +1142,14 @@ function validSentenceEdits(
   return valid ? edits : undefined;
 }
 
-function insertEditedRendition(
-  tx: CorpusTransaction,
-  base: RenditionRow,
-  existing: readonly RenditionSentenceRow[],
-  edits: ReadonlyMap<string, string>,
-): string {
+function insertEditedRendition(input: {
+  tx: CorpusTransaction;
+  base: RenditionRow;
+  existing: readonly RenditionSentenceRow[];
+  edits: ReadonlyMap<string, string>;
+  evidenceBySentence: ReadonlyMap<string, GlossEvidenceRow>;
+}): string {
+  const { tx, base, existing, edits, evidenceBySentence } = input;
   const renditionId = newId();
   const generatedAt = new Date(Math.max(Date.now(), base.generatedAt.getTime() + 1));
   tx.insert(rendition)
@@ -1124,25 +1165,29 @@ function insertEditedRendition(
       generatedAt,
     })
     .run();
-  tx.insert(renditionSentence)
-    .values(
-      existing.map((sentence) => {
-        const text = edits.get(sentence.id) as string;
-        const changed = text !== sentence.text;
-        return {
-          id: newId(),
-          renditionId,
-          orderIdx: sentence.orderIdx,
-          role: sentence.role,
-          text,
-          structureNodeId: sentence.structureNodeId,
-          source: sentence.source,
-          confidence: changed ? ("needs_check" as const) : sentence.confidence,
-          checkReason: changed ? "사람이 고친 문장을 원문과 대조해야 해요." : sentence.checkReason,
-        };
-      }),
-    )
-    .run();
+  const sentenceRows = existing.map((sentence) => {
+    const text = edits.get(sentence.id) as string;
+    const changed = text !== sentence.text;
+    return {
+      id: newId(),
+      renditionId,
+      orderIdx: sentence.orderIdx,
+      role: sentence.role,
+      text,
+      structureNodeId: sentence.structureNodeId,
+      source: sentence.source,
+      confidence: changed ? ("needs_check" as const) : sentence.confidence,
+      checkReason: changed ? "사람이 고친 문장을 원문과 대조해야 해요." : sentence.checkReason,
+    };
+  });
+  tx.insert(renditionSentence).values(sentenceRows).run();
+  const evidenceRows = sentenceRows.flatMap((row, index) => {
+    const evidence = evidenceBySentence.get(existing[index]?.id ?? "");
+    return evidence === undefined ? [] : [{ ...evidence, sentenceId: row.id }];
+  });
+  if (evidenceRows.length > 0) {
+    tx.insert(renditionGlossEvidence).values(evidenceRows).run();
+  }
   return renditionId;
 }
 
@@ -1174,7 +1219,26 @@ function createEditedRendition(
       return { ok: false, reason: "invalid_sentences" } as const;
     }
 
-    const renditionId = insertEditedRendition(tx, base, existing, edits);
+    const evidence =
+      existing.length === 0
+        ? []
+        : tx
+            .select()
+            .from(renditionGlossEvidence)
+            .where(
+              inArray(
+                renditionGlossEvidence.sentenceId,
+                existing.map(({ id }) => id),
+              ),
+            )
+            .all();
+    const renditionId = insertEditedRendition({
+      tx,
+      base,
+      existing,
+      edits,
+      evidenceBySentence: new Map(evidence.map((row) => [row.sentenceId, row])),
+    });
     return { ok: true, renditionId } as const;
   });
 }

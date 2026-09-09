@@ -1128,6 +1128,7 @@ export const admin = {
   renditionEditBack: "판결문 관리로 돌아가기",
   renditionEditLevel: "설명 단계",
   renditionEditEvidence: "연결된 원문 근거",
+  renditionEditGlossEvidence: "생성할 때 사용한 사전 정의",
   renditionEditNoEvidence: "연결된 원문 근거가 없어요. 저장하기 전에 원문에서 직접 확인해 주세요.",
   renditionEditRoles: { heading: "제목", body: "설명", gloss: "사전 뜻풀이" },
   renditionEditGlossReadonly: "출처가 붙은 사전 뜻풀이는 사전 데이터에서 고쳐야 해요.",

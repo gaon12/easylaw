@@ -8,6 +8,7 @@
  * 그래서 "이 문장은 원문 어디서 나왔나"에 언제나 답할 수 있다.
  */
 
+import type { GlossEvidence } from "@/lib/gloss-evidence";
 import type { LlmClient } from "@/lib/llm/client";
 import { hasBlockingIssue, type Level, type LintIssue, lintRendition } from "@/lib/rendition/lint";
 import { LEVEL_BRIEF, RENDER_PROMPT_VERSION, renderInstruction } from "./render-prompt";
@@ -30,6 +31,8 @@ interface RenderedLine {
   readonly structureNodeId: string | null;
   /** 낱말 뜻의 출처. 그 밖에는 null이다. */
   readonly source: string | null;
+  /** 모델에게 제공한 정의 원문과 사전 행 식별자. 낱말 뜻에만 있다. */
+  readonly glossEvidence: GlossEvidence | null;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
 }
 
@@ -37,9 +40,7 @@ interface RenderedLine {
  * 지시문에 실어 보낸 낱말 뜻. **모델이 만든 것이 아니라 우리가 찾아 준 것**이라,
  * 돌아온 풀이 문장에 출처를 도로 붙일 수 있다.
  */
-interface RenderGloss {
-  readonly term: string;
-  readonly definition: string;
+interface RenderGloss extends Omit<GlossEvidence, "sourceLabel"> {
   readonly source: string;
 }
 
@@ -193,23 +194,23 @@ const MAX_OUTPUT_TOKENS = 16_384;
  * "해태했는지 확인했어요" 다음에 "할 일을 이유 없이 넘기는 일이에요"가 온다.
  * 풀이 문장에서 낱말을 찾으려 했더니 하나도 못 붙였다.
  */
-function glossSource(
+function glossForLine(
   text: string,
   previous: string | undefined,
   glosses: readonly RenderGloss[],
-): string | null {
+): RenderGloss | null {
   /* 풀이 문장에 용어가 적혀 있으면 그것을 우선한다. 앞 문장에 여러 용어가 있을 수 있다. */
   const named = glosses.find((gloss) => text.includes(gloss.term));
   if (named !== undefined) {
-    return named.source;
+    return named;
   }
-  return glosses.find((gloss) => previous?.includes(gloss.term) === true)?.source ?? null;
+  return glosses.find((gloss) => previous?.includes(gloss.term) === true) ?? null;
 }
 
 function isGroundedRole(input: {
   role: "heading" | "body" | "gloss";
   nodeId: string | undefined;
-  source: string | null;
+  evidence: GlossEvidence | null;
   allowedHeading: boolean;
 }): boolean {
   if (input.role === "body") {
@@ -218,7 +219,7 @@ function isGroundedRole(input: {
   if (input.role === "heading") {
     return input.allowedHeading;
   }
-  return input.source !== null;
+  return input.evidence !== null;
 }
 
 function toLines(
@@ -242,12 +243,22 @@ function toLines(
      */
     const isAllowedHeading =
       sentence.role !== "heading" || LEVEL_BRIEF[level].plan.includes(sentence.text);
-    const source =
-      sentence.role === "gloss" ? glossSource(sentence.text, lines.at(-1)?.text, glosses) : null;
+    const matchedGloss =
+      sentence.role === "gloss" ? glossForLine(sentence.text, lines.at(-1)?.text, glosses) : null;
+    const evidence: GlossEvidence | null =
+      matchedGloss === null
+        ? null
+        : {
+            definitionSource: matchedGloss.definitionSource,
+            definitionId: matchedGloss.definitionId,
+            term: matchedGloss.term,
+            definition: matchedGloss.definition,
+            sourceLabel: matchedGloss.source,
+          };
     const groundedRole = isGroundedRole({
       role: sentence.role,
       nodeId,
-      source,
+      evidence,
       allowedHeading: isAllowedHeading,
     });
 
@@ -256,7 +267,8 @@ function toLines(
       role: sentence.role,
       text: sentence.text,
       structureNodeId: nodeId ?? null,
-      source,
+      source: evidence?.sourceLabel ?? null,
+      glossEvidence: evidence,
       confidence: groundedRole ? "grounded" : "ungrounded",
     });
   }

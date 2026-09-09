@@ -1,4 +1,5 @@
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
+import type { GlossEvidence } from "@/lib/gloss-evidence";
 import type { JobOutcome } from "@/lib/job-outcome";
 import "server-only";
 import {
@@ -78,6 +79,7 @@ interface StoreSentence {
   readonly structureNodeId: string | null;
   /** 낱말 뜻의 출처. 그 밖에는 null이다. */
   readonly source?: string | null;
+  readonly glossEvidence?: GlossEvidence | null;
   readonly confidence: "grounded" | "needs_check" | "ungrounded";
   readonly checkReason?: string | null;
 }

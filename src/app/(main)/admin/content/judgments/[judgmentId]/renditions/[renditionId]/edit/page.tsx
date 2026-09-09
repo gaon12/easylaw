@@ -45,10 +45,17 @@ export default async function RenditionEditPage({
     role: sentence.role,
     text: sentence.text,
     source: sentence.source,
-    evidence: sentence.sourceSpanIds.flatMap((id) => {
-      const text = spanText.get(id);
-      return text === undefined ? [] : [text];
-    }),
+    evidence:
+      sentence.glossEvidence === null
+        ? sentence.sourceSpanIds.flatMap((id) => {
+            const text = spanText.get(id);
+            return text === undefined ? [] : [text];
+          })
+        : [sentence.glossEvidence.definition],
+    evidenceId:
+      sentence.glossEvidence === null
+        ? null
+        : `${sentence.glossEvidence.definitionSource}:${sentence.glossEvidence.definitionId}`,
   }));
   if (sentences.length === 0) {
     notFound();

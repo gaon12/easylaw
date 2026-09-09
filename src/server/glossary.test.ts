@@ -35,12 +35,16 @@ describe("생성 경로는 밖에 묻지 않는다", () => {
 
 describe("생성용 법률 용어 선택", () => {
   it("법률 분류가 빠진 변제의 표준 사전 뜻도 생성 입력에 포함한다", () => {
-    expect(glossesInText("채무를 변제하였다.")).toContainEqual({
-      term: "변제",
-      definition: "남에게 진 빚을 갚음.",
-      source: "표준국어대사전",
-      legal: false,
-    });
+    expect(glossesInText("채무를 변제하였다.")).toContainEqual(
+      expect.objectContaining({
+        term: "변제",
+        definition: "남에게 진 빚을 갚음.",
+        source: "표준국어대사전",
+        definitionId: expect.any(String),
+        definitionSource: "stdict",
+        legal: false,
+      }),
+    );
   });
 
   it("특정 법령에서만 맞는 정의를 자동 풀이 후보로 쓰지 않는다", () => {
