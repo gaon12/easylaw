@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NativeSelect } from "@/components/shadcn/ui/native-select";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { appDb, corpusDb } from "@/db/client";
 import {
@@ -17,6 +18,7 @@ import {
   type RenditionReleaseOverview,
 } from "@/db/corpus/repository";
 import {
+  canEditContent,
   canPublishContent,
   canRequestContentReview,
   canReviewContent,
@@ -31,6 +33,7 @@ import { ReleaseComparison } from "./release-comparison";
 import { ReleaseControls, RestoreReleaseControl, ReviewControls } from "./release-controls";
 
 interface SearchParams {
+  readonly edited?: string | string[];
   readonly from?: string | string[];
   readonly to?: string | string[];
   readonly releaseFrom?: string | string[];
@@ -323,6 +326,7 @@ function ReleaseTableRow({
   canManage,
   canRequestReview,
   canReview,
+  canEdit,
 }: {
   row: RenditionReleaseOverview;
   judgmentId: string;
@@ -332,6 +336,7 @@ function ReleaseTableRow({
   canManage: boolean;
   canRequestReview: boolean;
   canReview: boolean;
+  canEdit: boolean;
 }) {
   return (
     <tr>
@@ -368,6 +373,15 @@ function ReleaseTableRow({
         />
       </td>
       <td>
+        {canEdit && row.latest !== undefined ? (
+          <ButtonLink
+            href={`/admin/content/judgments/${judgmentId}/renditions/${row.latest.id}/edit`}
+            size="s"
+            variant="tertiary"
+          >
+            {admin.renditionEdit}
+          </ButtonLink>
+        ) : null}
         {canManage ? (
           <ReleaseControls
             judgmentId={judgmentId}
@@ -404,6 +418,7 @@ function ReleaseTable({
   canManage,
   canRequestReview,
   canReview,
+  canEdit,
 }: {
   rows: readonly RenditionReleaseOverview[];
   judgmentId: string;
@@ -413,6 +428,7 @@ function ReleaseTable({
   canManage: boolean;
   canRequestReview: boolean;
   canReview: boolean;
+  canEdit: boolean;
 }) {
   return (
     <div className={styles.tableScroll}>
@@ -431,6 +447,7 @@ function ReleaseTable({
             <ReleaseTableRow
               at={at}
               canManage={canManage}
+              canEdit={canEdit}
               canRequestReview={canRequestReview}
               canReview={canReview}
               caseNo={caseNo}
@@ -542,6 +559,7 @@ export default async function JudgmentRevisionPage({
   const { judgmentId } = await params;
   const session = await currentSession();
   const canManageRelease = canPublishContent(session?.role);
+  const canEdit = canEditContent(session?.role);
   const canRequestReview = canRequestContentReview(session?.role);
   const canReview = canReviewContent(session?.role);
   const requested = await searchParams;
@@ -615,12 +633,19 @@ export default async function JudgmentRevisionPage({
         </dl>
       </header>
 
+      {one(requested.edited) === "1" ? (
+        <Alert title={admin.renditionEditDone} tone="success">
+          {admin.renditionEditDoneBody}
+        </Alert>
+      ) : null}
+
       <Card as="section" className={styles.usage}>
         <h2 className={styles.sectionTitle}>{admin.releaseTitle}</h2>
         <p className={styles.sectionBody}>{admin.releaseIntro}</p>
         <ReleaseTable
           at={at}
           canManage={canManageRelease}
+          canEdit={canEdit}
           canRequestReview={canRequestReview}
           canReview={canReview}
           caseNo={judgment.caseNoCanonical}

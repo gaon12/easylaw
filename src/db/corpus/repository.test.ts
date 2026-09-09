@@ -8,6 +8,7 @@ import {
   claimGenerationJob,
   claimStructureGenerationJob,
   countGenerationsOn,
+  createEditedRendition,
   findApprovedRendition,
   findContentReleaseBundle,
   findGenerationProgress,
@@ -22,6 +23,7 @@ import {
   findPublishedSentenceContext,
   findRendition,
   findRenditionAtRevision,
+  findRenditionById,
   finishGenerationJob,
   finishStructureGenerationJob,
   heartbeatGenerationJob,
@@ -406,6 +408,115 @@ describe("saveRendition", () => {
 
     expect(findRendition(db, judgmentId, "L2", "v1")).toBeDefined();
     expect(findRendition(db, judgmentId, "L2", "v2")).toBeDefined();
+  });
+});
+
+describe("사람이 고친 설명", () => {
+  it("기존 설명을 보존하고 고친 문장만 확인 필요인 새 초안을 만든다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 8, text: "원문 문장입니다." },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "model",
+      promptVersion: "edit-base-v1",
+      sentences: [
+        { orderIdx: 0, role: "heading", text: "결과", confidence: "grounded" },
+        { orderIdx: 1, text: "처음 설명이에요.", confidence: "grounded" },
+      ],
+    });
+    const baseSentences = listSentences(db, baseRenditionId);
+    const result = createEditedRendition(db, {
+      judgmentId,
+      baseRenditionId,
+      sentences: baseSentences.map((sentence) => ({
+        id: sentence.id,
+        text: sentence.role === "body" ? "고친 설명이에요." : sentence.text,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(listSentences(db, baseRenditionId).map(({ text }) => text)).toContain(
+      "처음 설명이에요.",
+    );
+    expect(listSentences(db, result.renditionId)).toMatchObject([
+      { role: "heading", text: "결과", confidence: "grounded" },
+      { role: "body", text: "고친 설명이에요.", confidence: "needs_check" },
+    ]);
+    expect(findRenditionById(db, judgmentId, result.renditionId)).toMatchObject({
+      model: "human-editor",
+      reviewState: "none",
+    });
+    expect(findLatestRendition(db, judgmentId, "L4")?.id).toBe(result.renditionId);
+  });
+
+  it("낱말 뜻을 출처와 따로 고치거나 같은 내용을 중복 저장하지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 2, text: "원문" },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "model",
+      promptVersion: "edit-gloss-v1",
+      sentences: [
+        {
+          orderIdx: 0,
+          role: "gloss",
+          text: "변제는 빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+        },
+      ],
+    });
+    const [sentence] = listSentences(db, baseRenditionId);
+    expect(sentence).toBeDefined();
+    expect(
+      createEditedRendition(db, {
+        judgmentId,
+        baseRenditionId,
+        sentences: [{ id: sentence?.id ?? "", text: "다른 뜻" }],
+      }),
+    ).toEqual({ ok: false, reason: "invalid_sentences" });
+    expect(
+      createEditedRendition(db, {
+        judgmentId,
+        baseRenditionId,
+        sentences: [{ id: sentence?.id ?? "", text: sentence?.text ?? "" }],
+      }),
+    ).toEqual({ ok: false, reason: "invalid_sentences" });
+  });
+
+  it("원문판이 바뀐 뒤에는 옛 설명을 편집 초안으로 만들지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "옛 원문" },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L3",
+      model: "model",
+      promptVersion: "edit-stale-v1",
+      sentences: [{ orderIdx: 0, text: "옛 설명", confidence: "grounded" }],
+    });
+    const [sentence] = listSentences(db, baseRenditionId);
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "새 원문" },
+    ]);
+
+    expect(
+      createEditedRendition(db, {
+        judgmentId,
+        baseRenditionId,
+        sentences: [{ id: sentence?.id ?? "", text: "새 설명" }],
+      }),
+    ).toEqual({ ok: false, reason: "stale" });
   });
 });
 

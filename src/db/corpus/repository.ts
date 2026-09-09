@@ -40,6 +40,12 @@ type Confidence = (typeof renditionSentence.confidence.enumValues)[number];
 type ReviewState = (typeof rendition.reviewState.enumValues)[number];
 type Outcome = (typeof judgment.outcome.enumValues)[number];
 type ReleaseState = "missing" | "draft" | "reviewing" | "published" | "stale" | "rejected";
+type RenditionEditResult =
+  | { readonly ok: true; readonly renditionId: string }
+  | { readonly ok: false; readonly reason: "not_found" | "stale" | "invalid_sentences" };
+type CorpusTransaction = Parameters<Parameters<CorpusDb["transaction"]>[0]>[0];
+type RenditionRow = typeof rendition.$inferSelect;
+type RenditionSentenceRow = typeof renditionSentence.$inferSelect;
 
 interface JudgmentInput {
   caseNoCanonical: string;
@@ -73,6 +79,7 @@ interface SentenceInput {
 }
 
 const newId = (): string => crypto.randomUUID();
+const MAX_RENDITION_SENTENCE_LENGTH = 4000;
 
 function findCurrentJudgmentRevisionId(db: CorpusDb, judgmentId: string): string | null {
   return (
@@ -326,6 +333,14 @@ function findLatestRendition(
       ),
     )
     .orderBy(desc(rendition.generatedAt))
+    .get();
+}
+
+function findRenditionById(db: CorpusDb, judgmentId: string, renditionId: string) {
+  return db
+    .select()
+    .from(rendition)
+    .where(and(eq(rendition.id, renditionId), eq(rendition.judgmentId, judgmentId)))
     .get();
 }
 
@@ -1050,6 +1065,117 @@ function saveRendition(
         .run();
     }
     return id;
+  });
+}
+
+function findEditTarget(
+  tx: CorpusTransaction,
+  judgmentId: string,
+  renditionId: string,
+): { owner: typeof judgment.$inferSelect | undefined; base: RenditionRow | undefined } {
+  const owner = tx.select().from(judgment).where(eq(judgment.id, judgmentId)).get();
+  const base = tx
+    .select()
+    .from(rendition)
+    .where(and(eq(rendition.id, renditionId), eq(rendition.judgmentId, judgmentId)))
+    .get();
+  return { owner, base };
+}
+
+function validSentenceEdits(
+  existing: readonly RenditionSentenceRow[],
+  sentences: readonly { id: string; text: string }[],
+): ReadonlyMap<string, string> | undefined {
+  const edits = new Map(sentences.map((sentence) => [sentence.id, sentence.text.trim()]));
+  const valid =
+    existing.length > 0 &&
+    edits.size === existing.length &&
+    existing.some((sentence) => edits.get(sentence.id) !== sentence.text) &&
+    existing.every((sentence) => {
+      const text = edits.get(sentence.id);
+      return (
+        text !== undefined &&
+        text.length > 0 &&
+        text.length <= MAX_RENDITION_SENTENCE_LENGTH &&
+        !(sentence.role === "gloss" && text !== sentence.text)
+      );
+    });
+  return valid ? edits : undefined;
+}
+
+function insertEditedRendition(
+  tx: CorpusTransaction,
+  base: RenditionRow,
+  existing: readonly RenditionSentenceRow[],
+  edits: ReadonlyMap<string, string>,
+): string {
+  const renditionId = newId();
+  const generatedAt = new Date(Math.max(Date.now(), base.generatedAt.getTime() + 1));
+  tx.insert(rendition)
+    .values({
+      id: renditionId,
+      judgmentId: base.judgmentId,
+      sourceRevisionId: base.sourceRevisionId,
+      level: base.level,
+      model: "human-editor",
+      promptVersion: versionForRevision(`editorial:${renditionId}`, base.sourceRevisionId),
+      generationSnapshot: base.generationSnapshot,
+      reviewState: "none",
+      generatedAt,
+    })
+    .run();
+  tx.insert(renditionSentence)
+    .values(
+      existing.map((sentence) => {
+        const text = edits.get(sentence.id) as string;
+        const changed = text !== sentence.text;
+        return {
+          id: newId(),
+          renditionId,
+          orderIdx: sentence.orderIdx,
+          role: sentence.role,
+          text,
+          structureNodeId: sentence.structureNodeId,
+          source: sentence.source,
+          confidence: changed ? ("needs_check" as const) : sentence.confidence,
+          checkReason: changed ? "사람이 고친 문장을 원문과 대조해야 해요." : sentence.checkReason,
+        };
+      }),
+    )
+    .run();
+  return renditionId;
+}
+
+/** 기존 설명을 고쳐도 그 행을 덮지 않고, 같은 근거 연결을 가진 새 초안 UUID를 만든다. */
+function createEditedRendition(
+  db: CorpusDb,
+  input: {
+    judgmentId: string;
+    baseRenditionId: string;
+    sentences: readonly { id: string; text: string }[];
+  },
+): RenditionEditResult {
+  return db.transaction((tx) => {
+    const { owner, base } = findEditTarget(tx, input.judgmentId, input.baseRenditionId);
+    if (owner === undefined || base === undefined) {
+      return { ok: false, reason: "not_found" } as const;
+    }
+    if (owner.currentRevisionId === null || base.sourceRevisionId !== owner.currentRevisionId) {
+      return { ok: false, reason: "stale" } as const;
+    }
+    const existing = tx
+      .select()
+      .from(renditionSentence)
+      .where(eq(renditionSentence.renditionId, base.id))
+      .orderBy(renditionSentence.orderIdx)
+      .all();
+    const edits = validSentenceEdits(existing, input.sentences);
+    if (edits === undefined) {
+      return { ok: false, reason: "invalid_sentences" } as const;
+    }
+
+    const renditionId = insertEditedRendition(tx, base, existing, edits);
+    return { ok: true, renditionId } as const;
   });
 }
 
@@ -2171,6 +2297,7 @@ export {
   findJudgmentRevision,
   findLatestLawVersion,
   findLatestRendition,
+  findRenditionById,
   findRenditionAtRevision,
   findLawArticle,
   findLawVersionAt,
@@ -2194,6 +2321,7 @@ export {
   listRecentGenerationFailures,
   listRenditionReleaseOverview,
   listReportedSentenceDetails,
+  createEditedRendition,
   reserveAudioSlot,
   listStructureNodes,
   recordLookupMiss,
@@ -2231,6 +2359,7 @@ export type {
   ReviewMutationResult,
   ReleaseState,
   RenditionReleaseOverview,
+  RenditionEditResult,
   SentenceInput,
   SpanInput,
   StructureKind,

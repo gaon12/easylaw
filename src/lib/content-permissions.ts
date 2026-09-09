@@ -26,12 +26,19 @@ function canRequestContentReview(
   return role === "contributor" || role === "admin";
 }
 
+function canEditContent(
+  role: UserRole | undefined,
+): role is Extract<UserRole, "contributor" | "admin"> {
+  return role === "contributor" || role === "admin";
+}
+
 function isAdministrator(role: UserRole | undefined): boolean {
   return role === "admin";
 }
 
 export {
   canAccessContentWorkspace,
+  canEditContent,
   canPublishContent,
   canRequestContentReview,
   canReviewContent,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessContentWorkspace,
+  canEditContent,
   canPublishContent,
   canRequestContentReview,
   canReviewContent,
@@ -30,6 +31,13 @@ describe("콘텐츠 역할", () => {
     expect(canReviewContent("reviewer")).toBe(true);
     expect(canReviewContent("publisher")).toBe(false);
     expect(canReviewContent("admin")).toBe(true);
+  });
+
+  it("작성자와 관리자만 새 설명 초안을 편집한다", () => {
+    expect(canEditContent("contributor")).toBe(true);
+    expect(canEditContent("admin")).toBe(true);
+    expect(canEditContent("reviewer")).toBe(false);
+    expect(canEditContent("publisher")).toBe(false);
   });
 
   it("시스템 관리 권한은 관리자에게만 있다", () => {
