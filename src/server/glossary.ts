@@ -283,13 +283,14 @@ async function glossesFor(terms: readonly string[]): Promise<Gloss[]> {
  * **법률 분야만 묻는다.** 어차피 그것만 쓴다(아래 `glossesInText` 참조). 조건을 SQL에
  * 실으면 509,138행에서 8,307행만 훑는다.
  */
-function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
+function legalGlossesFor(
+  forms: readonly string[],
+  db: DictionaryDb = dictDb(),
+): Map<string, Gloss> {
   const found = new Map<string, Gloss>();
   if (forms.length === 0) {
     return found;
   }
-
-  const db = dictDb();
 
   /*
    * 바인딩 개수 한도를 넘기지 않으려고 나눠 묻는다. 지금 자료로는 한 번에 끝나지만,
@@ -358,10 +359,10 @@ function isSafeAutomaticLegalTerm(input: { definition: string; source: string | 
  * 그래서 법령용어는 **이미 받아 둔 것만** 본다. 밖에 묻는 `glossFor`는 낱말 하나를 사람이
  * 직접 물을 때를 위한 것이고, 여기서 부르지 않는다. 이 구분을 지우지 말 것.
  */
-function glossesInText(text: string): Gloss[] {
+function glossesInText(text: string, db: DictionaryDb = dictDb()): Gloss[] {
   const candidates = candidateTerms(text);
   const forms = [...new Set(candidates.flatMap((candidate) => candidate.forms))];
-  const known = legalGlossesFor(forms);
+  const known = legalGlossesFor(forms, db);
 
   const found: Gloss[] = [];
   const seen = new Set<string>();
