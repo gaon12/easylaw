@@ -8,13 +8,16 @@ import { gzipSync } from "node:zlib";
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { legalDb } from "@/db/client";
 import { upsertLawVersions } from "@/db/corpus/repository";
+import { saveLegalDetailRevision } from "@/db/legal/detail-revisions";
 import {
   lawVersion,
   legalResource,
   legalResourceDetail,
+  legalResourceDetailRevision,
   legalResourceFile,
   legalSyncRun,
 } from "@/db/legal/schema";
+import { INTERRUPTED_DETAIL, STALE_RUN_MS } from "@/db/legal/sync-runs";
 import { env } from "@/lib/env";
 import { parseRawListPage } from "@/lib/law-api/envelope";
 import { readRejection } from "@/lib/law-api/parse";
@@ -29,6 +32,7 @@ const KIBIBYTE = 1024;
 const BYTES_PER_GIB = KIBIBYTE * KIBIBYTE * KIBIBYTE;
 const FREE_SPACE_RESERVE_BYTES = 2 * BYTES_PER_GIB;
 const DETAIL_CONCURRENCY = 4;
+const SOURCE_CONCURRENCY = 3;
 const MAX_CONSECUTIVE_FAILURES = 10;
 const ERROR_SAMPLE_LIMIT = 5;
 const SOURCE_NAMES = [
@@ -158,7 +162,16 @@ async function fetchPage(source: LegalSyncSource, page: number, oc: string) {
   return parseRawListPage(payload, spec);
 }
 
-async function fetchDetail(source: LegalSyncSource, key: string, oc: string): Promise<unknown> {
+interface FetchedDetail {
+  payload: unknown;
+  available: boolean;
+}
+
+async function fetchDetail(
+  source: LegalSyncSource,
+  key: string,
+  oc: string,
+): Promise<FetchedDetail> {
   const spec = TARGETS[source];
   if (spec.detailKey === undefined) {
     throw new Error(`${spec.label}은 상세 API가 없습니다.`);
@@ -190,15 +203,23 @@ async function fetchDetail(source: LegalSyncSource, key: string, oc: string): Pr
   if (rejection !== undefined) {
     throw new Error(rejection);
   }
+  const available =
+    spec.detailEnvelope !== undefined &&
+    payload !== null &&
+    typeof payload === "object" &&
+    spec.detailEnvelope in payload;
   if (
-    spec.detailEnvelope === undefined ||
-    payload === null ||
-    typeof payload !== "object" ||
-    !(spec.detailEnvelope in payload)
+    !(
+      available ||
+      (source === "prec" &&
+        payload !== null &&
+        typeof payload === "object" &&
+        typeof Reflect.get(payload, "Law") === "string")
+    )
   ) {
     throw new Error(`${spec.label} 상세 응답 형식이 예상과 다릅니다.`);
   }
-  return sanitizeValue(payload);
+  return { payload: sanitizeValue(payload), available };
 }
 
 function ensureDetailSpace(): void {
@@ -213,6 +234,7 @@ interface DetailCounters {
   received: number;
   added: number;
   changed: number;
+  unavailable: number;
   failed: number;
 }
 
@@ -297,61 +319,49 @@ async function syncItemDetail(input: {
   candidate: DetailCandidate;
   oc: string;
   counters: DetailCounters;
-}): Promise<void> {
+}): Promise<boolean> {
   const { source, candidate, oc, counters } = input;
   const { key, listHash: listPayloadHash } = candidate;
   const db = legalDb();
   const existing = db
     .select({
-      hash: legalResourceDetail.payloadHash,
       listHash: legalResourceDetail.listPayloadHash,
     })
     .from(legalResourceDetail)
     .where(and(eq(legalResourceDetail.source, source), eq(legalResourceDetail.detailKey, key)))
     .get();
   if (existing?.listHash === listPayloadHash) {
-    return;
+    return true;
   }
-  const payload = await fetchDetail(source, key, oc);
+  const fetched = await fetchDetail(source, key, oc);
+  const payload = fetched.payload;
   const raw = Buffer.from(JSON.stringify(payload));
   const compressed = gzipSync(raw, { level: 9 });
   const hash = createHash("sha256").update(raw).digest("hex");
   counters.received += 1;
-  if (existing === undefined) {
+  const result = saveLegalDetailRevision(db, {
+    source,
+    detailKey: key,
+    payload: compressed,
+    payloadHash: hash,
+    listPayloadHash,
+    originalBytes: raw.byteLength,
+    storedBytes: compressed.byteLength,
+    fetchedAt: new Date(),
+  });
+  if (result.status === "added") {
     counters.added += 1;
-  } else if (existing.hash !== hash) {
+  } else if (result.status === "changed") {
     counters.changed += 1;
   }
-  db.insert(legalResourceDetail)
-    .values({
-      id: randomUUID(),
-      source,
-      detailKey: key,
-      payload: compressed,
-      payloadHash: hash,
-      listPayloadHash,
-      originalBytes: raw.byteLength,
-      storedBytes: compressed.byteLength,
-      fetchedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [legalResourceDetail.source, legalResourceDetail.detailKey],
-      set: {
-        payload: compressed,
-        payloadHash: hash,
-        listPayloadHash,
-        originalBytes: raw.byteLength,
-        storedBytes: compressed.byteLength,
-        fetchedAt: new Date(),
-      },
-    })
-    .run();
+  return fetched.available;
 }
 
 interface LegalSyncProcessState {
   running: Set<LegalSyncSource>;
   pending: Set<LegalSyncSource>;
-  workQueue: Promise<void>;
+  workQueues: Promise<void>[];
+  nextQueue: number;
 }
 
 const processState = globalThis as typeof globalThis & {
@@ -360,9 +370,13 @@ const processState = globalThis as typeof globalThis & {
 const newSyncState: LegalSyncProcessState = {
   running: new Set<LegalSyncSource>(),
   pending: new Set<LegalSyncSource>(),
-  workQueue: Promise.resolve(),
+  workQueues: Array.from({ length: SOURCE_CONCURRENCY }, () => Promise.resolve()),
+  nextQueue: 0,
 };
 const syncState = processState.easyLawLegalSync ?? newSyncState;
+// 개발 서버 hot reload 중 이전 모양의 전역 상태가 남아 있을 수 있다.
+syncState.workQueues ??= newSyncState.workQueues;
+syncState.nextQueue ??= 0;
 if (processState.easyLawLegalSync === undefined) {
   processState.easyLawLegalSync = syncState;
 }
@@ -573,6 +587,9 @@ async function syncDetailCandidates(input: {
     for (const result of results) {
       if (result.status === "fulfilled") {
         consecutiveFailures = 0;
+        if (!result.value) {
+          counters.unavailable += 1;
+        }
       } else {
         consecutiveFailures += 1;
         counters.failed += 1;
@@ -613,6 +630,7 @@ function updateRunProgress(runId: string, counts: SyncCounts, details: DetailCou
       detailReceived: details.received,
       detailAdded: details.added,
       detailChanged: details.changed,
+      detailUnavailable: details.unavailable,
       detailFailed: details.failed,
     })
     .where(eq(legalSyncRun.id, runId))
@@ -633,13 +651,14 @@ function markMissing(source: LegalSyncSource, startedAt: Date): number {
     .run().changes;
 }
 
-function finishRun(
-  runId: string,
-  counts: SyncCounts,
-  details: DetailCounters,
-  errors: readonly string[],
-  missing: number,
-): void {
+function finishRun(input: {
+  runId: string;
+  counts: SyncCounts;
+  details: DetailCounters;
+  errors: readonly string[];
+  missing: number;
+}): void {
+  const { runId, counts, details, errors, missing } = input;
   legalDb()
     .update(legalSyncRun)
     .set({
@@ -650,6 +669,7 @@ function finishRun(
       detailReceived: details.received,
       detailAdded: details.added,
       detailChanged: details.changed,
+      detailUnavailable: details.unavailable,
       detailFailed: details.failed,
       detail: errors.length === 0 ? null : errors.join(" | "),
     })
@@ -706,7 +726,13 @@ async function performLegalSync(input: {
     }
     pageNo += 1;
   }
-  finishRun(runId, counts, detailCounters, detailErrors, markMissing(source, startedAt));
+  finishRun({
+    runId,
+    counts,
+    details: detailCounters,
+    errors: detailErrors,
+    missing: markMissing(source, startedAt),
+  });
   if (source === "eflaw") {
     invalidateLawNameIndex();
   }
@@ -729,11 +755,24 @@ async function syncLegalSource(
   const db = legalDb();
   const runId = randomUUID();
   const startedAt = new Date();
-  const detailCounters: DetailCounters = { received: 0, added: 0, changed: 0, failed: 0 };
+  const detailCounters: DetailCounters = {
+    received: 0,
+    added: 0,
+    changed: 0,
+    unavailable: 0,
+    failed: 0,
+  };
   const detailErrors: string[] = [];
+  const staleBefore = new Date(startedAt.getTime() - STALE_RUN_MS);
   db.update(legalSyncRun)
-    .set({ status: "failed", finishedAt: startedAt, detail: "서버 재시작으로 중단되었습니다." })
-    .where(and(eq(legalSyncRun.source, source), eq(legalSyncRun.status, "running")))
+    .set({ status: "failed", finishedAt: startedAt, detail: INTERRUPTED_DETAIL })
+    .where(
+      and(
+        eq(legalSyncRun.source, source),
+        eq(legalSyncRun.status, "running"),
+        lt(legalSyncRun.startedAt, staleBefore),
+      ),
+    )
     .run();
   db.insert(legalSyncRun)
     .values({ id: runId, source, trigger, status: "running", startedAt })
@@ -761,6 +800,7 @@ async function syncLegalSource(
         detailReceived: detailCounters.received,
         detailAdded: detailCounters.added,
         detailChanged: detailCounters.changed,
+        detailUnavailable: detailCounters.unavailable,
         detailFailed: detailCounters.failed,
       })
       .where(eq(legalSyncRun.id, runId))
@@ -776,22 +816,29 @@ function startLegalSync(
   trigger: SyncTrigger,
   includeDetails = false,
 ): Promise<void> {
+  const scheduled: Promise<void>[] = [];
   for (const source of sources) {
     if (syncState.pending.has(source) || syncState.running.has(source)) {
       continue;
     }
     syncState.pending.add(source);
-    // 공공 API를 자료 종류 수만큼 동시에 두드리지 않는다. 관리자 요청은 한 줄로 순서대로 돈다.
-    syncState.workQueue = syncState.workQueue
-      .then(() => syncLegalSource(source, trigger, includeDetails))
+    const queueIndex = syncState.nextQueue % SOURCE_CONCURRENCY;
+    syncState.nextQueue += 1;
+    // 자료 종류는 세 줄로, 각 종류의 상세는 네 요청씩 처리해 총 동시 요청을 12개로 제한한다.
+    const queue = syncState.workQueues[queueIndex] ?? Promise.resolve();
+    const job = queue
       .catch(() => {
-        // syncLegalSource가 실패 기록을 남겼다. 다음 자료가 계속 실행되도록 큐는 복구한다.
+        // 앞 작업의 실패가 이 줄의 다음 자료 시작을 막지 않게 한다.
       })
+      .then(() => syncLegalSource(source, trigger, includeDetails))
       .finally(() => {
         syncState.pending.delete(source);
       });
+    // 공유 큐는 복구하되 호출자에게 돌려주는 job은 실패를 유지해 CLI와 운영 로그가 감지한다.
+    syncState.workQueues[queueIndex] = job.catch(() => undefined);
+    scheduled.push(job);
   }
-  return syncState.workQueue;
+  return Promise.all(scheduled).then(() => undefined);
 }
 
 function legalSyncOverview() {
@@ -822,6 +869,16 @@ function legalSyncOverview() {
         .from(legalResourceDetail)
         .where(eq(legalResourceDetail.source, source))
         .get()?.count ?? 0;
+    const detailRevisions =
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(legalResourceDetailRevision)
+        .innerJoin(
+          legalResourceDetail,
+          eq(legalResourceDetailRevision.detailId, legalResourceDetail.id),
+        )
+        .where(eq(legalResourceDetail.source, source))
+        .get()?.count ?? 0;
     const files =
       db
         .select({ count: sql<number>`count(*)` })
@@ -835,6 +892,7 @@ function legalSyncOverview() {
       active,
       missing,
       details: detailRows + files,
+      detailRevisions,
     };
   });
 }

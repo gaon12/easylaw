@@ -1,10 +1,10 @@
-/** 관리자와 같은 동기화 엔진으로 모든 법제처 목록·상세자료를 순차 저장한다. */
+/** 관리자와 같은 동기화 엔진으로 모든 법제처 목록·상세자료를 제한 병렬 저장한다. */
 import process from "node:process";
 import {
   isLegalSyncSource,
   type LegalSyncSource,
   SOURCE_NAMES,
-  syncLegalSource,
+  startLegalSync,
 } from "@/server/legal-sync";
 
 function requestedSources(): LegalSyncSource[] {
@@ -21,12 +21,10 @@ function requestedSources(): LegalSyncSource[] {
 }
 
 async function main(): Promise<void> {
-  for (const source of requestedSources()) {
-    process.stdout.write(`${source}: 목록·상세 동기화 시작\n`);
-    // biome-ignore lint/performance/noAwaitInLoops: 공공 API 자료군을 병렬 호출하지 않는다.
-    await syncLegalSource(source, "manual", true);
-    process.stdout.write(`${source}: 동기화 종료\n`);
-  }
+  const sources = requestedSources();
+  process.stdout.write(`${sources.join(", ")}: 최대 3개 자료군 병렬 동기화 시작\n`);
+  await startLegalSync(sources, "manual", true);
+  process.stdout.write("선택한 자료군 동기화 종료\n");
 }
 
 main().catch((error: unknown) => {

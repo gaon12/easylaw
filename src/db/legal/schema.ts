@@ -90,10 +90,35 @@ const legalResourceDetail = sqliteTable(
     originalBytes: integer("original_bytes").notNull(),
     storedBytes: integer("stored_bytes").notNull(),
     fetchedAt: integer("fetched_at", { mode: "timestamp_ms" }).notNull(),
+    /** 공개 기본값은 이 불변 판을 가리킨다. 기존 설치 이관 때문에 nullable이다. */
+    currentRevisionId: text("current_revision_id"),
   },
   (table) => [
     unique("legal_resource_detail_source_key_unique").on(table.source, table.detailKey),
     index("legal_resource_detail_source_fetched_idx").on(table.source, table.fetchedAt),
+  ],
+);
+
+/** 상세 응답의 불변 이력. 같은 본문 해시는 한 상세 안에서 한 번만 저장한다. */
+const legalResourceDetailRevision = sqliteTable(
+  "legal_resource_detail_revision",
+  {
+    id: text("id").primaryKey(),
+    detailId: text("detail_id")
+      .notNull()
+      .references(() => legalResourceDetail.id, { onDelete: "cascade" }),
+    /** 현재판은 detail 행의 payload를 쓰며, 과거판이 되는 순간 여기에 보관한다. */
+    payload: blob("payload", { mode: "buffer" }),
+    payloadHash: text("payload_hash").notNull(),
+    listPayloadHash: text("list_payload_hash").notNull(),
+    encoding: text("encoding").notNull().default("gzip-json"),
+    originalBytes: integer("original_bytes").notNull(),
+    storedBytes: integer("stored_bytes").notNull(),
+    fetchedAt: integer("fetched_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    unique("legal_detail_revision_hash_unique").on(table.detailId, table.payloadHash),
+    index("legal_detail_revision_fetched_idx").on(table.detailId, table.fetchedAt),
   ],
 );
 
@@ -133,6 +158,7 @@ const legalSyncRun = sqliteTable(
     detailReceived: integer("detail_received").notNull().default(0),
     detailAdded: integer("detail_added").notNull().default(0),
     detailChanged: integer("detail_changed").notNull().default(0),
+    detailUnavailable: integer("detail_unavailable").notNull().default(0),
     detailFailed: integer("detail_failed").notNull().default(0),
     detail: text("detail"),
   },
@@ -144,6 +170,7 @@ const legalSchema = {
   lawVersion,
   legalResource,
   legalResourceDetail,
+  legalResourceDetailRevision,
   legalResourceFile,
   legalSyncRun,
 };
@@ -153,6 +180,7 @@ export {
   lawVersion,
   legalResource,
   legalResourceDetail,
+  legalResourceDetailRevision,
   legalResourceFile,
   legalSchema,
   legalSyncRun,

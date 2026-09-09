@@ -26,7 +26,7 @@ const syncCopy = {
     "법제처의 10개 자료 목록을 카탈로그로 받습니다. 새 자료와 변경을 반영하고, 공식 목록에서 사라진 자료는 삭제하지 않고 ‘사라짐’으로 표시합니다. 실행은 백그라운드에서 진행되며 이 페이지를 새로고침하면 상태를 확인할 수 있습니다.",
   started: "동기화를 시작했습니다.",
   saved: "자동 동기화 설정을 저장했습니다.",
-  columns: ["자료", "상태", "활성", "상세 저장", "사라짐", "최근 결과"],
+  columns: ["자료", "상태", "활성", "상세 저장", "상세 이력", "사라짐", "최근 결과"],
   manualLegend: "지금 동기화할 자료",
   manualButton: "선택 자료 지금 동기화",
   includeDetails: "상세 본문까지 다운로드·압축 저장",
@@ -132,11 +132,12 @@ export default async function AdminContentPage(props: {
                   <td>{row.latest === undefined ? "실행 전" : runStatus[row.latest.status]}</td>
                   <td>{`${row.active.toLocaleString()}건`}</td>
                   <td>{`${(row.details ?? 0).toLocaleString()}건`}</td>
+                  <td>{`${row.detailRevisions.toLocaleString()}판`}</td>
                   <td>{`${row.missing.toLocaleString()}건`}</td>
                   <td>
                     {row.latest === undefined
                       ? "—"
-                      : `${at(row.latest.startedAt)} · 목록 ${row.latest.received.toLocaleString()} / 추가 ${row.latest.added.toLocaleString()} / 변경 ${row.latest.changed.toLocaleString()} / 재등장 ${row.latest.restored.toLocaleString()} / 사라짐 ${row.latest.missing.toLocaleString()} · 상세 ${row.latest.detailReceived.toLocaleString()} / 실패 ${row.latest.detailFailed.toLocaleString()}${row.latest.detail ? ` · ${row.latest.detail}` : ""}`}
+                      : `${at(row.latest.startedAt)} · 목록 ${row.latest.received.toLocaleString()} / 추가 ${row.latest.added.toLocaleString()} / 변경 ${row.latest.changed.toLocaleString()} / 재등장 ${row.latest.restored.toLocaleString()} / 사라짐 ${row.latest.missing.toLocaleString()} · 상세 ${row.latest.detailReceived.toLocaleString()} / 공식 미제공 ${row.latest.detailUnavailable.toLocaleString()} / 실패 ${row.latest.detailFailed.toLocaleString()}${row.latest.detail ? ` · ${row.latest.detail}` : ""}`}
                   </td>
                 </tr>
               ))}

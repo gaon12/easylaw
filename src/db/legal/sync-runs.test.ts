@@ -26,6 +26,7 @@ describe("법령 동기화 중단 복구", () => {
       detail_received integer NOT NULL DEFAULT 0,
       detail_added integer NOT NULL DEFAULT 0,
       detail_changed integer NOT NULL DEFAULT 0,
+      detail_unavailable integer NOT NULL DEFAULT 0,
       detail_failed integer NOT NULL DEFAULT 0,
       detail text
     )`);
@@ -34,12 +35,14 @@ describe("법령 동기화 중단 복구", () => {
 
   afterEach(() => raw.close());
 
-  it("모든 실행 중 행을 실패로 닫고 완료된 행은 보존한다", () => {
-    const startedAt = new Date("2026-09-09T00:00:00Z");
+  it("유예시간보다 오래된 실행만 실패로 닫고 최근 실행과 완료 행은 보존한다", () => {
+    const startedAt = new Date("2026-09-07T00:00:00Z");
+    const recentAt = new Date("2026-09-09T00:30:00Z");
     db.insert(legalSyncRun)
       .values([
         { id: "old-a", source: "ordin", trigger: "automatic", status: "running", startedAt },
         { id: "old-b", source: "licbyl", trigger: "manual", status: "running", startedAt },
+        { id: "recent", source: "prec", trigger: "manual", status: "running", startedAt: recentAt },
         {
           id: "done",
           source: "trty",
@@ -56,6 +59,7 @@ describe("법령 동기화 중단 복구", () => {
     expect(db.select().from(legalSyncRun).all()).toMatchObject([
       { id: "old-a", status: "failed", detail: INTERRUPTED_DETAIL, finishedAt },
       { id: "old-b", status: "failed", detail: INTERRUPTED_DETAIL, finishedAt },
+      { id: "recent", status: "running", detail: null, finishedAt: null },
       { id: "done", status: "done", detail: null, finishedAt: startedAt },
     ]);
   });
