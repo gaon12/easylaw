@@ -955,6 +955,17 @@ export const report = {
   detailHint: "어느 부분이 왜 문제인지 적어 주세요.",
   send: "보내기",
   sending: "보내는 중…",
+  mediaOpen: "그림 문제 알리기",
+  mediaTitle: "이 그림의 문제를 알려 주세요",
+  mediaIntro: "신고는 지금 보고 있는 설명판·그림 배치·이미지 자산에 연결돼 검수자가 확인합니다.",
+  mediaReasons: {
+    misleading: "그림이 내용을 다르게 이해하게 해요",
+    irrelevant: "설명과 관계없는 그림이에요",
+    hard_to_see: "그림이나 글자를 알아보기 어려워요",
+    broken: "그림이 나오지 않아요",
+    other: "그 밖의 문제예요",
+  },
+  mediaDetailHint: "그림의 어느 부분이 왜 문제인지 적어 주세요.",
 } as const;
 
 export const admin = {
@@ -1143,13 +1154,18 @@ export const admin = {
 
   reportsTitle: "오류 신고",
   reportsIntro:
-    "공개 설명에서 들어온 신고예요. 신고 당시 원문판·릴리스·문장 식별값이 그대로 남아 있어요.",
+    "공개 설명에서 들어온 신고예요. 신고 당시 원문판·릴리스와 문장 또는 그림 식별값이 그대로 남아 있어요.",
   reportsEmpty: "아직 들어온 신고가 없어요.",
+  sentenceReportsTitle: "설명 문장",
+  sentenceReportsEmpty: "문장 신고가 없어요.",
+  mediaReportsTitle: "설명 그림",
+  mediaReportsEmpty: "그림 신고가 없어요.",
   reportColumns: {
     at: "받은 때",
     document: "판결문",
     reason: "문제",
     sentence: "신고한 문장",
+    media: "신고한 그림",
     status: "처리",
   },
   reportReasons: {
@@ -1157,6 +1173,13 @@ export const admin = {
     hard_to_understand: "이해하기 어려움",
     missing: "중요 내용 누락",
     outdated: "기준 시점 문제",
+    other: "그 밖의 문제",
+  },
+  mediaReportReasons: {
+    misleading: "의미가 잘못 전달됨",
+    irrelevant: "설명과 관계없음",
+    hard_to_see: "알아보기 어려움",
+    broken: "그림 표시 실패",
     other: "그 밖의 문제",
   },
   reportStatuses: {
@@ -1170,6 +1193,7 @@ export const admin = {
   reportSaving: "저장 중…",
   reportMissingDocument: "판결문을 찾을 수 없음",
   reportMissingSentence: "문장을 찾을 수 없음",
+  reportMissingMedia: "그림 배치를 찾을 수 없음",
 
   missTitle: "못 찾은 사건번호",
   missIntro: "찾으셨는데 우리가 가져오지 못한 사건번호예요. 자주 오르는 것부터 살펴볼 만해요.",
@@ -1195,9 +1219,18 @@ export const admin = {
     "content.rendition_pending": "설명 검수 요청",
     "content.rendition_approved": "설명 승인",
     "content.rendition_rejected": "설명 반려",
+    "content.rendition_edited": "설명 편집 초안 생성",
     "content.release_publish": "설명 게시",
     "content.release_withdraw": "설명 철회",
     "content.release_restore": "설명 릴리스 복원",
+    "content.report_reviewing": "문장 신고 확인 시작",
+    "content.report_resolved": "문장 신고 수정 완료",
+    "content.report_dismissed": "문장 신고 문제 없음",
+    "content.report_open": "문장 신고 다시 열기",
+    "media.report_reviewing": "그림 신고 확인 시작",
+    "media.report_resolved": "그림 신고 수정 완료",
+    "media.report_dismissed": "그림 신고 문제 없음",
+    "media.report_open": "그림 신고 다시 열기",
   } as Record<string, string>,
 
   /** 시스템. 설치 마법사에만 있던 환경 점검을 설치 뒤에도 볼 수 있게 옮겼다. */

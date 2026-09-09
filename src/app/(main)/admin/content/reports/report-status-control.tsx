@@ -8,12 +8,21 @@ import { admin } from "@/lib/strings";
 import {
   type ContentReportActionState,
   manageContentReport,
+  manageMediaReport,
 } from "@/server/content-report-actions";
 import styles from "../../admin.module.css";
 
-function ReportStatusControl({ reportId, status }: { reportId: string; status: string }) {
+function ReportStatusControl({
+  reportId,
+  status,
+  kind = "sentence",
+}: {
+  reportId: string;
+  status: string;
+  kind?: "sentence" | "media";
+}) {
   const [state, formAction, pending] = useActionState<ContentReportActionState, FormData>(
-    manageContentReport,
+    kind === "media" ? manageMediaReport : manageContentReport,
     {},
   );
   return (

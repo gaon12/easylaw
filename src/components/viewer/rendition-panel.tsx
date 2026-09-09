@@ -141,7 +141,9 @@ function RenditionPanel({
                       {block.heading.text}
                     </h3>
                   )}
-                  {blockMedia === undefined ? null : <ExplanationMedia media={blockMedia} />}
+                  {blockMedia === undefined ? null : (
+                    <ExplanationMedia media={blockMedia} reportable={reportable} />
+                  )}
                   <div className={styles.blockText}>
                     {block.content.map((sentence) => {
                       if (sentence.role === "gloss") {

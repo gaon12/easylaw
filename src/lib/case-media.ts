@@ -4,6 +4,8 @@ type ExplanationLevel = Exclude<ViewLevel, "L0">;
 
 interface CaseMediaPlacement {
   readonly id: string;
+  readonly caseNo: string;
+  readonly level: ExplanationLevel;
   readonly assetId: string;
   readonly afterHeading: string;
   /** 같은 개념을 다른 법령·판결문에서도 다시 찾기 위한 레시피 키. */
@@ -272,8 +274,18 @@ function findCaseMedia(caseNoCanonical: string, level: ExplanationLevel): CaseMe
     if (asset === undefined || recipe === undefined) {
       return [];
     }
-    return [{ ...candidate, ...asset, recipeKey: recipe.key }];
+    /* 자산의 id가 배치 id를 덮지 않게 배치를 마지막에 합친다. 둘은 신고·재사용에서 다른 축이다. */
+    return [{ ...asset, ...candidate, recipeKey: recipe.key }];
   });
+}
+
+/** 신고처럼 배치 UUID에서 시작하는 요청은 사건·레벨까지 코드 레지스트리에서 다시 찾는다. */
+function findCaseMediaPlacement(placementId: string): CaseMediaPlacement | undefined {
+  const placement = PLACEMENTS.find(({ id }) => id === placementId);
+  if (placement === undefined) {
+    return;
+  }
+  return findCaseMedia(placement.caseNo, placement.level).find(({ id }) => id === placementId);
 }
 
 function listVisualRecipes(): VisualRecipeSummary[] {
@@ -292,5 +304,5 @@ function listVisualRecipes(): VisualRecipeSummary[] {
   });
 }
 
-export { findCaseMedia, listVisualRecipes };
+export { findCaseMedia, findCaseMediaPlacement, listVisualRecipes };
 export type { CaseMediaPlacement, MediaAsset, VisualRecipe, VisualRecipeSummary };

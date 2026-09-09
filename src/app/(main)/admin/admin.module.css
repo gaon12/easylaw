@@ -649,6 +649,35 @@
   line-height: var(--el-leading-body);
 }
 
+.reportMedia {
+  display: grid;
+  grid-template-columns: 120px minmax(180px, 1fr);
+  gap: var(--el-space-2) var(--el-space-3);
+  align-items: start;
+  max-width: 520px;
+}
+
+.reportMedia img {
+  grid-row: 1 / span 2;
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: contain;
+  border: 1px solid var(--el-border-subtle);
+  border-radius: var(--el-radius-s);
+  background: #f5f9ff;
+}
+
+.reportMedia span {
+  line-height: var(--el-leading-body);
+}
+
+.reportMedia code {
+  overflow-wrap: anywhere;
+  color: var(--el-fg-3);
+  font-size: var(--el-text-body-xs);
+}
+
 .releaseDiffList,
 .releaseSentenceDiff {
   display: grid;

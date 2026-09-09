@@ -35,6 +35,13 @@ const CONTENT_REPORT_REASONS = [
   "other",
 ] as const;
 const CONTENT_REPORT_STATUSES = ["open", "reviewing", "resolved", "dismissed"] as const;
+const MEDIA_REPORT_REASONS = [
+  "misleading",
+  "irrelevant",
+  "hard_to_see",
+  "broken",
+  "other",
+] as const;
 
 /**
  * "지금" 기본값이 붙은 시각 컬럼. 컬럼 이름을 인자로 받는다 —
@@ -514,6 +521,33 @@ const contentReport = sqliteTable(
   ],
 );
 
+/** 공개 설명 그림의 한 배치에서 시작한 오류 신고. 그림이 교체돼도 당시 UUID를 보존한다. */
+const mediaReport = sqliteTable(
+  "media_report",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id").references(() => user.id, { onDelete: "set null" }),
+    /** corpus DB와 코드 레지스트리의 불변 식별자. DB 파일이 달라 외래 키 대신 복사한다. */
+    judgmentId: text("judgment_id").notNull(),
+    sourceRevisionId: text("source_revision_id").notNull(),
+    contentReleaseId: text("content_release_id").notNull(),
+    renditionId: text("rendition_id").notNull(),
+    placementId: text("placement_id").notNull(),
+    assetId: text("asset_id").notNull(),
+    recipeKey: text("recipe_key").notNull(),
+    reason: text("reason", { enum: MEDIA_REPORT_REASONS }).notNull(),
+    detail: text("detail"),
+    status: text("status", { enum: CONTENT_REPORT_STATUSES }).notNull().default("open"),
+    createdAt: timestampNow("created_at"),
+    handledBy: text("handled_by").references(() => user.id, { onDelete: "set null" }),
+    handledAt: integer("handled_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("media_report_status_idx").on(table.status, table.createdAt),
+    index("media_report_placement_idx").on(table.placementId, table.status),
+  ],
+);
+
 /**
  * 감사 로그.
  *
@@ -540,6 +574,7 @@ const appSchema = {
   uploadRenditionAudio,
   auditLog,
   contentReport,
+  mediaReport,
   session,
   setting,
   upload,
@@ -560,8 +595,10 @@ export {
   appSchema,
   auditLog,
   contentReport,
+  mediaReport,
   CONTENT_REPORT_REASONS,
   CONTENT_REPORT_STATUSES,
+  MEDIA_REPORT_REASONS,
   CONFIDENCES,
   JOB_STAGES,
   JOB_STATUSES,

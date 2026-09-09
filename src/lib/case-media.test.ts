@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findCaseMedia } from "./case-media";
+import { findCaseMedia, findCaseMediaPlacement } from "./case-media";
 
 describe("판례 설명 이미지 배치", () => {
   it("설명 단계마다 의미 블록 네 곳에 이미지를 배치한다", () => {
@@ -20,5 +20,17 @@ describe("판례 설명 이미지 배치", () => {
 
   it("등록되지 않은 사건에는 임의 이미지를 붙이지 않는다", () => {
     expect(findCaseMedia("2024다000000", "L4")).toEqual([]);
+  });
+
+  it("배치 UUID에서 사건·단계·자산·레시피를 다시 찾는다", () => {
+    const placement = findCaseMedia("2023다287663", "L4")[0];
+    expect(placement).toBeDefined();
+    expect(findCaseMediaPlacement(placement?.id ?? "")).toMatchObject({
+      caseNo: "2023다287663",
+      level: "L4",
+      assetId: placement?.assetId,
+      recipeKey: "REHAB_SCHEDULED_PAYMENT_001",
+    });
+    expect(findCaseMediaPlacement("unknown")).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { listContentReports } from "@/db/app/content-reports";
+import { listMediaReports } from "@/db/app/media-reports";
 import { appDb, corpusDb } from "@/db/client";
 import { listJudgmentIdentities, listReportedSentenceDetails } from "@/db/corpus/repository";
 import { canReviewContent } from "@/lib/content-permissions";
@@ -9,20 +9,21 @@ import { admin } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
 import { siteTimeZone } from "@/server/settings";
 import styles from "../../admin.module.css";
-import { ReportStatusControl } from "./report-status-control";
+import { MediaReportsTable, SentenceReportsTable } from "./report-tables";
 
 const REPORT_ROWS = 100;
 
 export default async function ContentReportsPage() {
-  const [session, reports] = await Promise.all([
+  const [session, reports, mediaReports] = await Promise.all([
     currentSession(),
     Promise.resolve(listContentReports(appDb(), REPORT_ROWS)),
+    Promise.resolve(listMediaReports(appDb(), REPORT_ROWS)),
   ]);
   const db = corpusDb();
   const judgments = new Map(
-    listJudgmentIdentities(db, [...new Set(reports.map(({ judgmentId }) => judgmentId))]).map(
-      (item) => [item.id, item] as const,
-    ),
+    listJudgmentIdentities(db, [
+      ...new Set([...reports, ...mediaReports].map(({ judgmentId }) => judgmentId)),
+    ]).map((item) => [item.id, item] as const),
   );
   const sentences = new Map(
     listReportedSentenceDetails(
@@ -40,57 +41,30 @@ export default async function ContentReportsPage() {
         <p className={styles.intro}>{admin.reportsIntro}</p>
       </header>
       <Card as="section" className={styles.usage}>
+        <h2 className={styles.sectionTitle}>{admin.sentenceReportsTitle}</h2>
         {reports.length === 0 ? (
-          <p className={styles.empty}>{admin.reportsEmpty}</p>
+          <p className={styles.empty}>{admin.sentenceReportsEmpty}</p>
         ) : (
-          <div className={styles.tableScroll}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">{admin.reportColumns.at}</th>
-                  <th scope="col">{admin.reportColumns.document}</th>
-                  <th scope="col">{admin.reportColumns.reason}</th>
-                  <th scope="col">{admin.reportColumns.sentence}</th>
-                  <th scope="col">{admin.reportColumns.status}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reports.map((item) => {
-                  const judgment = judgments.get(item.judgmentId);
-                  const sentence = sentences.get(item.sentenceId);
-                  return (
-                    <tr key={item.id}>
-                      <td>{at(item.createdAt)}</td>
-                      <td>
-                        {judgment === undefined ? (
-                          admin.reportMissingDocument
-                        ) : (
-                          <Link
-                            className={styles.link}
-                            href={`/admin/content/judgments/${item.judgmentId}?releaseTo=${item.contentReleaseId}`}
-                          >
-                            {judgment.caseNoDisplay}
-                          </Link>
-                        )}
-                      </td>
-                      <td>
-                        {admin.reportReasons[item.reason]}
-                        {item.detail === null ? null : <p className={styles.hint}>{item.detail}</p>}
-                      </td>
-                      <td>{sentence?.text ?? admin.reportMissingSentence}</td>
-                      <td>
-                        {canManage ? (
-                          <ReportStatusControl reportId={item.id} status={item.status} />
-                        ) : (
-                          admin.reportStatuses[item.status]
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <SentenceReportsTable
+            at={at}
+            canManage={canManage}
+            judgments={judgments}
+            reports={reports}
+            sentences={sentences}
+          />
+        )}
+      </Card>
+      <Card as="section" className={styles.usage}>
+        <h2 className={styles.sectionTitle}>{admin.mediaReportsTitle}</h2>
+        {mediaReports.length === 0 ? (
+          <p className={styles.empty}>{admin.mediaReportsEmpty}</p>
+        ) : (
+          <MediaReportsTable
+            at={at}
+            canManage={canManage}
+            judgments={judgments}
+            reports={mediaReports}
+          />
         )}
       </Card>
     </div>
