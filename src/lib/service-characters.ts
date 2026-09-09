@@ -13,6 +13,20 @@ const serviceCharacters = {
     height: 696,
     thumbhash: "6eeFAwI2aGBcxmiYdI9Z+Ap0iHd1aWc=",
   },
+  errorMale: {
+    id: "guide-male-error-001",
+    src: "/media/characters/guide-male-error-001-640.webp",
+    width: 480,
+    height: 640,
+    thumbhash: "tecFBQDPoqJZmXe4hWl5hwWVKIB4",
+  },
+  errorFemale: {
+    id: "guide-female-error-001",
+    src: "/media/characters/guide-female-error-001-640.webp",
+    width: 480,
+    height: 640,
+    thumbhash: "t+cFDQLhj0LKmXjYWoiHqGl1b1n3",
+  },
   pair: {
     id: "easylaw-guides-v1",
     src: "/media/characters/easylaw-guides-v1-1200.webp",

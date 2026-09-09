@@ -4,14 +4,14 @@
   display: grid;
   place-items: center;
   padding: clamp(var(--el-space-6), 7vw, var(--el-space-16)) var(--el-gutter);
-  background: linear-gradient(145deg, #f7faff 0%, #eef4fb 100%);
+  background: #f2f6fb;
 }
 
 .panel {
   min-width: 0;
-  width: min(100%, 900px);
+  width: min(100%, 1040px);
   display: grid;
-  grid-template-columns: minmax(240px, 0.78fr) minmax(300px, 1.22fr);
+  grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid #dce5f0;
   border-radius: var(--el-radius-2xl);
@@ -20,20 +20,18 @@
 }
 
 .visual {
-  min-height: 460px;
+  min-height: 330px;
   display: grid;
-  place-items: end center;
+  place-items: center;
   overflow: hidden;
-  padding: var(--el-space-8) var(--el-space-6) 0;
-  background:
-    radial-gradient(circle at 50% 34%, rgb(255 255 255 / 72%) 0 21%, transparent 22%),
-    linear-gradient(155deg, #e7f0ff, #e8f7f6);
+  padding: var(--el-space-5) var(--el-space-6);
+  background: #e8f2fa;
 }
 
 .character {
   display: block;
   width: auto;
-  height: min(410px, 55vw);
+  height: 290px;
   max-width: 100%;
   object-fit: contain;
   object-position: bottom center;
@@ -45,7 +43,9 @@
   align-content: center;
   justify-items: start;
   gap: var(--el-space-4);
-  padding: clamp(var(--el-space-8), 6vw, var(--el-space-16));
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: clamp(var(--el-space-8), 5vw, var(--el-space-12));
 }
 
 .eyebrow {
@@ -65,7 +65,7 @@
 }
 
 .body {
-  max-width: 42ch;
+  max-width: 62ch;
   margin: 0;
   color: var(--el-fg-2);
   font-size: var(--el-text-body-m);
@@ -156,12 +156,12 @@
   }
 
   .visual {
-    min-height: 220px;
-    padding-top: var(--el-space-4);
+    min-height: 230px;
+    padding: var(--el-space-4);
   }
 
   .character {
-    height: 245px;
+    height: 215px;
   }
 
   .content {

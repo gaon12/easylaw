@@ -20,7 +20,7 @@ describe("browserSupportForUserAgent", () => {
       browserSupportForUserAgent(
         `Mozilla/5.0 AppleWebKit/537.36 Chrome/${current}.0 Safari/537.36 Edg/${current}.0`,
       ),
-    ).toMatchObject({ status: "supported", family: "chrome", major: current });
+    ).toMatchObject({ status: "supported", family: "edge", major: current });
     expect(
       browserSupportForUserAgent(
         `Mozilla/5.0 AppleWebKit/537.36 Chrome/${current - 3}.0 Safari/537.36`,

@@ -130,7 +130,9 @@ function proxy(request: NextRequest): NextResponse {
     if (browser.status === "unsupported") {
       const destination = request.nextUrl.clone();
       destination.pathname = UNSUPPORTED_BROWSER_PATH;
-      destination.search = `?reason=${browser.reason}`;
+      destination.search = "";
+      destination.searchParams.set("reason", browser.reason);
+      destination.searchParams.set("family", browser.family);
       const response = NextResponse.redirect(destination, TEMPORARY_REDIRECT);
       response.headers.set("cache-control", "private, no-store");
       response.headers.set("vary", "User-Agent, Accept");

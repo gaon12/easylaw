@@ -1,6 +1,14 @@
 import { browserSupportMajors } from "@/lib/browser-support.generated";
 
-type BrowserFamily = "chrome" | "edgehtml" | "firefox" | "ie" | "ios-safari" | "other" | "safari";
+type BrowserFamily =
+  | "chrome"
+  | "edge"
+  | "edgehtml"
+  | "firefox"
+  | "ie"
+  | "ios-safari"
+  | "other"
+  | "safari";
 
 type BrowserSupportReason = "legacy" | "outdated" | "unlisted";
 
@@ -22,6 +30,7 @@ const SAFARI_VERSION = /Version\/(\d+)[._]/;
 const MSIE_VERSION = /MSIE\s+(\d+)/;
 const TRIDENT_VERSION = /Trident\/.*rv:(\d+)/;
 const EDGEHTML_VERSION = /\bEdge\/(\d+)/;
+const EDGE_CHROMIUM_VERSION = /\bEdg\/(\d+)/;
 const CHROME_IOS_VERSION = /CriOS\/(\d+)/;
 const FIREFOX_IOS_VERSION = /FxiOS\/(\d+)/;
 const FIREFOX_VERSION = /Firefox\/(\d+)/;
@@ -120,7 +129,12 @@ function desktopBrowser(userAgent: string): BrowserSupportDecision {
     return decideVersion("firefox", firefoxMajor, browserSupportMajors.firefox);
   }
 
-  /* Chromium Edge·Opera·Samsung Internet도 엔진 기준인 Chrome 토큰으로 판정한다. */
+  const edgeMajor = majorFrom(userAgent, EDGE_CHROMIUM_VERSION);
+  if (edgeMajor !== null) {
+    return decideVersion("edge", edgeMajor, browserSupportMajors.chrome);
+  }
+
+  /* Opera·Samsung Internet 등 Chromium 계열은 Chrome 엔진 버전으로 판정한다. */
   const chromeMajor = majorFrom(userAgent, CHROMIUM_VERSION);
   if (chromeMajor !== null) {
     return decideVersion("chrome", chromeMajor, browserSupportMajors.chrome);

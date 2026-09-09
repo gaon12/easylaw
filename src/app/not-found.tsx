@@ -17,7 +17,7 @@ export default function NotFound() {
       <div className={styles.page}>
         <section className={styles.panel}>
           <div className={styles.visual}>
-            <ServiceCharacter character="male" className={styles.character} priority={true} />
+            <ServiceCharacter character="errorMale" className={styles.character} priority={true} />
           </div>
           <div className={styles.content}>
             <p className={styles.eyebrow}>{errors.notFoundEyebrow}</p>

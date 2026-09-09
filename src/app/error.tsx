@@ -31,7 +31,7 @@ export default function ErrorBoundary({
     <main className={styles.viewport}>
       <section className={styles.panel}>
         <div className={styles.visual}>
-          <ServiceCharacter character="female" className={styles.character} priority={true} />
+          <ServiceCharacter character="errorFemale" className={styles.character} priority={true} />
         </div>
         <div className={styles.content}>
           <p className={styles.eyebrow}>{errors.genericEyebrow}</p>

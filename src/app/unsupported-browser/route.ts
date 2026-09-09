@@ -1,9 +1,11 @@
-const DOWNLOADS = [
-  { name: "Microsoft Edge", href: "https://www.microsoft.com/edge/download" },
-  { name: "Google Chrome", href: "https://www.google.com/chrome/" },
-  { name: "Mozilla Firefox", href: "https://www.mozilla.org/firefox/new/" },
-  { name: "Safari 업데이트", href: "https://support.apple.com/102665" },
-] as const;
+import type { BrowserFamily } from "@/lib/browser-support";
+
+const DOWNLOADS = {
+  edge: { name: "Microsoft Edge", href: "https://www.microsoft.com/edge/download" },
+  chrome: { name: "Google Chrome", href: "https://www.google.com/chrome/" },
+  firefox: { name: "Mozilla Firefox", href: "https://www.mozilla.org/firefox/new/" },
+  safari: { name: "Safari", href: "https://support.apple.com/102665" },
+} as const;
 
 const UPGRADE_REQUIRED = 426;
 
@@ -28,6 +30,18 @@ const COPY = {
 } as const;
 
 type CopyKey = keyof typeof COPY;
+type DownloadKey = keyof typeof DOWNLOADS;
+
+const BROWSER_FAMILIES: readonly BrowserFamily[] = [
+  "chrome",
+  "edge",
+  "edgehtml",
+  "firefox",
+  "ie",
+  "ios-safari",
+  "other",
+  "safari",
+];
 
 function reasonFrom(request: Request): CopyKey {
   const reason = new URL(request.url).searchParams.get("reason");
@@ -36,18 +50,46 @@ function reasonFrom(request: Request): CopyKey {
     : "unlisted";
 }
 
-function browserLinks(): string {
-  return DOWNLOADS.map(
-    ({ name, href }) => `
+function familyFrom(request: Request): BrowserFamily {
+  const family = new URL(request.url).searchParams.get("family") as BrowserFamily | null;
+  return family !== null && BROWSER_FAMILIES.includes(family) ? family : "other";
+}
+
+function downloadsFor(reason: CopyKey, family: BrowserFamily): readonly DownloadKey[] {
+  if (reason === "legacy") {
+    return ["edge", "chrome", "firefox"];
+  }
+  if (reason !== "outdated") {
+    return ["edge", "chrome", "firefox", "safari"];
+  }
+
+  if (family === "edge" || family === "chrome" || family === "firefox") {
+    return [family];
+  }
+  if (family === "safari" || family === "ios-safari") {
+    return ["safari"];
+  }
+  return ["edge", "chrome", "firefox", "safari"];
+}
+
+function browserLinks(downloads: readonly DownloadKey[]): string {
+  return downloads
+    .map((key) => DOWNLOADS[key])
+    .map(
+      ({ name, href }) => `
       <li class="browser-item">
-        <a class="browser-link" href="${href}" rel="noopener noreferrer">${name} 받기</a>
+        <a class="browser-link" href="${href}" rel="noopener noreferrer">${name} 최신 버전</a>
       </li>`,
-  ).join("");
+    )
+    .join("");
 }
 
 /** 오래된 엔진에서도 안내 자체는 읽혀야 하므로 React와 자바스크립트를 전혀 싣지 않는다. */
 export function GET(request: Request): Response {
-  const copy = COPY[reasonFrom(request)];
+  const reason = reasonFrom(request);
+  const family = familyFrom(request);
+  const copy = COPY[reason];
+  const links = browserLinks(downloadsFor(reason, family));
   const html = `<!doctype html>
 <html lang="ko">
   <head>
@@ -62,18 +104,18 @@ export function GET(request: Request): Response {
     <main class="page">
       <p class="brand"><img class="brand-mark" src="/icon.svg" alt=""> 이지로</p>
       <section class="notice" aria-labelledby="page-title">
+        <div class="character-wrap" aria-hidden="true">
+          <picture>
+            <source srcset="/media/characters/easylaw-guides-errors-v2-1200.webp" type="image/webp">
+            <img class="characters" src="/media/characters/easylaw-guides-errors-v2-compat.png" alt="">
+          </picture>
+        </div>
         <div class="notice-copy">
           <p class="eyebrow">${copy.eyebrow}</p>
           <h1 id="page-title">${copy.title}</h1>
           <p class="description">${copy.description}</p>
           <p class="help">아래 공식 사이트에서 브라우저를 설치하거나 업데이트한 뒤 다시 접속해 주세요.</p>
-          <ul class="browser-list">${browserLinks()}</ul>
-        </div>
-        <div class="character-wrap" aria-hidden="true">
-          <picture>
-            <source srcset="/media/characters/easylaw-guides-v1-1200.webp" type="image/webp">
-            <img class="characters" src="/media/characters/easylaw-guides-v1-compat.png" alt="">
-          </picture>
+          <ul class="browser-list">${links}</ul>
         </div>
       </section>
       <section class="policy" aria-labelledby="policy-title">

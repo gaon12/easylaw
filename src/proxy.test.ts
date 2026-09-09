@@ -20,7 +20,7 @@ describe("browser support proxy", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://example.test/unsupported-browser?reason=legacy",
+      "https://example.test/unsupported-browser?reason=legacy&family=ie",
     );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
