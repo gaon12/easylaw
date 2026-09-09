@@ -63,7 +63,6 @@ function check(): void {
 function startLegalSyncSchedule(): void {
   // App Layout 모듈은 `next build`의 정적 페이지 수집 중에도 평가된다. 이때는 빈 CI
   // 작업공간에 운영 DB가 없으며, Next 자체도 instrumentation 등록을 같은 값으로 건너뛴다.
-  // biome-ignore lint/style/noProcessEnv: Next가 공식적으로 설정하는 빌드 수명주기 값이다.
   if (scheduleState.started || process.env.NEXT_PHASE === PRODUCTION_BUILD_PHASE) {
     return;
   }
