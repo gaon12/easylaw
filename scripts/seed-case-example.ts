@@ -10,6 +10,7 @@ import {
   saveRendition,
 } from "@/db/corpus/repository";
 import { judgment as judgmentTable, rendition } from "@/db/corpus/schema";
+import type { GlossEvidence } from "@/lib/gloss-evidence";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
 import { hasBlockingIssue, lintRendition } from "@/lib/rendition/lint";
@@ -24,7 +25,40 @@ interface EditorialSentence {
   readonly nodeOrder?: number;
   /** 사전 풀이에만 붙는 출처. */
   readonly source?: string;
+  readonly glossEvidence?: GlossEvidence;
 }
+
+const GLOSS_EVIDENCE = {
+  변제: {
+    definitionSource: "stdict",
+    definitionId: "431758-171340",
+    term: "변제",
+    definition: "남에게 진 빚을 갚음.",
+    sourceLabel: "표준국어대사전",
+  },
+  원고: {
+    definitionSource: "stdict",
+    definitionId: "253979-241018",
+    term: "원고",
+    definition: "법원에 민사 소송을 제기한 사람.",
+    sourceLabel: "표준국어대사전",
+  },
+  피고: {
+    definitionSource: "stdict",
+    definitionId: "362338-27816",
+    term: "피고",
+    definition: "민사 소송에서, 소송을 당한 측의 당사자.",
+    sourceLabel: "표준국어대사전",
+  },
+  파기환송: {
+    definitionSource: "stdict",
+    definitionId: "499534-308830",
+    term: "파기환송",
+    definition:
+      "상소심 법원이 종국 판결에서 원심 판결을 파기한 경우에 사건을 다시 심판하도록 원심 법원으로 돌려보내는 일.",
+    sourceLabel: "표준국어대사전",
+  },
+} as const satisfies Readonly<Record<string, GlossEvidence>>;
 
 const CONTENT: Readonly<Record<Level, readonly EditorialSentence[]>> = {
   L1: [
@@ -236,9 +270,24 @@ const CONTENT: Readonly<Record<Level, readonly EditorialSentence[]>> = {
   ],
   L4: [
     { role: "heading", text: "먼저 알아둘 것" },
-    { role: "gloss", text: '"변제"는 빚을 갚는 일이에요.', source: "표준국어대사전" },
-    { role: "gloss", text: '"원고"는 재판을 요청한 쪽이에요.', source: "표준국어대사전" },
-    { role: "gloss", text: '"피고"는 요청을 받은 쪽이에요.', source: "표준국어대사전" },
+    {
+      role: "gloss",
+      text: '"변제"는 빚을 갚는 일이에요.',
+      source: "표준국어대사전",
+      glossEvidence: GLOSS_EVIDENCE.변제,
+    },
+    {
+      role: "gloss",
+      text: '"원고"는 재판을 요청한 쪽이에요.',
+      source: "표준국어대사전",
+      glossEvidence: GLOSS_EVIDENCE.원고,
+    },
+    {
+      role: "gloss",
+      text: '"피고"는 요청을 받은 쪽이에요.',
+      source: "표준국어대사전",
+      glossEvidence: GLOSS_EVIDENCE.피고,
+    },
     { role: "body", text: "법원이 빚 갚는 계획을 인정했어요.", nodeOrder: 6 },
     { role: "body", text: "회사는 정해진 때에 돈을 갚아야 해요.", nodeOrder: 14 },
     { role: "heading", text: "무슨 일이 있었나요" },
@@ -256,11 +305,17 @@ const CONTENT: Readonly<Record<Level, readonly EditorialSentence[]>> = {
     { role: "heading", text: "그래서 어떻게 되나요" },
     { role: "body", text: "대법원은 서울고등법원 판결을 없앴어요.", nodeOrder: 0 },
     { role: "body", text: "서울고등법원이 다시 심리해요.", nodeOrder: 0 },
-    { role: "gloss", text: '"파기환송"은 판결을 없애요.', source: "표준국어대사전" },
+    {
+      role: "gloss",
+      text: '"파기환송"은 판결을 없애요.',
+      source: "표준국어대사전",
+      glossEvidence: GLOSS_EVIDENCE.파기환송,
+    },
     {
       role: "gloss",
       text: '"파기환송"은 사건을 원래 법원에 보내요.',
       source: "표준국어대사전",
+      glossEvidence: GLOSS_EVIDENCE.파기환송,
     },
     { role: "heading", text: "이해 확인" },
     { role: "body", text: "회사는 무엇을 팔았나요?", nodeOrder: 8 },
@@ -307,6 +362,7 @@ for (const level of ["L1", "L2", "L3", "L4"] as const) {
       text: sentence.text,
       structureNodeId: node?.id ?? null,
       source: sentence.source ?? null,
+      glossEvidence: sentence.glossEvidence ?? null,
       confidence: "grounded",
     };
   });

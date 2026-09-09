@@ -2,10 +2,12 @@
 
 import {
   AudioLines,
+  CircleAlert,
   FlaskConical,
   Images,
   LayoutDashboard,
   LibraryBig,
+  MessageSquareWarning,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -13,6 +15,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogoMark } from "@/components/ui/logo-mark";
+import type { UserRole } from "@/db/app/repository";
 import { admin } from "@/lib/strings";
 import styles from "./admin.module.css";
 
@@ -32,6 +36,7 @@ const GROUPS = [
     label: admin.navGroups.operate,
     items: [
       { href: "/admin", label: admin.nav.overview, icon: LayoutDashboard },
+      { href: "/admin/errors", label: admin.nav.errors, icon: CircleAlert },
       { href: "/admin/log", label: admin.nav.log, icon: ScrollText },
     ],
   },
@@ -39,6 +44,7 @@ const GROUPS = [
     label: admin.navGroups.content,
     items: [
       { href: "/admin/content", label: admin.nav.content, icon: LibraryBig },
+      { href: "/admin/content/reports", label: admin.nav.reports, icon: MessageSquareWarning },
       { href: "/admin/media/recipes", label: admin.nav.mediaRecipes, icon: Images },
       { href: "/admin/audio", label: admin.nav.audio, icon: AudioLines },
     ],
@@ -54,25 +60,34 @@ const GROUPS = [
   },
 ] as const;
 
-function AdminNav() {
+function isCurrentNavItem(pathname: string, href: string): boolean {
+  if (href === "/admin") {
+    return pathname === href;
+  }
+  if (href === "/admin/content") {
+    return pathname === href || pathname.startsWith("/admin/content/judgments/");
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function AdminNav({ role }: { role: UserRole }) {
   const pathname = usePathname();
+  const groups = role === "admin" ? GROUPS : [GROUPS[1]];
 
   return (
     <nav aria-label={admin.navLabel} className={styles.nav}>
       <div className={styles.navBrand} aria-hidden="true">
-        <span>{admin.brandMark}</span>
+        <span>
+          <LogoMark />
+        </span>
         <strong>{admin.brandName}</strong>
       </div>
-      {GROUPS.map((group) => (
+      {groups.map((group) => (
         <section className={styles.navGroup} key={group.label}>
           <h2 className={styles.navGroupLabel}>{group.label}</h2>
           <ul className={styles.navList}>
             {group.items.map((item) => {
-              // "/admin"은 모든 하위 경로의 앞부분이라 정확히 같을 때만 켠다.
-              const here =
-                item.href === "/admin"
-                  ? pathname === item.href
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const here = isCurrentNavItem(pathname, item.href);
 
               return (
                 <li key={item.href}>

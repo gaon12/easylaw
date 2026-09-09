@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LogoMark } from "@/components/ui/logo-mark";
 import { disclaimer, setup, site } from "@/lib/strings";
 import styles from "./setup-shell.module.css";
 
@@ -23,7 +24,10 @@ function SetupShell({ children }: { children: ReactNode }) {
     <div className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <span className={styles.brand}>{site.name}</span>
+          <span className={styles.brand}>
+            <LogoMark aria-hidden="true" height="30" width="30" />
+            {site.name}
+          </span>
           <span className={styles.badge}>{setup.chromeLabel}</span>
         </div>
       </header>

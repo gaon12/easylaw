@@ -271,6 +271,38 @@ describe("saveUploadRendition", () => {
     );
   });
 
+  it("개인 문서 설명에도 사용한 사전 정의 원문을 복제해 보존한다", () => {
+    const { uploadId } = seedUpload();
+    const renditionId = saveUploadRendition(db, {
+      uploadId,
+      level: "L4",
+      model: "mock",
+      promptVersion: "gloss-evidence-v1",
+      sentences: [
+        {
+          orderIdx: 0,
+          role: "gloss",
+          text: "빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+          glossEvidence: {
+            definitionSource: "stdict",
+            definitionId: "386515-536210",
+            term: "변제",
+            definition: "남에게 진 빚을 갚음.",
+            sourceLabel: "표준국어대사전",
+          },
+        },
+      ],
+    });
+
+    expect(listUploadSentences(db, renditionId)[0]?.glossEvidence).toMatchObject({
+      definitionId: "386515-536210",
+      definition: "남에게 진 빚을 갚음.",
+      definitionHash: expect.stringMatching(/^[0-9a-f]{32}$/u),
+    });
+  });
+
   it("변환본과 문장을 저장하고 순서대로 읽는다", () => {
     const { uploadId, spanIds } = seedUpload();
     const [nodeId] = saveUploadStructure(db, uploadId, PROMPT, [

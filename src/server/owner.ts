@@ -80,7 +80,7 @@ async function currentSession(): Promise<CurrentSession | undefined> {
     userId: row.userId,
     email: account?.email ?? null,
     nickname: account?.nickname ?? null,
-    role: account?.role ?? "member",
+    role: account?.role ?? "viewer",
   };
 }
 

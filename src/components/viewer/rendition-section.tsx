@@ -51,6 +51,8 @@ interface SectionProps {
   readonly fields: Readonly<Record<string, string>>;
   /** 설명 흐름 안에 놓을 개념 그림. 사건·단계 선택은 화면에서 정한다. */
   readonly media?: readonly CaseMediaPlacement[];
+  /** 공개 설명에서만 문장 UUID에 고정된 오류 신고를 연다. */
+  readonly reportable?: boolean;
 }
 
 /** 다시 눌러 볼 수 있는 자리. 처음 만들 때와 실패한 뒤가 같은 폼을 쓴다. */
@@ -197,7 +199,7 @@ function RenditionPlaceholder({
 }
 
 /** 만들어진 것이 있으면 그것을, 없으면 상태에 맞는 빈 자리를 그린다. */
-function RenditionSection({ sentences, outdatedAt, media, ...rest }: SectionProps) {
+function RenditionSection({ sentences, outdatedAt, media, reportable, ...rest }: SectionProps) {
   const toc = renditionTocEntries(sentences);
 
   return (
@@ -213,6 +215,7 @@ function RenditionSection({ sentences, outdatedAt, media, ...rest }: SectionProp
           <RenditionPanel
             level={rest.level}
             media={media}
+            reportable={reportable}
             needsCheckCount={
               sentences.filter((sentence) => sentence.confidence === "needs_check").length
             }

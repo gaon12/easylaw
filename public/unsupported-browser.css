@@ -1,0 +1,186 @@
+html {
+  font-size: 16px;
+  background: #f5f7fb;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #172033;
+  background: #f5f7fb;
+  font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.page {
+  width: 92%;
+  max-width: 1248px;
+  margin: 56px auto;
+}
+
+.brand {
+  margin: 0 0 20px;
+  color: #173f83;
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.brand-mark {
+  display: inline-block;
+  width: 38px;
+  height: 38px;
+  margin-right: 8px;
+  border: 0;
+  vertical-align: middle;
+}
+
+.notice,
+.policy {
+  padding: 40px;
+  border: 1px solid #d7deeb;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.notice {
+  width: 100%;
+}
+
+.notice-copy {
+  width: 82%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding-top: 36px;
+}
+
+.character-wrap {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #e8f2fa;
+  text-align: center;
+}
+
+.characters {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  max-height: 360px;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #245caf;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 34px;
+  line-height: 1.35;
+}
+
+.description {
+  margin: 0 0 14px;
+  color: #34405a;
+}
+
+.help {
+  margin: 0 0 20px;
+  color: #59657b;
+  font-size: 16px;
+}
+
+.browser-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0;
+}
+
+.browser-item {
+  display: inline-block;
+  width: auto;
+  min-width: 220px;
+  margin: 10px 2% 0 0;
+  font-size: 16px;
+  vertical-align: top;
+}
+
+.browser-link {
+  display: block;
+  padding: 12px 16px;
+  border: 2px solid #245caf;
+  border-radius: 8px;
+  color: #173f83;
+  background: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  text-decoration: none;
+}
+
+.browser-link:hover,
+.browser-link:focus {
+  color: #ffffff;
+  background: #245caf;
+}
+
+.policy {
+  margin-top: 16px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.policy h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.policy ul {
+  margin: 0;
+  padding-left: 24px;
+  color: #59657b;
+  font-size: 15px;
+}
+
+@media (max-width: 600px) {
+  .page {
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+
+  .notice,
+  .policy {
+    padding: 24px 20px;
+  }
+
+  .notice-copy {
+    width: auto;
+    padding-top: 24px;
+  }
+
+  .characters {
+    max-width: 100%;
+    max-height: 260px;
+  }
+
+  .browser-item {
+    display: block;
+    width: auto;
+    margin-right: 0;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+}

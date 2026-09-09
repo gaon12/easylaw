@@ -8,6 +8,7 @@ import {
   claimGenerationJob,
   claimStructureGenerationJob,
   countGenerationsOn,
+  createEditedRendition,
   findApprovedRendition,
   findContentReleaseBundle,
   findGenerationProgress,
@@ -19,8 +20,10 @@ import {
   findLawVersionByMst,
   findPublishedAudio,
   findPublishedRendition,
+  findPublishedSentenceContext,
   findRendition,
   findRenditionAtRevision,
+  findRenditionById,
   finishGenerationJob,
   finishStructureGenerationJob,
   heartbeatGenerationJob,
@@ -37,6 +40,7 @@ import {
   recordLookupMiss,
   reserveGenerationSlot,
   restoreContentRelease,
+  reviewRendition,
   saveJudgmentText,
   saveLawArticles,
   saveRendition,
@@ -243,6 +247,40 @@ describe("saveRendition", () => {
     expect(findRendition(db, judgmentId, "L1", "v1")?.reviewState).toBe("approved");
   });
 
+  it("낱말 뜻에 실제 사용한 사전 행과 정의 원문을 함께 보존한다", () => {
+    const judgmentId = seedJudgment();
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "test-model",
+      promptVersion: "gloss-evidence-v1",
+      sentences: [
+        {
+          orderIdx: 0,
+          role: "gloss",
+          text: "빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+          glossEvidence: {
+            definitionSource: "stdict",
+            definitionId: "386515-536210",
+            term: "변제",
+            definition: "남에게 진 빚을 갚음.",
+            sourceLabel: "표준국어대사전",
+          },
+        },
+      ],
+    });
+
+    expect(listSentences(db, renditionId)[0]?.glossEvidence).toMatchObject({
+      definitionSource: "stdict",
+      definitionId: "386515-536210",
+      term: "변제",
+      definition: "남에게 진 빚을 갚음.",
+      definitionHash: expect.stringMatching(/^[0-9a-f]{32}$/u),
+    });
+  });
+
   it("문장에 연결된 구조 노드의 원문 span을 함께 돌려준다", () => {
     const judgmentId = seedJudgment();
     saveJudgmentText(db, judgmentId, [
@@ -407,16 +445,245 @@ describe("saveRendition", () => {
   });
 });
 
+describe("사람이 고친 설명", () => {
+  it("기존 설명을 보존하고 고친 문장만 확인 필요인 새 초안을 만든다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 8, text: "원문 문장입니다." },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "model",
+      promptVersion: "edit-base-v1",
+      sentences: [
+        { orderIdx: 0, role: "heading", text: "결과", confidence: "grounded" },
+        { orderIdx: 1, text: "처음 설명이에요.", confidence: "grounded" },
+      ],
+    });
+    const baseSentences = listSentences(db, baseRenditionId);
+    const result = createEditedRendition(db, {
+      judgmentId,
+      baseRenditionId,
+      sentences: baseSentences.map((sentence) => ({
+        id: sentence.id,
+        text: sentence.role === "body" ? "고친 설명이에요." : sentence.text,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(listSentences(db, baseRenditionId).map(({ text }) => text)).toContain(
+      "처음 설명이에요.",
+    );
+    expect(listSentences(db, result.renditionId)).toMatchObject([
+      { role: "heading", text: "결과", confidence: "grounded" },
+      { role: "body", text: "고친 설명이에요.", confidence: "needs_check" },
+    ]);
+    expect(findRenditionById(db, judgmentId, result.renditionId)).toMatchObject({
+      model: "human-editor",
+      reviewState: "none",
+    });
+    expect(findLatestRendition(db, judgmentId, "L4")?.id).toBe(result.renditionId);
+  });
+
+  it("낱말 뜻을 출처와 따로 고치거나 같은 내용을 중복 저장하지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 2, text: "원문" },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "model",
+      promptVersion: "edit-gloss-v1",
+      sentences: [
+        {
+          orderIdx: 0,
+          role: "gloss",
+          text: "변제는 빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+        },
+      ],
+    });
+    const [sentence] = listSentences(db, baseRenditionId);
+    expect(sentence).toBeDefined();
+    expect(
+      createEditedRendition(db, {
+        judgmentId,
+        baseRenditionId,
+        sentences: [{ id: sentence?.id ?? "", text: "다른 뜻" }],
+      }),
+    ).toEqual({ ok: false, reason: "invalid_sentences" });
+    expect(
+      createEditedRendition(db, {
+        judgmentId,
+        baseRenditionId,
+        sentences: [{ id: sentence?.id ?? "", text: sentence?.text ?? "" }],
+      }),
+    ).toEqual({ ok: false, reason: "invalid_sentences" });
+  });
+
+  it("본문을 편집해 새 초안을 만들어도 낱말 뜻의 사전 근거 사본을 이어받는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 2, text: "원문" },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "model",
+      promptVersion: "edit-copy-gloss-v1",
+      sentences: [
+        { orderIdx: 0, role: "body", text: "빚을 갚았어요.", confidence: "grounded" },
+        {
+          orderIdx: 1,
+          role: "gloss",
+          text: "빚을 갚는 일이에요.",
+          source: "표준국어대사전",
+          confidence: "grounded",
+          glossEvidence: {
+            definitionSource: "stdict",
+            definitionId: "386515-536210",
+            term: "변제",
+            definition: "남에게 진 빚을 갚음.",
+            sourceLabel: "표준국어대사전",
+          },
+        },
+      ],
+    });
+    const base = listSentences(db, baseRenditionId);
+    const result = createEditedRendition(db, {
+      judgmentId,
+      baseRenditionId,
+      sentences: base.map((sentence) => ({
+        id: sentence.id,
+        text: sentence.role === "body" ? "채무를 갚았어요." : sentence.text,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(
+      listSentences(db, result.renditionId).find(({ role }) => role === "gloss")?.glossEvidence,
+    ).toMatchObject({ definitionId: "386515-536210", definition: "남에게 진 빚을 갚음." });
+  });
+
+  it("원문판이 바뀐 뒤에는 옛 설명을 편집 초안으로 만들지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "옛 원문" },
+    ]);
+    const baseRenditionId = saveRendition(db, {
+      judgmentId,
+      level: "L3",
+      model: "model",
+      promptVersion: "edit-stale-v1",
+      sentences: [{ orderIdx: 0, text: "옛 설명", confidence: "grounded" }],
+    });
+    const [sentence] = listSentences(db, baseRenditionId);
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 3, text: "새 원문" },
+    ]);
+
+    expect(
+      createEditedRendition(db, {
+        judgmentId,
+        baseRenditionId,
+        sentences: [{ id: sentence?.id ?? "", text: "새 설명" }],
+      }),
+    ).toEqual({ ok: false, reason: "stale" });
+  });
+});
+
 describe("content release", () => {
   function renditionFor(judgmentId: string, level: "L1" | "L2" | "L3" | "L4", text: string) {
-    return saveRendition(db, {
+    const renditionId = saveRendition(db, {
       judgmentId,
       level,
       model: "editorial",
       promptVersion: `editorial-${level}-${text}`,
       sentences: [{ orderIdx: 0, text, confidence: "grounded" }],
     });
+    const requested = reviewRendition(db, { judgmentId, renditionId, state: "pending" });
+    if (!requested.ok) {
+      throw new Error(`테스트 설명의 검수를 요청하지 못했어요: ${requested.reason}`);
+    }
+    const result = reviewRendition(db, { judgmentId, renditionId, state: "approved" });
+    if (!result.ok) {
+      throw new Error(`테스트 설명을 승인하지 못했어요: ${result.reason}`);
+    }
+    return renditionId;
   }
+
+  it("검수 승인을 받지 않은 설명은 게시하지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L4",
+      model: "editorial",
+      promptVersion: "draft-v1",
+      sentences: [{ orderIdx: 0, text: "초안", confidence: "grounded" }],
+    });
+
+    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+      ok: false,
+      reason: "not_approved",
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "pending" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(publishRendition(db, { judgmentId, renditionId })).toMatchObject({ ok: true });
+    const sentenceId = listSentences(db, renditionId)[0]?.id;
+    expect(sentenceId).toBeDefined();
+    expect(findPublishedSentenceContext(db, sentenceId as string)).toMatchObject({
+      judgmentId,
+      renditionId,
+      sentenceId,
+    });
+  });
+
+  it("검수 요청 없이 승인하거나 승인된 설명을 작성 단계로 되돌리지 않는다", () => {
+    const judgmentId = seedJudgment();
+    saveJudgmentText(db, judgmentId, [
+      { paraIdx: 0, sentIdx: 0, charStart: 0, charEnd: 4, text: "원문" },
+    ]);
+    const renditionId = saveRendition(db, {
+      judgmentId,
+      level: "L2",
+      model: "editorial",
+      promptVersion: "review-transition-v1",
+      sentences: [{ orderIdx: 0, text: "설명", confidence: "grounded" }],
+    });
+
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toEqual({
+      ok: false,
+      reason: "invalid_review_state",
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "pending" })).toMatchObject({
+      ok: true,
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toMatchObject({
+      ok: true,
+    });
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "pending" })).toEqual({
+      ok: false,
+      reason: "invalid_review_state",
+    });
+  });
 
   it("승인 상태만으로는 공개하지 않고 릴리스 포인터가 가리킨 변환본만 공개한다", () => {
     const judgmentId = seedJudgment();
@@ -526,9 +793,13 @@ describe("content release", () => {
       sentences: [{ orderIdx: 0, text: "근거 없는 설명", confidence: "ungrounded" }],
     });
 
-    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+    expect(reviewRendition(db, { judgmentId, renditionId, state: "approved" })).toEqual({
       ok: false,
       reason: "ungrounded",
+    });
+    expect(publishRendition(db, { judgmentId, renditionId })).toEqual({
+      ok: false,
+      reason: "not_approved",
     });
     expect(findPublishedRendition(db, judgmentId, "L4")).toBeUndefined();
   });

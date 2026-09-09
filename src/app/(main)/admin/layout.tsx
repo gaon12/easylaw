@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
+import { canAccessContentWorkspace } from "@/lib/content-permissions";
 import { admin } from "@/lib/strings";
 import { currentSession } from "@/server/owner";
 import styles from "./admin.module.css";
@@ -20,8 +21,9 @@ import { AdminNav } from "./nav";
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await currentSession();
+  const role = session?.role;
 
-  if (session?.role !== "admin") {
+  if (!canAccessContentWorkspace(role)) {
     return (
       <div className={styles.denied}>
         <Alert title={admin.deniedTitle} tone="warning">
@@ -33,7 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className={styles.shell}>
-      <AdminNav />
+      <AdminNav role={role} />
       <div className={styles.workspace}>
         <header className={styles.toolbar}>
           <div>

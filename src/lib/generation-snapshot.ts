@@ -1,6 +1,7 @@
 import type { LlmClient } from "@/lib/llm/client";
 import { ENTAIL_PROMPT_VERSION } from "@/lib/pipeline/entail";
 import { PROMPT_VERSION as EXTRACT_PROMPT_VERSION } from "@/lib/pipeline/extract-prompt";
+import { FACT_CHECK_VERSION } from "@/lib/pipeline/fact-check";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
 import { RENDITION_RULES_VERSION } from "@/lib/rendition/lint";
 import { stableId } from "@/lib/stable-id";
@@ -53,7 +54,7 @@ function createGenerationSnapshot(
     extractPromptVersion: EXTRACT_PROMPT_VERSION,
     renderPromptVersion: RENDER_PROMPT_VERSION,
     entailPromptVersion: ENTAIL_PROMPT_VERSION,
-    rulesVersion: RENDITION_RULES_VERSION,
+    rulesVersion: `${RENDITION_RULES_VERSION}+${FACT_CHECK_VERSION}`,
     readerPerspective: "neutral-reader-v1",
     safetyPolicyVersion: "grounded-output-v1",
   };

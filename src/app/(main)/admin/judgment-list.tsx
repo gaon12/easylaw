@@ -22,7 +22,15 @@ interface JudgmentRow {
  * 줄마다 따로 상태를 갖는다 — 하나를 다시 받는 동안 다른 줄이 함께 잠기면, 여러 개를
  * 고쳐야 하는 사람은 한 번에 하나씩 기다려야 한다고 오해한다.
  */
-function JudgmentRowView({ row, formatTime }: { row: JudgmentRow; formatTime: string }) {
+function JudgmentRowView({
+  row,
+  formatTime,
+  canRefresh,
+}: {
+  row: JudgmentRow;
+  formatTime: string;
+  canRefresh: boolean;
+}) {
   const [state, formAction, pending] = useActionState<RefreshState, FormData>(
     refreshJudgmentText,
     {},
@@ -39,12 +47,14 @@ function JudgmentRowView({ row, formatTime }: { row: JudgmentRow; formatTime: st
           <ButtonLink href={`/admin/content/judgments/${row.id}`} size="s" variant="tertiary">
             {admin.judgmentHistory}
           </ButtonLink>
-          <form action={formAction}>
-            <Input name="case_no" type="hidden" value={row.caseNoCanonical} />
-            <Button disabled={pending} size="s" type="submit" variant="secondary">
-              {pending ? admin.judgmentRefreshing : admin.judgmentRefresh}
-            </Button>
-          </form>
+          {canRefresh ? (
+            <form action={formAction}>
+              <Input name="case_no" type="hidden" value={row.caseNoCanonical} />
+              <Button disabled={pending} size="s" type="submit" variant="secondary">
+                {pending ? admin.judgmentRefreshing : admin.judgmentRefresh}
+              </Button>
+            </form>
+          ) : null}
         </div>
         {state.done === undefined ? null : <span className={styles.hint}>{state.done}</span>}
         {state.problem === undefined ? null : (
@@ -66,9 +76,11 @@ function JudgmentRowView({ row, formatTime }: { row: JudgmentRow; formatTime: st
 function JudgmentList({
   rows,
   formatTime,
+  canRefresh,
 }: {
   rows: readonly JudgmentRow[];
   formatTime: (at: Date | null) => string;
+  canRefresh: boolean;
 }) {
   if (rows.length === 0) {
     return <p className={styles.empty}>{admin.judgmentEmpty}</p>;
@@ -92,6 +104,7 @@ function JudgmentList({
           {rows.map((row) => (
             <JudgmentRowView
               formatTime={formatTime(row.textCachedAt)}
+              canRefresh={canRefresh}
               key={row.caseNoCanonical}
               row={row}
             />

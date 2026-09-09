@@ -436,10 +436,24 @@ describe("낱말 뜻의 출처", () => {
       client,
       "L4",
       [{ id: "n", kind: "holding", payload: { text: "해태" } }],
-      { glosses: [{ term: "해태", definition: "…", source: "표준국어대사전" }] },
+      {
+        glosses: [
+          {
+            term: "해태",
+            definition: "할 일을 게을리함.",
+            source: "표준국어대사전",
+            definitionId: "stdict-haetae-1",
+            definitionSource: "stdict",
+          },
+        ],
+      },
     );
 
     expect(result.lines[1]?.source).toBe("표준국어대사전");
+    expect(result.lines[1]?.glossEvidence).toMatchObject({
+      definitionId: "stdict-haetae-1",
+      definition: "할 일을 게을리함.",
+    });
     // 본문에는 붙이지 않는다. 본문의 근거는 원문 span이지 사전이 아니다.
     expect(result.lines[0]?.source).toBeNull();
   });
@@ -458,8 +472,20 @@ describe("낱말 뜻의 출처", () => {
       [{ id: "n", kind: "holding", payload: { text: "원고와 피고" } }],
       {
         glosses: [
-          { term: "원고", definition: "…", source: "원고 사전" },
-          { term: "피고", definition: "…", source: "피고 사전" },
+          {
+            term: "원고",
+            definition: "소송을 제기한 사람.",
+            source: "원고 사전",
+            definitionId: "plaintiff-1",
+            definitionSource: "stdict",
+          },
+          {
+            term: "피고",
+            definition: "소송을 제기당한 사람.",
+            source: "피고 사전",
+            definitionId: "defendant-1",
+            definitionSource: "stdict",
+          },
         ],
       },
     );

@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import type { BadgeTone } from "@/components/ui/types";
 import { formatBytes } from "@/lib/format";
 import { admin, setup } from "@/lib/strings";
+import { requireAdministrator } from "@/server/admin-access";
 import { audioStored, storageRows } from "@/server/admin-overview";
 import { type CheckLevel, checkEnvironment } from "@/server/environment";
 import styles from "../admin.module.css";
@@ -24,7 +25,8 @@ const BADGE_TONES: Readonly<Record<CheckLevel, BadgeTone>> = {
  * 저장 공간은 여기서 **처음** 보인다. 사전만 120MB가 넘고 판례 본문이 그 뒤를 따르는데,
  * 어느 파일이 커지는지 모르면 디스크가 찰 때까지 아무도 눈치채지 못한다.
  */
-export default function AdminSystemPage() {
+export default async function AdminSystemPage() {
+  await requireAdministrator();
   const checks = checkEnvironment();
   const storage = storageRows();
   const audio = audioStored();

@@ -51,6 +51,13 @@ interface UploadRevisionInput {
   maskCounts: Readonly<Partial<Record<MaskKind, number>>>;
 }
 
+interface AuditEvent {
+  readonly actorId: string;
+  readonly action: string;
+  readonly targetId: string;
+  readonly meta?: Record<string, string | number | boolean | null>;
+}
+
 type UserRole = (typeof user.role.enumValues)[number];
 
 const newId = (): string => crypto.randomUUID();
@@ -128,7 +135,7 @@ interface NewUser {
 
 function createUser(db: AppDb, input: NewUser): string | undefined {
   const { email, passwordHash } = input;
-  const role = input.role ?? "member";
+  const role = input.role ?? "viewer";
   const nickname = input.nickname ?? null;
 
   return db.transaction((tx) => {
@@ -197,7 +204,7 @@ function setUserRole(
     if (target.role === role) {
       return "unchanged";
     }
-    if (target.role === "admin" && role === "member") {
+    if (target.role === "admin" && role !== "admin") {
       const admins = tx.select({ id: user.id }).from(user).where(eq(user.role, "admin")).all();
       if (admins.length <= 1) {
         return "last_admin";
@@ -215,6 +222,19 @@ function setUserRole(
       .run();
     return "updated";
   });
+}
+
+/** 서로 다른 콘텐츠 DB에서 끝난 운영 행위를 app DB의 공통 감사 기록에 남긴다. */
+function recordAuditEvent(db: AppDb, event: AuditEvent): void {
+  db.insert(auditLog)
+    .values({
+      id: newId(),
+      actor: event.actorId,
+      action: event.action,
+      target: event.targetId,
+      meta: event.meta,
+    })
+    .run();
 }
 
 function touchUser(db: AppDb, userId: string): void {
@@ -726,6 +746,7 @@ export {
   listMaskCounts,
   listUploadSpans,
   listUploadRevisions,
+  recordAuditEvent,
   findCurrentUploadRevisionId,
   listUploadsForOwner,
   saveUpload,
@@ -737,4 +758,12 @@ export {
   updateRetention,
   setUserRole,
 };
-export type { RoleChangeResult, SaveResult, SpanInput, UploadInput, UploadRevisionInput, UserRole };
+export type {
+  AuditEvent,
+  RoleChangeResult,
+  SaveResult,
+  SpanInput,
+  UploadInput,
+  UploadRevisionInput,
+  UserRole,
+};

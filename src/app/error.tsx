@@ -1,8 +1,9 @@
 "use client";
 
 import { Button, ButtonLink } from "@/components/ui/button";
-import { PaperFigure } from "@/components/ui/paper-figure";
+import { ServiceCharacter } from "@/components/ui/service-character";
 import { errors } from "@/lib/strings";
+import { ErrorTrace } from "./error-trace";
 import styles from "./status.module.css";
 
 /**
@@ -16,9 +17,8 @@ import styles from "./status.module.css";
  * 2. 오류가 셸에서 났을 수도 있다. 같은 셸로 오류 화면을 그리면 그 화면도 함께 넘어진다.
  *    `global-error.tsx`가 아무 컴포넌트도 쓰지 않는 것과 같은 이유다.
  *
- * **오류 번호(digest)를 숨기지 않고 보여 준다.** 서버 컴포넌트의 오류 메시지는 운영에서
- * 감춰지므로 사용자가 전할 수 있는 것은 이 번호뿐이고, 이 번호가 있어야 서버 기록에서
- * 같은 오류를 찾을 수 있다. 보이지 않으면 문의는 "안 돼요" 한 줄로 끝난다.
+ * Next digest는 사용자에게 그대로 내지 않고 짧은 Base58 번호로 바꾼다. 서버 기록에도
+ * 같은 번호를 남겨 관리자가 원래 digest와 경로·원인을 함께 찾을 수 있게 한다.
  */
 export default function ErrorBoundary({
   error,
@@ -28,26 +28,26 @@ export default function ErrorBoundary({
   retry: () => void;
 }) {
   return (
-    <div className={styles.page}>
-      <PaperFigure mood="hurt" />
-      <h1 className={styles.title}>{errors.genericTitle}</h1>
-      <p className={styles.body}>{errors.genericBody}</p>
-
-      {error.digest === undefined ? null : (
-        <p className={styles.code}>
-          <span className={styles.codeValue}>{errors.errorCode(error.digest)}</span>
-          <span className={styles.codeHint}>{errors.errorCodeHint}</span>
-        </p>
-      )}
-
-      <div className={styles.actions}>
-        <Button onClick={retry} size="m" type="button">
-          {errors.retry}
-        </Button>
-        <ButtonLink href="/" size="m" variant="tertiary">
-          {errors.backHome}
-        </ButtonLink>
-      </div>
-    </div>
+    <main className={styles.viewport}>
+      <section className={styles.panel}>
+        <div className={styles.visual}>
+          <ServiceCharacter character="errorFemale" className={styles.character} priority={true} />
+        </div>
+        <div className={styles.content}>
+          <p className={styles.eyebrow}>{errors.genericEyebrow}</p>
+          <h1 className={styles.title}>{errors.genericTitle}</h1>
+          <p className={styles.body}>{errors.genericBody}</p>
+          <ErrorTrace error={error} />
+          <div className={styles.actions}>
+            <Button onClick={retry} size="m" type="button">
+              {errors.retry}
+            </Button>
+            <ButtonLink href="/" size="m" variant="tertiary">
+              {errors.backHome}
+            </ButtonLink>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

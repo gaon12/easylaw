@@ -18,14 +18,32 @@ import {
   blob,
   index,
   integer,
-  // biome-ignore lint/suspicious/noDeprecatedImports: 가변인자 오버로드만 비권장이다. 우리는 권장형 primaryKey({ columns: [...] })를 쓴다.
   primaryKey,
   sqliteTable,
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
+import { GLOSS_DEFINITION_SOURCES } from "@/lib/gloss-evidence";
 import { MASK_KINDS } from "@/lib/text/mask";
+
+const USER_ROLES = ["viewer", "contributor", "reviewer", "publisher", "admin"] as const;
+const CONTENT_REPORT_REASONS = [
+  "incorrect",
+  "hard_to_understand",
+  "missing",
+  "outdated",
+  "other",
+] as const;
+const CONTENT_REPORT_STATUSES = ["open", "reviewing", "resolved", "dismissed"] as const;
+const MEDIA_REPORT_REASONS = [
+  "misleading",
+  "irrelevant",
+  "hard_to_see",
+  "broken",
+  "other",
+] as const;
+const ERROR_EVENT_SOURCES = ["server", "browser"] as const;
 
 /**
  * "지금" 기본값이 붙은 시각 컬럼. 컬럼 이름을 인자로 받는다 —
@@ -69,13 +87,10 @@ const user = sqliteTable(
      */
     nickname: text("nickname"),
     /**
-     * 권한. `admin`은 설치 마법사가 만든 첫 계정이고, 서비스 설정을 바꿀 수 있다.
-     * 컬럼 하나로 두는 이유는 지금 필요한 구분이 둘뿐이기 때문이다 —
-     * 역할 테이블은 역할이 셋 이상 생길 때 만든다.
+     * 권한. 일반 이용자와 콘텐츠 작성·검수·게시, 시스템 관리를 분리한다.
+     * 한 계정은 가장 강한 역할 하나를 가지며 세부 능력은 권한 함수에서 해석한다.
      */
-    role: text("role", { enum: ["admin", "member"] })
-      .notNull()
-      .default("member"),
+    role: text("role", { enum: USER_ROLES }).notNull().default("viewer"),
     /** 접근성 프로필 등 사용자 설정(JSON). */
     settings: text("settings", { mode: "json" }),
     createdAt: timestampNow("created_at"),
@@ -405,6 +420,25 @@ const uploadRenditionSentence = sqliteTable(
   ],
 );
 
+/** 공개 판례와 같은 낱말 뜻 근거 사본. 개인 원문은 포함하지 않는다. */
+const uploadRenditionGlossEvidence = sqliteTable(
+  "upload_rendition_gloss_evidence",
+  {
+    sentenceId: text("sentence_id")
+      .primaryKey()
+      .references(() => uploadRenditionSentence.id, { onDelete: "cascade" }),
+    definitionSource: text("definition_source", { enum: GLOSS_DEFINITION_SOURCES }).notNull(),
+    definitionId: text("definition_id").notNull(),
+    term: text("term").notNull(),
+    definition: text("definition").notNull(),
+    definitionHash: text("definition_hash").notNull(),
+    sourceLabel: text("source_label").notNull(),
+  },
+  (table) => [
+    index("upload_rendition_gloss_definition_idx").on(table.definitionSource, table.definitionId),
+  ],
+);
+
 /**
  * 올린 문서의 생성 작업.
  *
@@ -483,6 +517,82 @@ const uploadStructureGenerationJob = sqliteTable(
   ],
 );
 
+/** 공개 설명의 한 문장에서 시작한 오류 신고. 콘텐츠 DB의 불변 UUID를 복사해 역추적한다. */
+const contentReport = sqliteTable(
+  "content_report",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id").references(() => user.id, { onDelete: "set null" }),
+    /** 아래 다섯 값은 corpus DB 식별자다. DB 파일이 달라 외래 키 대신 UUID를 보존한다. */
+    judgmentId: text("judgment_id").notNull(),
+    sourceRevisionId: text("source_revision_id").notNull(),
+    contentReleaseId: text("content_release_id").notNull(),
+    renditionId: text("rendition_id").notNull(),
+    sentenceId: text("sentence_id").notNull(),
+    reason: text("reason", { enum: CONTENT_REPORT_REASONS }).notNull(),
+    detail: text("detail"),
+    status: text("status", { enum: CONTENT_REPORT_STATUSES }).notNull().default("open"),
+    createdAt: timestampNow("created_at"),
+    handledBy: text("handled_by").references(() => user.id, { onDelete: "set null" }),
+    handledAt: integer("handled_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("content_report_status_idx").on(table.status, table.createdAt),
+    index("content_report_sentence_idx").on(table.sentenceId, table.status),
+  ],
+);
+
+/** 공개 설명 그림의 한 배치에서 시작한 오류 신고. 그림이 교체돼도 당시 UUID를 보존한다. */
+const mediaReport = sqliteTable(
+  "media_report",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id").references(() => user.id, { onDelete: "set null" }),
+    /** corpus DB와 코드 레지스트리의 불변 식별자. DB 파일이 달라 외래 키 대신 복사한다. */
+    judgmentId: text("judgment_id").notNull(),
+    sourceRevisionId: text("source_revision_id").notNull(),
+    contentReleaseId: text("content_release_id").notNull(),
+    renditionId: text("rendition_id").notNull(),
+    placementId: text("placement_id").notNull(),
+    assetId: text("asset_id").notNull(),
+    recipeKey: text("recipe_key").notNull(),
+    reason: text("reason", { enum: MEDIA_REPORT_REASONS }).notNull(),
+    detail: text("detail"),
+    status: text("status", { enum: CONTENT_REPORT_STATUSES }).notNull().default("open"),
+    createdAt: timestampNow("created_at"),
+    handledBy: text("handled_by").references(() => user.id, { onDelete: "set null" }),
+    handledAt: integer("handled_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("media_report_status_idx").on(table.status, table.createdAt),
+    index("media_report_placement_idx").on(table.placementId, table.status),
+  ],
+);
+
+/** 오류 화면의 공개 번호로 운영자가 실제 서버 원인을 찾기 위한 기록. */
+const errorEvent = sqliteTable(
+  "error_event",
+  {
+    id: text("id").primaryKey(),
+    publicCode: text("public_code").notNull(),
+    digest: text("digest"),
+    source: text("source", { enum: ERROR_EVENT_SOURCES }).notNull(),
+    name: text("name").notNull(),
+    message: text("message").notNull(),
+    stack: text("stack"),
+    requestPath: text("request_path"),
+    method: text("method"),
+    routePath: text("route_path"),
+    routeType: text("route_type"),
+    createdAt: timestampNow("created_at"),
+  },
+  (table) => [
+    index("error_event_code_idx").on(table.publicCode, table.createdAt),
+    index("error_event_digest_idx").on(table.digest, table.createdAt),
+    index("error_event_created_idx").on(table.createdAt),
+  ],
+);
+
 /**
  * 감사 로그.
  *
@@ -508,6 +618,9 @@ const auditLog = sqliteTable(
 const appSchema = {
   uploadRenditionAudio,
   auditLog,
+  contentReport,
+  mediaReport,
+  errorEvent,
   session,
   setting,
   upload,
@@ -515,6 +628,7 @@ const appSchema = {
   uploadMask,
   uploadNodeSpan,
   uploadRendition,
+  uploadRenditionGlossEvidence,
   uploadRenditionSentence,
   uploadRevision,
   uploadSpan,
@@ -527,6 +641,13 @@ export {
   uploadRenditionAudio,
   appSchema,
   auditLog,
+  contentReport,
+  mediaReport,
+  errorEvent,
+  CONTENT_REPORT_REASONS,
+  CONTENT_REPORT_STATUSES,
+  MEDIA_REPORT_REASONS,
+  ERROR_EVENT_SOURCES,
   CONFIDENCES,
   JOB_STAGES,
   JOB_STATUSES,
@@ -538,10 +659,12 @@ export {
   uploadMask,
   uploadNodeSpan,
   uploadRendition,
+  uploadRenditionGlossEvidence,
   uploadRenditionSentence,
   uploadRevision,
   uploadSpan,
   uploadStructureGenerationJob,
   uploadStructureNode,
   user,
+  USER_ROLES,
 };

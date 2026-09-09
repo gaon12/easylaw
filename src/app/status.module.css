@@ -1,61 +1,176 @@
-/*
- * 오류·빈 상태 화면 공용. `DESIGN.md` §5.1
- *
- * 가운데 정렬한다. 이 화면들에는 읽을 것이 몇 줄뿐이라 왼쪽 정렬하면 넓은 화면에서
- * 글이 구석에 붙는다. 본문 화면과 다른 규칙을 쓰는 유일한 자리다.
- */
-
+.viewport,
 .page {
-  max-width: 520px;
-  margin: 0 auto;
-  padding: var(--el-space-20) var(--el-space-6);
+  min-height: min(760px, 100vh);
   display: grid;
+  place-items: center;
+  padding: clamp(var(--el-space-6), 7vw, var(--el-space-16)) var(--el-gutter);
+  background: #f2f6fb;
+}
+
+.panel {
+  min-width: 0;
+  width: min(100%, 1040px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #dce5f0;
+  border-radius: var(--el-radius-2xl);
+  background: var(--el-bg-canvas);
+  box-shadow: 0 22px 60px rgb(29 48 91 / 12%);
+}
+
+.visual {
+  min-height: 330px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: var(--el-space-5) var(--el-space-6);
+  background: #e8f2fa;
+}
+
+.character {
+  display: block;
+  width: auto;
+  height: 290px;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+}
+
+.content {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  justify-items: start;
   gap: var(--el-space-4);
-  justify-items: center;
-  text-align: center;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: clamp(var(--el-space-8), 5vw, var(--el-space-12));
+}
+
+.eyebrow {
+  margin: 0;
+  color: #285a9d;
+  font-size: var(--el-text-body-s);
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .title {
-  font-size: var(--el-text-heading-l);
+  margin: 0;
+  color: #17233a;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  letter-spacing: var(--el-tracking-tight);
+  line-height: 1.25;
 }
 
 .body {
+  max-width: 62ch;
+  margin: 0;
   color: var(--el-fg-2);
+  font-size: var(--el-text-body-m);
   line-height: var(--el-leading-body);
-  max-width: 40ch;
+  overflow-wrap: anywhere;
 }
 
-/* 오류 번호. 문의할 때 옮겨 적어야 하므로 골라 잡기 쉽게 둔다. */
-.code {
+.trace {
+  width: 100%;
   display: grid;
-  gap: var(--el-space-1);
-  padding: var(--el-space-3) var(--el-space-4);
-  background: var(--el-bg-subtle);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--el-space-2) var(--el-space-3);
+  align-items: center;
+  margin-top: var(--el-space-2);
+  padding: var(--el-space-4);
+  border: 1px solid #dce5f0;
   border-radius: var(--el-radius-m);
+  background: #f5f8fc;
+}
+
+.trace > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.traceLabel {
+  color: var(--el-fg-2);
+  font-size: var(--el-text-body-xs);
+  font-weight: 700;
 }
 
 .codeValue {
-  font-size: var(--el-text-body-s);
+  color: #1d447d;
+  font-family: var(--el-font-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  font-size: var(--el-text-body-m);
   font-variant-numeric: tabular-nums;
-  /* 번호는 통째로 골라야 한다. 한 글자씩 끌지 않도록. */
+  font-weight: 800;
+  letter-spacing: 0.04em;
   user-select: all;
 }
 
+.copyCode {
+  min-height: 40px;
+  padding: 0 var(--el-space-3);
+  border-radius: var(--el-radius-s);
+  color: #29466d;
+  background: var(--el-bg-canvas);
+  font-size: var(--el-text-body-s);
+  font-weight: 700;
+}
+
+.copyCode:hover {
+  border-color: #2f66aa;
+}
+
+.copyCode:focus-visible {
+  outline: 3px solid var(--el-border-focus);
+  outline-offset: 2px;
+}
+
 .codeHint {
+  grid-column: 1 / -1;
+  margin: 0;
   color: var(--el-fg-2);
   font-size: var(--el-text-body-xs);
+  line-height: 1.55;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--el-space-3);
-  justify-content: center;
   padding-top: var(--el-space-2);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
+  .viewport,
   .page {
-    padding: var(--el-space-12) var(--el-space-4);
+    align-items: start;
+    min-height: 100vh;
+    padding: var(--el-space-5) var(--el-space-4);
+  }
+
+  .panel {
+    max-width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .visual {
+    min-height: 230px;
+    padding: var(--el-space-4);
+  }
+
+  .character {
+    height: 215px;
+  }
+
+  .content {
+    padding: var(--el-space-6) var(--el-space-5) var(--el-space-8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copyCode {
+    transition: none;
   }
 }

@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { dictDb } from "@/db/client";
 import { dictEntry, dictSource, legalTerm } from "@/db/dict/schema";
 import { candidateTerms } from "@/lib/dict/terms";
+import type { GlossDefinitionSource } from "@/lib/gloss-evidence";
 import { lawApi } from "@/lib/law-api/client";
 import { stableId } from "@/lib/stable-id";
 
@@ -40,6 +41,9 @@ interface Gloss {
   readonly definition: string;
   /* 어디서 온 뜻인가. **화면과 프롬프트에 그대로 밝힌다.** */
   readonly source: string;
+  /** 사전 DB에서 실제로 선택한 정의 행. 결과 저장소가 이 행의 내용을 복제해 보존한다. */
+  readonly definitionId: string;
+  readonly definitionSource: GlossDefinitionSource;
   /** 법률 분야의 뜻인가. 아니면 일상 낱말 풀이다. */
   readonly legal: boolean;
 }
@@ -82,7 +86,7 @@ function addStandardLegalGlosses(
   found: Map<string, Gloss>,
 ): void {
   for (const row of db
-    .select({ word: dictEntry.word, definition: dictEntry.definition })
+    .select({ id: dictEntry.id, word: dictEntry.word, definition: dictEntry.definition })
     .from(dictEntry)
     .where(and(inArray(dictEntry.word, forms), eq(dictEntry.category, "법률")))
     .orderBy(desc(dictEntry.senseOrder))
@@ -91,6 +95,8 @@ function addStandardLegalGlosses(
       term: row.word,
       definition: row.definition,
       source: "표준국어대사전",
+      definitionId: row.id,
+      definitionSource: "stdict",
       legal: true,
     });
   }
@@ -106,7 +112,7 @@ function addSafeGeneralGlosses(
     return;
   }
   for (const row of db
-    .select({ word: dictEntry.word, definition: dictEntry.definition })
+    .select({ id: dictEntry.id, word: dictEntry.word, definition: dictEntry.definition })
     .from(dictEntry)
     .where(inArray(dictEntry.word, safeForms))
     .orderBy(dictEntry.senseOrder)
@@ -116,6 +122,8 @@ function addSafeGeneralGlosses(
         term: row.word,
         definition: row.definition,
         source: "표준국어대사전",
+        definitionId: row.id,
+        definitionSource: "stdict",
         legal: false,
       });
     }
@@ -137,6 +145,8 @@ function fromLegalCache(term: string): Gloss | undefined {
         term,
         definition: row.definition,
         source: row.source ?? row.dictionary ?? "법령용어",
+        definitionId: row.id,
+        definitionSource: "legal_term",
         legal: true,
       };
 }
@@ -181,12 +191,15 @@ async function fetchLegal(term: string): Promise<Gloss | undefined> {
     .run();
 
   const first = usable[0];
+  const firstId = first?.termId ?? `${term}-0`;
   return first === undefined
     ? undefined
     : {
         term,
         definition: first.definition,
         source: first.source ?? first.dictionary ?? "법령용어",
+        definitionId: firstId,
+        definitionSource: "legal_term",
         legal: true,
       };
 }
@@ -220,6 +233,8 @@ function fromDictionary(term: string): Gloss | undefined {
         term,
         definition: row.definition,
         source: "표준국어대사전",
+        definitionId: row.id,
+        definitionSource: "stdict",
         legal: row.category === "법률",
       };
 }
@@ -268,13 +283,14 @@ async function glossesFor(terms: readonly string[]): Promise<Gloss[]> {
  * **법률 분야만 묻는다.** 어차피 그것만 쓴다(아래 `glossesInText` 참조). 조건을 SQL에
  * 실으면 509,138행에서 8,307행만 훑는다.
  */
-function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
+function legalGlossesFor(
+  forms: readonly string[],
+  db: DictionaryDb = dictDb(),
+): Map<string, Gloss> {
   const found = new Map<string, Gloss>();
   if (forms.length === 0) {
     return found;
   }
-
-  const db = dictDb();
 
   /*
    * 바인딩 개수 한도를 넘기지 않으려고 나눠 묻는다. 지금 자료로는 한 번에 끝나지만,
@@ -288,7 +304,12 @@ function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
     addSafeGeneralGlosses(db, chunk, found);
 
     for (const row of db
-      .select({ term: legalTerm.term, definition: legalTerm.definition, source: legalTerm.source })
+      .select({
+        id: legalTerm.id,
+        term: legalTerm.term,
+        definition: legalTerm.definition,
+        source: legalTerm.source,
+      })
       .from(legalTerm)
       .where(inArray(legalTerm.term, chunk))
       .all()) {
@@ -304,6 +325,8 @@ function legalGlossesFor(forms: readonly string[]): Map<string, Gloss> {
         term: row.term,
         definition: row.definition,
         source: row.source ?? "법령용어",
+        definitionId: row.id,
+        definitionSource: "legal_term",
         legal: true,
       });
     }
@@ -336,10 +359,10 @@ function isSafeAutomaticLegalTerm(input: { definition: string; source: string | 
  * 그래서 법령용어는 **이미 받아 둔 것만** 본다. 밖에 묻는 `glossFor`는 낱말 하나를 사람이
  * 직접 물을 때를 위한 것이고, 여기서 부르지 않는다. 이 구분을 지우지 말 것.
  */
-function glossesInText(text: string): Gloss[] {
+function glossesInText(text: string, db: DictionaryDb = dictDb()): Gloss[] {
   const candidates = candidateTerms(text);
   const forms = [...new Set(candidates.flatMap((candidate) => candidate.forms))];
-  const known = legalGlossesFor(forms);
+  const known = legalGlossesFor(forms, db);
 
   const found: Gloss[] = [];
   const seen = new Set<string>();

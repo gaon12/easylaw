@@ -89,4 +89,24 @@ describe("업로드 원문판 마이그레이션", () => {
     }
     expect(db.pragma("foreign_key_check")).toEqual([]);
   });
+
+  it("기존 사용자 역할을 viewer로 옮기고 문서 소유 관계를 보존한다", () => {
+    applyThrough(db, 12);
+    db.exec(`
+      INSERT INTO user (id, email, password_hash, role)
+      VALUES ('viewer-1', 'viewer@example.com', 'hash', 'member');
+      INSERT INTO upload (id, user_id, title, doc_hash, char_count, uploaded_at, masked_at)
+      VALUES ('upload-1', 'viewer-1', '문서', 'hash', 2, 1000, 1000);
+    `);
+    const migration = readdirSync(MIGRATIONS).find((file) => file.startsWith("0013_"));
+    expect(migration).toBeDefined();
+    runSql(db, migration as string);
+    db.pragma("foreign_keys = ON");
+
+    expect(db.prepare("SELECT role FROM user WHERE id = 'viewer-1'").pluck().get()).toBe("viewer");
+    expect(db.prepare("SELECT user_id FROM upload WHERE id = 'upload-1'").pluck().get()).toBe(
+      "viewer-1",
+    );
+    expect(db.pragma("foreign_key_check")).toEqual([]);
+  });
 });

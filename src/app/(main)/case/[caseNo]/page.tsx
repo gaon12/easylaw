@@ -232,6 +232,7 @@ function ViewerPanels({
           media={caseMedia}
           outdatedAt={outdatedAt}
           progressPath={`/api/generation/case/${encodeURIComponent(caseNoCanonical)}/${level}`}
+          reportable={true}
           sentences={sentences}
           state={placeholderState(judgmentId, level)}
         />

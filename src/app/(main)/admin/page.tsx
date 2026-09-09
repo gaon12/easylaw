@@ -6,6 +6,7 @@ import { listUsersForAdmin } from "@/db/app/repository";
 import { appDb, corpusDb } from "@/db/client";
 import { listRecentGenerationFailures } from "@/db/corpus/repository";
 import { admin } from "@/lib/strings";
+import { requireAdministrator } from "@/server/admin-access";
 import { audioStored, contentCounts } from "@/server/admin-overview";
 import { checkEnvironment, hasBlockingIssue } from "@/server/environment";
 import { generationBudget } from "@/server/generate";
@@ -65,7 +66,8 @@ function Metric({
  * 그래서 이 화면에는 **숫자와 경고만** 있다. 자세한 것은 각 화면이 맡는다 — 여기서 할 수
  * 있는 일은 하나도 없고, 그것이 의도다(보는 것과 바꾸는 것을 섞지 않는다).
  */
-export default function AdminPage() {
+export default async function AdminPage() {
+  await requireAdministrator();
   const db = appDb();
   const budget = generationBudget();
   const counts = contentCounts();

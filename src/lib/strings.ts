@@ -939,6 +939,35 @@ export const setup = {
  *
  * 마법사에서 넣은 값을 나중에 못 고치면, 오타 하나가 서버를 다시 설치해야 하는 이유가 된다.
  */
+export const report = {
+  open: "문제 알리기",
+  title: "이 설명의 문제를 알려 주세요",
+  intro: "신고는 지금 보고 있는 설명판과 문장에 연결돼 검수자가 원문과 함께 확인합니다.",
+  reason: "어떤 문제인가요?",
+  reasons: {
+    incorrect: "내용이 사실 또는 법률과 달라요",
+    hard_to_understand: "설명이 이해하기 어려워요",
+    missing: "중요한 내용이 빠졌어요",
+    outdated: "지금 기준과 맞지 않는 것 같아요",
+    other: "그 밖의 문제예요",
+  },
+  detail: "자세한 내용 (선택)",
+  detailHint: "어느 부분이 왜 문제인지 적어 주세요.",
+  send: "보내기",
+  sending: "보내는 중…",
+  mediaOpen: "그림 문제 알리기",
+  mediaTitle: "이 그림의 문제를 알려 주세요",
+  mediaIntro: "신고는 지금 보고 있는 설명판·그림 배치·이미지 자산에 연결돼 검수자가 확인합니다.",
+  mediaReasons: {
+    misleading: "그림이 내용을 다르게 이해하게 해요",
+    irrelevant: "설명과 관계없는 그림이에요",
+    hard_to_see: "그림이나 글자를 알아보기 어려워요",
+    broken: "그림이 나오지 않아요",
+    other: "그 밖의 문제예요",
+  },
+  mediaDetailHint: "그림의 어느 부분이 왜 문제인지 적어 주세요.",
+} as const;
+
 export const admin = {
   title: "관리자",
   intro: "서비스 상태를 보고 설정을 바꾸실 수 있어요. 이 화면은 관리자만 볼 수 있어요.",
@@ -952,8 +981,10 @@ export const admin = {
    */
   nav: {
     overview: "한눈에",
+    errors: "오류 추적",
     audio: "설명 음성",
     content: "자료",
+    reports: "오류 신고",
     mediaRecipes: "이미지 레시피",
     log: "기록",
     settings: "설정",
@@ -965,7 +996,6 @@ export const admin = {
   consoleTitle: "관리자 콘솔",
   consoleSubtitle: "EasyLaw 운영과 콘텐츠 상태",
   returnToService: "서비스 화면",
-  brandMark: "EL",
   brandName: "EasyLaw",
   navGroups: { operate: "운영", content: "콘텐츠", manage: "관리" },
 
@@ -982,6 +1012,18 @@ export const admin = {
   metricFailures: "최근 실패",
   metricUnit: { times: "번", cases: "건", clips: "개", people: "명" },
   seeMore: "자세히 보기",
+
+  errorsTitle: "오류 추적",
+  errorsIntro: "이용자가 알려 준 오류 번호로 실제 서버 원인과 발생 경로를 찾습니다.",
+  errorsSearchLabel: "오류 번호",
+  errorsSearchPlaceholder: "EL-7AbC-xYz9",
+  errorsSearch: "찾기",
+  errorsReset: "최근 오류 보기",
+  errorsEmpty: "저장된 오류가 없어요.",
+  errorsNoMatch: "이 번호로 저장된 오류를 찾지 못했어요.",
+  errorColumns: { at: "발생 시각", code: "오류 번호", source: "기록", path: "경로", cause: "원인" },
+  errorSources: { server: "서버", browser: "브라우저" },
+  errorStack: "기술 정보 보기",
 
   mediaRecipesTitle: "이미지 레시피",
   mediaRecipesIntro:
@@ -1053,7 +1095,7 @@ export const admin = {
     state: "상태",
     generatedAt: "최신 설명",
     checks: "검사",
-    action: "공개",
+    action: "작업",
   },
   releaseStates: {
     missing: "없음",
@@ -1073,7 +1115,30 @@ export const admin = {
   releaseWithdraw: "철회",
   releaseChanging: "바꾸는 중…",
   releaseBlocked: "근거 없음 문장을 고친 뒤 게시할 수 있어요.",
+  releaseNeedsApproval: "검수 승인을 받은 설명만 게시할 수 있어요.",
   releasePublicView: "공개 화면 보기",
+  releasePublisherOnly: "게시자에게 공개 변경 권한이 있어요.",
+  reviewRequest: "검수 요청",
+  reviewApprove: "승인",
+  reviewReject: "반려",
+  reviewChanging: "바꾸는 중…",
+  renditionEdit: "설명 고치기",
+  renditionEditTitle: "쉬운 설명 고치기",
+  renditionEditIntro:
+    "왼쪽 원문 근거와 대조해 문장을 고쳐 주세요. 저장하면 기존 설명은 남고 새 검수 초안이 만들어져요.",
+  renditionEditBack: "판결문 관리로 돌아가기",
+  renditionEditLevel: "설명 단계",
+  renditionEditEvidence: "연결된 원문 근거",
+  renditionEditGlossEvidence: "생성할 때 사용한 사전 정의",
+  renditionEditNoEvidence: "연결된 원문 근거가 없어요. 저장하기 전에 원문에서 직접 확인해 주세요.",
+  renditionEditRoles: { heading: "제목", body: "설명", gloss: "사전 뜻풀이" },
+  renditionEditGlossReadonly: "출처가 붙은 사전 뜻풀이는 사전 데이터에서 고쳐야 해요.",
+  renditionEditSave: "새 검수 초안으로 저장",
+  renditionEditSaving: "저장하는 중…",
+  renditionEditCancel: "취소",
+  renditionEditDone: "새 검수 초안을 저장했어요.",
+  renditionEditDoneBody:
+    "고친 문장은 확인 필요로 표시했어요. 원문과 대조한 뒤 검수를 요청해 주세요.",
   releaseHistory: "설명 릴리스 이력",
   releaseHistoryEmpty: "아직 공개 상태를 바꾼 이력이 없어요.",
   releaseCurrent: "현재",
@@ -1101,6 +1166,49 @@ export const admin = {
   releaseLevelDiff: { added: "추가", removed: "철회", changed: "교체" },
   releaseDiffKinds: { same: "같은 문장", removed: "이전 문장", added: "새 문장" },
 
+  reportsTitle: "오류 신고",
+  reportsIntro:
+    "공개 설명에서 들어온 신고예요. 신고 당시 원문판·릴리스와 문장 또는 그림 식별값이 그대로 남아 있어요.",
+  reportsEmpty: "아직 들어온 신고가 없어요.",
+  sentenceReportsTitle: "설명 문장",
+  sentenceReportsEmpty: "문장 신고가 없어요.",
+  mediaReportsTitle: "설명 그림",
+  mediaReportsEmpty: "그림 신고가 없어요.",
+  reportColumns: {
+    at: "받은 때",
+    document: "판결문",
+    reason: "문제",
+    sentence: "신고한 문장",
+    media: "신고한 그림",
+    status: "처리",
+  },
+  reportReasons: {
+    incorrect: "사실·법률 오류",
+    hard_to_understand: "이해하기 어려움",
+    missing: "중요 내용 누락",
+    outdated: "기준 시점 문제",
+    other: "그 밖의 문제",
+  },
+  mediaReportReasons: {
+    misleading: "의미가 잘못 전달됨",
+    irrelevant: "설명과 관계없음",
+    hard_to_see: "알아보기 어려움",
+    broken: "그림 표시 실패",
+    other: "그 밖의 문제",
+  },
+  reportStatuses: {
+    open: "접수",
+    reviewing: "확인 중",
+    resolved: "수정 완료",
+    dismissed: "문제 없음",
+  },
+  reportStatusLabel: "신고 처리 상태",
+  reportSave: "상태 저장",
+  reportSaving: "저장 중…",
+  reportMissingDocument: "판결문을 찾을 수 없음",
+  reportMissingSentence: "문장을 찾을 수 없음",
+  reportMissingMedia: "그림 배치를 찾을 수 없음",
+
   missTitle: "못 찾은 사건번호",
   missIntro: "찾으셨는데 우리가 가져오지 못한 사건번호예요. 자주 오르는 것부터 살펴볼 만해요.",
   missEmpty: "못 찾은 사건번호가 없어요.",
@@ -1122,6 +1230,21 @@ export const admin = {
     "upload.created": "문서 올림",
     "upload.deleted": "문서 지움",
     "setting.changed": "설정 바꿈",
+    "content.rendition_pending": "설명 검수 요청",
+    "content.rendition_approved": "설명 승인",
+    "content.rendition_rejected": "설명 반려",
+    "content.rendition_edited": "설명 편집 초안 생성",
+    "content.release_publish": "설명 게시",
+    "content.release_withdraw": "설명 철회",
+    "content.release_restore": "설명 릴리스 복원",
+    "content.report_reviewing": "문장 신고 확인 시작",
+    "content.report_resolved": "문장 신고 수정 완료",
+    "content.report_dismissed": "문장 신고 문제 없음",
+    "content.report_open": "문장 신고 다시 열기",
+    "media.report_reviewing": "그림 신고 확인 시작",
+    "media.report_resolved": "그림 신고 수정 완료",
+    "media.report_dismissed": "그림 신고 문제 없음",
+    "media.report_open": "그림 신고 다시 열기",
   } as Record<string, string>,
 
   /** 시스템. 설치 마법사에만 있던 환경 점검을 설치 뒤에도 볼 수 있게 옮겼다. */
@@ -1176,15 +1299,23 @@ export const admin = {
   secretShow: "보기",
   secretHide: "가리기",
   secretHint: "저장된 값이 가려진 채로 들어 있어요. 비우고 저장하시면 지워져요.",
-  deniedTitle: "관리자만 볼 수 있어요",
-  deniedBody: "이 화면은 서버를 설치한 계정으로만 들어오실 수 있어요.",
-  usersTitle: "관리자 계정",
-  usersIntro: "가입한 계정을 관리자에게 지정할 수 있어요. 비밀번호는 볼 수 없어요.",
-  memberRole: "사용자",
-  adminRole: "관리자",
-  makeAdmin: "관리자로 지정",
-  alreadyAdmin: "관리자",
-  roleSaved: "관리자로 지정했어요.",
+  deniedTitle: "콘텐츠 권한이 필요해요",
+  deniedBody: "작성자·검수자·게시자 또는 관리자 계정으로 들어오셔야 해요.",
+  usersTitle: "계정 권한",
+  usersIntro:
+    "일반 이용과 콘텐츠 작성·검수·게시, 시스템 관리 권한을 나눠 지정해요. 비밀번호는 볼 수 없어요.",
+  roles: {
+    viewer: "일반 이용자",
+    contributor: "작성자",
+    reviewer: "검수자",
+    publisher: "게시자",
+    admin: "관리자",
+  },
+  unnamedAccount: "이름 없는 계정",
+  roleSelect: (name: string) => `${name}의 권한`,
+  roleSave: "권한 저장",
+  roleSaving: "저장 중…",
+  roleSaved: "계정 권한을 저장했어요.",
   roleNotFound: "계정을 찾을 수 없어요.",
   roleForbidden: "관리자만 계정 권한을 바꿀 수 있어요.",
   lastAdmin: "마지막 관리자는 바꿀 수 없어요.",
@@ -1577,18 +1708,24 @@ export const outcomes = {
  * 오류는 **원인과 다음 단계를 함께** 적고 사용자를 막다른 곳에 두지 않는다.
  * 사과를 늘어놓지 않고, 느낌표를 쓰지 않고, 무엇을 하면 되는지를 말한다.
  *
- * 화면이 차갑지 않도록 그림을 하나 두되(`PaperFigure`) 문구는 담담하게 둔다 —
+ * 화면이 차갑지 않도록 서비스 안내 캐릭터를 두되 문구는 담담하게 둔다 —
  * 판결문을 다루다 막힌 사람에게 명랑한 말투는 도움이 아니라 소음이다.
  */
 export const errors = {
+  notFoundEyebrow: "404 · 문서를 찾을 수 없음",
   notFoundTitle: "찾는 문서가 없어요",
   notFoundBody:
     "주소가 바뀌었거나 문서가 지워졌을 수 있어요. 올리신 문서를 찾고 계시다면 로그인하셨는지 확인해 주세요.",
-  genericTitle: "문제가 생겼어요",
-  genericBody: "저희 쪽 문제예요. 잠시 뒤에 다시 해 보시면 될 때가 많아요.",
+  genericEyebrow: "서비스 오류",
+  genericTitle: "페이지를 불러오지 못했어요",
+  genericBody:
+    "입력하신 내용은 그대로 두고 잠시 뒤 다시 시도해 주세요. 계속되면 아래 번호를 관리자에게 알려 주세요.",
   /** 오류 식별자. 문의할 때 이 값이 있으면 서버 기록에서 바로 찾을 수 있다. */
-  errorCode: (digest: string) => `오류 번호: ${digest}`,
-  errorCodeHint: "문의하실 때 이 번호를 함께 알려 주시면 빨리 찾을 수 있어요.",
+  errorCode: (code: string) => `오류 번호 ${code}`,
+  errorCodeLabel: "오류 번호",
+  errorCodeCopy: "번호 복사",
+  errorCodeCopied: "복사됨",
+  errorCodeHint: "관리자는 이 번호로 오류가 난 경로와 서버 원인을 확인할 수 있어요.",
   backHome: "처음으로 가기",
   toSearch: "사건번호로 찾아보기",
   toUpload: "판결문 올리기",

@@ -15,6 +15,7 @@ import {
 import { dictScheduleState } from "@/server/dict-schedule";
 import { legalSyncOverview, SOURCE_NAMES } from "@/server/legal-sync";
 import { runLegalSync, saveLegalSyncSchedule } from "@/server/legal-sync-actions";
+import { currentSession } from "@/server/owner";
 import { readSetting, siteTimeZone } from "@/server/settings";
 import styles from "../admin.module.css";
 import { JudgmentList } from "../judgment-list";
@@ -56,6 +57,7 @@ export default async function AdminContentPage(props: {
   searchParams: Promise<{ sync?: string }>;
 }) {
   const searchParams = await props.searchParams;
+  const session = await currentSession();
   const counts = contentCounts();
   const sources = dictSources();
   const misses = listLookupMisses(MISS_ROWS);
@@ -219,6 +221,7 @@ export default async function AdminContentPage(props: {
         <h2 className={styles.sectionTitle}>{admin.judgmentTitle}</h2>
         <p className={styles.sectionBody}>{admin.judgmentIntro}</p>
         <JudgmentList
+          canRefresh={session?.role === "admin"}
           formatTime={(value) => (value === null ? admin.judgmentNever : at(value))}
           rows={judgments}
         />
@@ -306,8 +309,6 @@ export default async function AdminContentPage(props: {
 
 /** 세는 화면이다. 캐시하면 방금 받은 사전이 "아직 없음"으로 보인다. */
 export const dynamic = "force-dynamic";
-/** 전체 법령 목록은 크다. 수동 실행의 `after()`가 자체 호스팅에서도 충분히 마칠 시간을 둔다. */
-export const maxDuration = 21_600;
 
 export const metadata = {
   title: `${admin.contentTitle} · ${admin.title}`,
