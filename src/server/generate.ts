@@ -14,6 +14,7 @@ import { type LlmClient, LlmError, llm } from "@/lib/llm/client";
 import { type Claim, checkEntailment, toConfidence } from "@/lib/pipeline/entail";
 import { extractStructure } from "@/lib/pipeline/extract";
 import { PROMPT_VERSION as EXTRACT_VERSION } from "@/lib/pipeline/extract-prompt";
+import { checkDeterministicFacts } from "@/lib/pipeline/fact-check";
 import { renderLevel } from "@/lib/pipeline/render";
 import { RENDER_PROMPT_VERSION } from "@/lib/pipeline/render-prompt";
 import { viewer } from "@/lib/strings";
@@ -290,6 +291,25 @@ function confidenceAfterCheck(
   return checked;
 }
 
+/** 결정론적 사실 대조를 통과한 문장만 모델 함의 검사에 보낸다. */
+async function verifyClaims(client: LlmClient, claims: readonly Claim[], signal?: AbortSignal) {
+  const factChecks = checkDeterministicFacts(claims);
+  const failed = new Map(
+    factChecks
+      .filter((check) => check.verdict === "contradicted")
+      .map((check) => [
+        check.orderIdx,
+        { orderIdx: check.orderIdx, verdict: "contradicted" as const, reason: check.reason },
+      ]),
+  );
+  const semantic = await checkEntailment(
+    client,
+    claims.filter((claim) => !failed.has(claim.orderIdx)),
+    signal,
+  );
+  return [...semantic, ...failed.values()].sort((left, right) => left.orderIdx - right.orderIdx);
+}
+
 /**
  * 근거 있는 결과가 나올 때까지 다시 만든다. §5.5 [7] — 최대 2회.
  *
@@ -375,7 +395,7 @@ async function attemptOnce(input: {
   const nodeSpans = new Map(nodes.map((node) => [node.id, node.spanIds]));
 
   const checks = await whileAlive(store, jobId, "verify", () =>
-    checkEntailment(client, claimsFor(rendered.lines, nodeSpans, spanText), signal),
+    verifyClaims(client, claimsFor(rendered.lines, nodeSpans, spanText), signal),
   );
   const byOrder = new Map(checks.map((check) => [check.orderIdx, check]));
 
@@ -594,5 +614,6 @@ export {
   PIPELINE_VERSION,
   REQUEST_LIMIT_REASON,
   runGeneration,
+  verifyClaims,
 };
 export type { BeginResult, GenerateResult };
