@@ -10,8 +10,9 @@
  */
 
 import { count, desc, isNotNull } from "drizzle-orm";
-import type { CorpusDb } from "../client";
-import { judgment, lawVersion } from "./schema";
+import type { CorpusDb, LegalDb } from "../client";
+import { lawVersion } from "../legal/schema";
+import { judgment } from "./schema";
 
 interface CorpusStats {
   /** 캐시된 공개 판례 수. */
@@ -20,10 +21,10 @@ interface CorpusStats {
   readonly lawVersions: number;
 }
 
-function corpusStats(db: CorpusDb): CorpusStats {
+function corpusStats(db: CorpusDb, legal: CorpusDb | LegalDb = db): CorpusStats {
   return {
     judgments: db.select({ value: count() }).from(judgment).get()?.value ?? 0,
-    lawVersions: db.select({ value: count() }).from(lawVersion).get()?.value ?? 0,
+    lawVersions: legal.select({ value: count() }).from(lawVersion).get()?.value ?? 0,
   };
 }
 

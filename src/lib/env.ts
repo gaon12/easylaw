@@ -22,6 +22,10 @@ const schema = z.object({
 
   /** 공개 코퍼스 DB 경로. */
   CORPUS_DB_PATH: z.string().min(1).default("data/corpus.sqlite"),
+  /** 법령·행정규칙·자치법규 등 공식 법령자료 DB 경로. */
+  LEGAL_DB_PATH: z.string().min(1).default("data/legal.sqlite"),
+  /** 별표·서식 HWP/PDF 저장 폴더. */
+  LEGAL_FILES_PATH: z.string().min(1).default("data/legal-files"),
 
   /**
    * 사용자 문서 DB 경로. 코퍼스와 **다른 파일**이어야 한다(`PRODUCT.md` §6.1).
@@ -29,7 +33,7 @@ const schema = z.object({
    */
   APP_DB_PATH: z.string().min(1).default("data/app.sqlite"),
   /**
-   * 사전 DB. **세 번째 파일이다.**
+   * 사전 DB. 다른 세 자료군과 분리된 파일이다.
    *
    * 표준국어대사전과 법령용어처럼 **밖에서 받아 오는 자료**만 담는다. 지우고 다시 받아도
    * 판례와 올린 문서는 다치지 않는다 — 그래서 셋을 같은 파일에 두지 않는다.
@@ -64,10 +68,18 @@ function env(): Env {
     throw new Error(`환경변수 설정이 잘못되었습니다.\n  ${detail}`);
   }
 
-  if (resolve(parsed.data.CORPUS_DB_PATH) === resolve(parsed.data.APP_DB_PATH)) {
+  const databasePaths = [
+    parsed.data.CORPUS_DB_PATH,
+    parsed.data.LEGAL_DB_PATH,
+    parsed.data.APP_DB_PATH,
+    parsed.data.DICT_DB_PATH,
+  ].map((path) => resolve(path));
+  if (new Set(databasePaths).size !== databasePaths.length) {
     // 여기서 막지 않으면 사용자 업로드가 공개 코퍼스와 같은 파일에 쌓인다.
     // 설정 실수 한 번으로 §6.1의 격리가 통째로 무너지는 자리라 기동 시점에 죽인다.
-    throw new Error("CORPUS_DB_PATH와 APP_DB_PATH는 서로 다른 파일이어야 합니다.");
+    throw new Error(
+      "CORPUS_DB_PATH, LEGAL_DB_PATH, APP_DB_PATH, DICT_DB_PATH는 서로 다른 파일이어야 합니다.",
+    );
   }
 
   cached = parsed.data;

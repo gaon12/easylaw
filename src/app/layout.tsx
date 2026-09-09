@@ -5,6 +5,7 @@ import { PreferencesSync } from "@/components/preferences-sync";
 import { PREFERENCES_SCRIPT } from "@/lib/preferences";
 import { site } from "@/lib/strings";
 import { startDictSchedule } from "@/server/dict-schedule";
+import { startLegalSyncSchedule } from "@/server/legal-sync-schedule";
 import "./globals.css";
 
 /*
@@ -15,6 +16,7 @@ import "./globals.css";
  * 여러 번 불려도 한 번만 걸린다(`dict-schedule.ts`의 모듈 표시).
  */
 startDictSchedule();
+startLegalSyncSchedule();
 
 export const metadata: Metadata = {
   title: {

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/db/client", () => ({ corpusDb: () => ({}) }));
+vi.mock("@/db/client", () => ({ corpusDb: () => ({}), legalDb: () => ({}) }));
 vi.mock("@/db/corpus/repository", () => ({
   searchLawVersions: mocks.searchLawVersions,
 }));

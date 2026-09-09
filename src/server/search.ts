@@ -1,5 +1,5 @@
 import "server-only";
-import { corpusDb } from "@/db/client";
+import { corpusDb, legalDb } from "@/db/client";
 import { searchLawVersions } from "@/db/corpus/repository";
 import { type JudgmentHit, searchJudgments } from "@/db/corpus/search";
 import { parseCaseNumber } from "@/lib/case-number/normalize";
@@ -125,7 +125,7 @@ function toLawHit(row: {
 /** 초성 후보별 결과를 순서대로 합치되, 같은 법의 여러 시행판은 한 번만 보여 준다. */
 function findLaws(queries: readonly string[]): readonly LawHit[] {
   const byLaw = new Map<string, LawHit>();
-  const db = corpusDb();
+  const db = legalDb();
 
   for (const query of queries) {
     for (const row of searchLawVersions(db, query)) {

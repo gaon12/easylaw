@@ -2,17 +2,10 @@ import "server-only";
 import { statSync } from "node:fs";
 import { and, count, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { auditLog, user } from "@/db/app/schema";
-import { appDb, corpusDb, dictDb } from "@/db/client";
-import {
-  judgment,
-  judgmentSpan,
-  lawArticle,
-  lawVersion,
-  lookupMiss,
-  rendition,
-  renditionAudio,
-} from "@/db/corpus/schema";
+import { appDb, corpusDb, dictDb, legalDb } from "@/db/client";
+import { judgment, judgmentSpan, lookupMiss, rendition, renditionAudio } from "@/db/corpus/schema";
 import { dictEntry, dictSource, legalTerm } from "@/db/dict/schema";
+import { lawArticle, lawVersion } from "@/db/legal/schema";
 import { env } from "@/lib/env";
 
 /**
@@ -39,11 +32,12 @@ interface ContentCounts {
 /**
  * 우리가 들고 있는 자료의 크기.
  *
- * 셋은 **다른 파일**에 있고 서로 조인하지 않는다(`ARCHITECTURE.md` §3). 그래서 질의도
- * 셋으로 나뉜다 — 한 번에 세는 방법은 없고, 있어서도 안 된다.
+ * 자료군은 **다른 파일**에 있고 서로 조인하지 않는다. 그래서 질의도 나뉜다 — 한 번에
+ * 세는 방법은 없고, 있어서도 안 된다.
  */
 function contentCounts(): ContentCounts {
   const corpus = corpusDb();
+  const legal = legalDb();
   const dict = dictDb();
 
   const one = (rows: { n: number }[]): number => rows.at(0)?.n ?? 0;
@@ -51,8 +45,8 @@ function contentCounts(): ContentCounts {
   return {
     judgments: one(corpus.select({ n: count() }).from(judgment).all()),
     renditions: one(corpus.select({ n: count() }).from(rendition).all()),
-    lawVersions: one(corpus.select({ n: count() }).from(lawVersion).all()),
-    lawArticles: one(corpus.select({ n: count() }).from(lawArticle).all()),
+    lawVersions: one(legal.select({ n: count() }).from(lawVersion).all()),
+    lawArticles: one(legal.select({ n: count() }).from(lawArticle).all()),
     lookupMisses: one(corpus.select({ n: count() }).from(lookupMiss).all()),
     dictEntries: one(dict.select({ n: count() }).from(dictEntry).all()),
     legalTerms: one(dict.select({ n: count() }).from(legalTerm).all()),
@@ -179,7 +173,8 @@ function storageRows(): StorageRow[] {
   const config = env();
 
   return [
-    { label: "판례·법령", path: config.CORPUS_DB_PATH, bytes: sizeOf(config.CORPUS_DB_PATH) },
+    { label: "판결문", path: config.CORPUS_DB_PATH, bytes: sizeOf(config.CORPUS_DB_PATH) },
+    { label: "법령자료", path: config.LEGAL_DB_PATH, bytes: sizeOf(config.LEGAL_DB_PATH) },
     { label: "서비스", path: config.APP_DB_PATH, bytes: sizeOf(config.APP_DB_PATH) },
     { label: "사전", path: config.DICT_DB_PATH, bytes: sizeOf(config.DICT_DB_PATH) },
   ];

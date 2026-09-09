@@ -24,9 +24,9 @@
 import process from "node:process";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import type { CorpusDb } from "@/db/client";
+import type { LegalDb } from "@/db/client";
 import { upsertLawVersions } from "@/db/corpus/repository";
-import { corpusSchema } from "@/db/corpus/schema";
+import { legalSchema } from "@/db/legal/schema";
 import { parseListPage } from "@/lib/law-api/envelope";
 import { readRejection } from "@/lib/law-api/parse";
 import { parseLawSummary } from "@/lib/law-api/parse-law";
@@ -44,11 +44,11 @@ const PAGE_SIZE = 500;
 const PAUSE_MS = 300;
 
 /** `sqlite3` 연결. `src/db/client.ts`는 `server-only`라 스크립트에서 쓸 수 없다(`seed.ts` 참고). */
-function openCorpus(path: string): { db: CorpusDb; close: () => void } {
+function openLegal(path: string): { db: LegalDb; close: () => void } {
   const sqlite = new Database(path);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
-  return { db: drizzle(sqlite, { schema: corpusSchema }), close: () => sqlite.close() };
+  return { db: drizzle(sqlite, { schema: legalSchema }), close: () => sqlite.close() };
 }
 
 function readOc(appDbPath: string): string {
@@ -105,10 +105,10 @@ function pageLimit(): number {
 }
 
 async function main(): Promise<void> {
-  const corpusPath = process.env.CORPUS_DB_PATH ?? "data/corpus.sqlite";
+  const legalPath = process.env.LEGAL_DB_PATH ?? "data/legal.sqlite";
   const appPath = process.env.APP_DB_PATH ?? "data/app.sqlite";
 
-  const { db, close } = openCorpus(corpusPath);
+  const { db, close } = openLegal(legalPath);
   try {
     const oc = readOc(appPath);
     const limit = pageLimit();
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
       await sleep(PAUSE_MS);
     }
 
-    process.stdout.write(`\n법령 판 동기화 완료 (${corpusPath})\n`);
+    process.stdout.write(`\n법령 판 동기화 완료 (${legalPath})\n`);
     process.stdout.write(`  받은 목록 ${seen}건 / 법제처 총 ${total}건\n`);
     process.stdout.write(`  새로 넣은 판 ${added}건 (나머지는 이미 있어 건너뜀)\n`);
   } finally {

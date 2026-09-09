@@ -1,5 +1,5 @@
 import "server-only";
-import { corpusDb } from "@/db/client";
+import { legalDb } from "@/db/client";
 import {
   findLatestLawVersion,
   findLawArticle,
@@ -100,7 +100,7 @@ async function lawAsOf(
   at: Date,
   signal?: AbortSignal,
 ): Promise<LawLookup> {
-  const db = corpusDb();
+  const db = legalDb();
   const version = findLawVersionAt(db, key, at);
   if (version === undefined) {
     /*
@@ -215,7 +215,7 @@ async function verifyCitation(
     };
   }
 
-  const db = corpusDb();
+  const db = legalDb();
   const version = findLawVersionAt(db, key, at);
   const article =
     version === undefined

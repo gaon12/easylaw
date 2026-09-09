@@ -10,7 +10,7 @@
  */
 
 import { inArray, sql } from "drizzle-orm";
-import type { CorpusDb } from "../client";
+import type { CorpusDb, LegalDb } from "../client";
 import { judgmentFts, lawFts } from "./fts-tables";
 import { judgment } from "./schema";
 
@@ -172,7 +172,7 @@ const MIN_TRIGRAM = 3;
  * 부르는 쪽이 예전 방식으로 훑는다 — 느린 것과 못 찾는 것 중에는 느린 쪽이 낫다.
  */
 function searchLawIds(
-  db: CorpusDb,
+  db: CorpusDb | LegalDb,
   query: string,
   limit: number = DEFAULT_LIMIT,
 ): string[] | undefined {

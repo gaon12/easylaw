@@ -77,6 +77,24 @@ function parseListPage<T>(
   };
 }
 
+/** 항목 모양을 모르는 자료도 동기화 카탈로그에는 원문 그대로 보관한다. */
+function parseRawListPage(
+  payload: unknown,
+  spec: { listEnvelope: string; listItemKey: string },
+): ListPage<Record<string, unknown>> {
+  const body = openEnvelope(payload, spec.listEnvelope);
+  const meta = listMetaSchema.parse(body);
+  return {
+    total: Number(meta.totalCnt ?? 0),
+    items: asArray(body[spec.listItemKey]).map((item) => {
+      if (item === null || typeof item !== "object" || Array.isArray(item)) {
+        throw new Error("목록 항목이 객체가 아닙니다.");
+      }
+      return item as Record<string, unknown>;
+    }),
+  };
+}
+
 /** 빈 문자열과 없음을 같게 다룬다. 이 API는 값이 없을 때 `""`를 자주 준다. */
 function optionalText(raw: unknown): string | undefined {
   if (raw === undefined || raw === null) {
@@ -110,5 +128,13 @@ function parseApiDate(raw: unknown): Date | undefined {
   return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
 }
 
-export { asArray, looseValue, openEnvelope, optionalText, parseApiDate, parseListPage };
+export {
+  asArray,
+  looseValue,
+  openEnvelope,
+  optionalText,
+  parseApiDate,
+  parseListPage,
+  parseRawListPage,
+};
 export type { ListPage };

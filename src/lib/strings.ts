@@ -996,7 +996,8 @@ export const admin = {
   /** 자료. 무엇을 얼마나 들고 있나. */
   contentTitle: "자료",
   contentIntro: "지금 가지고 있는 판례·법령·사전이에요.",
-  contentCorpus: "판례·법령",
+  contentCorpus: "판결문 자료",
+  contentLegalCorpus: "법령자료",
   contentDict: "사전",
   contentJudgments: "판례",
   contentRenditions: "쉬운 설명",
@@ -1127,7 +1128,7 @@ export const admin = {
   systemTitle: "시스템",
   systemIntro: "이 서버가 어떤 상태인지 살펴봤어요. 설치할 때 본 것과 같은 항목이에요.",
   storageTitle: "저장 공간",
-  storageIntro: "데이터베이스는 세 파일로 나뉘어 있어요. 어느 것이 커지는지 여기서 보여요.",
+  storageIntro: "데이터베이스는 네 파일로 나뉘어 있어요. 어느 것이 커지는지 여기서 보여요.",
   storageColumns: { label: "무엇", path: "파일", bytes: "크기" },
   storageMissing: "아직 없어요",
   audioStorage: (clips: number, size: string) => `음성 ${clips}개, ${size}`,

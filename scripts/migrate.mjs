@@ -29,6 +29,11 @@ const DATABASES = [
     migrations: "drizzle/app",
   },
   {
+    name: "legal",
+    path: process.env.LEGAL_DB_PATH ?? "data/legal.sqlite",
+    migrations: "drizzle/legal",
+  },
+  {
     name: "dict",
     path: process.env.DICT_DB_PATH ?? "data/dict.sqlite",
     migrations: "drizzle/dict",
@@ -70,4 +75,70 @@ for (const target of DATABASES) {
   sqlite.close();
 
   process.stdout.write(`${target.name}: 마이그레이션 완료 (${target.path})\n`);
+}
+
+/*
+ * 2026-09: 법령자료를 판결문 코퍼스에서 분리했다. 기존 설치는 법령판과 이미 받아 둔 조문을
+ * 잃으면 안 되므로 새 DB가 비어 있을 때 한 번만 복사한다. 옛 표는 복구용으로 남겨 둔다.
+ */
+const legalPath = resolve(process.cwd(), process.env.LEGAL_DB_PATH ?? "data/legal.sqlite");
+const legacyCorpusPath = resolve(process.cwd(), process.env.CORPUS_DB_PATH ?? "data/corpus.sqlite");
+if (legalPath !== legacyCorpusPath) {
+  const legal = new Database(legalPath);
+  legal.pragma("foreign_keys = OFF");
+  legal.prepare("ATTACH DATABASE ? AS legacy_corpus").run(legacyCorpusPath);
+  const hasLegacy = legal
+    .prepare("SELECT 1 FROM legacy_corpus.sqlite_master WHERE type='table' AND name='law_version'")
+    .get();
+  const current = legal.prepare("SELECT count(*) AS n FROM law_version").get().n;
+  if (hasLegacy && current === 0) {
+    legal.exec(
+      "DROP TRIGGER IF EXISTS law_fts_insert; DROP TRIGGER IF EXISTS law_fts_update; DROP TRIGGER IF EXISTS law_fts_delete;",
+    );
+    legal.transaction(() => {
+      legal.exec(`INSERT OR IGNORE INTO law_version
+        (id, law_id, mst, name, short_name, kind, ministry, promulgated_at, effective_at,
+         history_code, body_fetched_at, sections, created_at)
+        SELECT id, law_id, mst, name, short_name, kind, ministry, promulgated_at, effective_at,
+         history_code, body_fetched_at, sections, created_at FROM legacy_corpus.law_version`);
+      const hasArticles = legal
+        .prepare(
+          "SELECT 1 FROM legacy_corpus.sqlite_master WHERE type='table' AND name='law_article'",
+        )
+        .get();
+      if (hasArticles) {
+        legal.exec(`INSERT OR IGNORE INTO law_article
+          (id, law_version_id, article_no, branch_no, title, body, effective_at, clauses, order_idx)
+          SELECT id, law_version_id, article_no, branch_no, title, body, effective_at, clauses, order_idx
+          FROM legacy_corpus.law_article`);
+      }
+      legal.exec(`DELETE FROM law_fts;
+        INSERT INTO law_fts (law_id, name)
+        SELECT law_id, group_concat(DISTINCT name) || ' ' || coalesce(group_concat(DISTINCT short_name), '')
+        FROM law_version GROUP BY law_id;`);
+    })();
+    legal.exec(`CREATE TRIGGER law_fts_insert AFTER INSERT ON law_version BEGIN
+      DELETE FROM law_fts WHERE law_id = new.law_id;
+      INSERT INTO law_fts (law_id, name) SELECT law_id, group_concat(DISTINCT name) || ' ' || coalesce(group_concat(DISTINCT short_name), '') FROM law_version WHERE law_id = new.law_id GROUP BY law_id;
+    END;
+    CREATE TRIGGER law_fts_update AFTER UPDATE OF name, short_name ON law_version BEGIN
+      DELETE FROM law_fts WHERE law_id = new.law_id;
+      INSERT INTO law_fts (law_id, name) SELECT law_id, group_concat(DISTINCT name) || ' ' || coalesce(group_concat(DISTINCT short_name), '') FROM law_version WHERE law_id = new.law_id GROUP BY law_id;
+    END;
+    CREATE TRIGGER law_fts_delete AFTER DELETE ON law_version WHEN NOT EXISTS (SELECT 1 FROM law_version WHERE law_id = old.law_id) BEGIN
+      DELETE FROM law_fts WHERE law_id = old.law_id;
+    END;`);
+    const copied = legal.prepare("SELECT count(*) AS n FROM law_version").get().n;
+    process.stdout.write(`legal: 기존 법령자료 ${copied}건을 분리 DB로 옮겼습니다.\n`);
+  }
+  const copiedViolations = legal.pragma("foreign_key_check");
+  if (copiedViolations.length > 0) {
+    legal.close();
+    throw new Error(
+      `legal: 기존 자료 이전 후 외래 키가 깨졌습니다 (${copiedViolations.length}건).`,
+    );
+  }
+  legal.exec("DETACH DATABASE legacy_corpus");
+  legal.pragma("foreign_keys = ON");
+  legal.close();
 }

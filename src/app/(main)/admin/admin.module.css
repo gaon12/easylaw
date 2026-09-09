@@ -303,6 +303,28 @@
   gap: var(--el-space-5);
 }
 
+.syncForm {
+  display: grid;
+  gap: var(--el-space-3);
+  padding-top: var(--el-space-3);
+  border-top: 1px solid var(--el-border-subtle);
+}
+
+.syncChoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--el-space-1) var(--el-space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.syncChoices legend {
+  grid-column: 1 / -1;
+  margin-bottom: var(--el-space-1);
+}
+
 .usage {
   gap: var(--el-space-3);
 }

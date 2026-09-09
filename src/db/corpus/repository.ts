@@ -10,7 +10,8 @@ import { and, asc, count, desc, eq, inArray, isNull, like, lt, lte, or, sql } fr
 import type { GenerationSnapshot } from "@/lib/generation-snapshot";
 import type { JobOutcome } from "@/lib/job-outcome";
 import { STALE_AFTER_MS } from "@/lib/timing";
-import type { CorpusDb } from "../client";
+import type { CorpusDb, LegalDb } from "../client";
+import { lawArticle, lawVersion } from "../legal/schema";
 import {
   audioUsage,
   contentRelease,
@@ -20,8 +21,6 @@ import {
   judgment,
   judgmentRevision,
   judgmentSpan,
-  lawArticle,
-  lawVersion,
   lookupMiss,
   nodeSpan,
   rendition,
@@ -40,6 +39,7 @@ type Confidence = (typeof renditionSentence.confidence.enumValues)[number];
 type ReviewState = (typeof rendition.reviewState.enumValues)[number];
 type Outcome = (typeof judgment.outcome.enumValues)[number];
 type ReleaseState = "missing" | "draft" | "reviewing" | "published" | "stale" | "rejected";
+type LawDb = CorpusDb | LegalDb;
 
 interface JudgmentInput {
   caseNoCanonical: string;
@@ -1716,7 +1716,7 @@ const INSERT_CHUNK = 500;
  * 이유가 없고, 덮어쓰면 이미 받아 둔 본문(`bodyFetchedAt`)까지 날아간다.
  * 목록 동기화를 여러 번 돌려도 결과가 같아야 한다.
  */
-function upsertLawVersions(db: CorpusDb, versions: readonly LawVersionInput[]): number {
+function upsertLawVersions(db: LawDb, versions: readonly LawVersionInput[]): number {
   if (versions.length === 0) {
     return 0;
   }
@@ -1758,7 +1758,7 @@ function upsertLawVersions(db: CorpusDb, versions: readonly LawVersionInput[]): 
  *
  * 법제처에 묻지 않는다 — 목록을 미리 받아 두었으므로 인덱스 하나로 끝난다.
  */
-function findLawVersionAt(db: CorpusDb, key: { lawId: string } | { name: string }, at: Date) {
+function findLawVersionAt(db: LawDb, key: { lawId: string } | { name: string }, at: Date) {
   const matchesLaw =
     "lawId" in key ? eq(lawVersion.lawId, key.lawId) : eq(lawVersion.name, key.name);
 
@@ -1777,7 +1777,7 @@ function findLawVersionAt(db: CorpusDb, key: { lawId: string } | { name: string 
  * 결과가 달라야 한다 — 앞은 이름이 틀렸거나 동기화가 덜 된 것이고, 뒤는 판결일이
  * 제정 전이라는 사실이다.
  */
-function findLatestLawVersion(db: CorpusDb, name: string) {
+function findLatestLawVersion(db: LawDb, name: string) {
   return db
     .select()
     .from(lawVersion)
@@ -1787,7 +1787,7 @@ function findLatestLawVersion(db: CorpusDb, name: string) {
 }
 
 /** 같은 mst가 시행일만 다르게 여럿일 수 있다. 가장 늦게 시행된 것을 준다. */
-function findLawVersionByMst(db: CorpusDb, mst: string) {
+function findLawVersionByMst(db: LawDb, mst: string) {
   return db
     .select()
     .from(lawVersion)
@@ -1820,7 +1820,7 @@ interface LawSectionInput {
 }
 
 function saveLawArticles(
-  db: CorpusDb,
+  db: LawDb,
   lawVersionId: string,
   articles: readonly LawArticleInput[],
   sections: readonly LawSectionInput[] = [],
@@ -1861,7 +1861,7 @@ function saveLawArticles(
  * (도로교통법 209개 중 29건), 느슨하게 맞추면 조용히 틀린 근거를 붙인다.
  */
 /** 장·절 제목. 본문과 함께 저장돼 있다. */
-function listLawSections(db: CorpusDb, lawVersionId: string): LawSectionInput[] {
+function listLawSections(db: LawDb, lawVersionId: string): LawSectionInput[] {
   const row = db
     .select({ sections: lawVersion.sections })
     .from(lawVersion)
@@ -1870,7 +1870,7 @@ function listLawSections(db: CorpusDb, lawVersionId: string): LawSectionInput[] 
   return (row?.sections as LawSectionInput[] | null) ?? [];
 }
 
-function findLawArticle(db: CorpusDb, lawVersionId: string, articleNo: string, branchNo = "") {
+function findLawArticle(db: LawDb, lawVersionId: string, articleNo: string, branchNo = "") {
   return db
     .select()
     .from(lawArticle)
@@ -1891,7 +1891,7 @@ function findLawArticle(db: CorpusDb, lawVersionId: string, articleNo: string, b
  * 당시에는 아직 시행되지 않은 조문까지 근거로 붙일 수 있다. 시행일이 없는 조문은
  * 남긴다 — 없는 것을 버리는 쪽이 더 위험하다.
  */
-function listLawArticles(db: CorpusDb, lawVersionId: string, at?: Date) {
+function listLawArticles(db: LawDb, lawVersionId: string, at?: Date) {
   const rows = db
     .select()
     .from(lawArticle)
@@ -1923,7 +1923,7 @@ const LAW_SEARCH_LIMIT = 20;
  * 트라이그램 색인은 세 글자부터 걸린다. 그보다 짧은 질의("법", "소송" 같은)는 예전처럼
  * 전체를 훑는다 — 168,494행이라 25ms쯤 걸리지만, **못 찾는 것보다는 느린 편이 낫다.**
  */
-function searchLawVersionsByScan(db: CorpusDb, query: string, limit: number) {
+function searchLawVersionsByScan(db: LawDb, query: string, limit: number) {
   const pattern = `%${query}%`;
   const rows = db
     .select()
@@ -1945,7 +1945,7 @@ function searchLawVersionsByScan(db: CorpusDb, query: string, limit: number) {
 /** 한 법에 판이 여럿이라 넉넉히 읽고 묶는다. 도로교통법만 132판이다. */
 const SCAN_MATCHES_PER_LAW = 40;
 
-function searchLawVersions(db: CorpusDb, query: string, limit = LAW_SEARCH_LIMIT) {
+function searchLawVersions(db: LawDb, query: string, limit = LAW_SEARCH_LIMIT) {
   const trimmed = query.trim();
   if (trimmed.length === 0) {
     return [];
@@ -2011,7 +2011,7 @@ interface LawNameEntry {
  * 약칭도 함께 낸다. 실측(2026-09-03) 약칭 2,676개 중 두 개 이상의 `lawId`를 가리키는
  * 모호한 것은 8개뿐이고, 그것들만 버리면 나머지는 그대로 쓸 수 있다.
  */
-function listLawNameEntries(db: CorpusDb): LawNameEntry[] {
+function listLawNameEntries(db: LawDb): LawNameEntry[] {
   return db
     .selectDistinct({
       lawId: lawVersion.lawId,

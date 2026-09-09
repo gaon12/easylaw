@@ -32,6 +32,10 @@ const SETTINGS = {
   /** HTTPS로 서비스하는가. 세션 쿠키의 `secure` 플래그가 이 값을 본다. */
   secure_cookies: { secret: false },
   law_api_oc: { secret: true },
+  legal_sync_auto: { secret: false },
+  legal_sync_interval_hours: { secret: false },
+  legal_sync_sources: { secret: false },
+  legal_sync_details: { secret: false },
   llm_base_url: { secret: false },
   llm_api_key: { secret: true },
   llm_model: { secret: false },

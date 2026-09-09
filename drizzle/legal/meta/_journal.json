@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788873472158,
+      "tag": "0000_last_deathbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788913292495,
+      "tag": "0001_great_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788914613705,
+      "tag": "0002_violet_smasher",
+      "breakpoints": true
+    }
+  ]
+}

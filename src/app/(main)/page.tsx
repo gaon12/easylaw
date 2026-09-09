@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/icon";
 import { Section } from "@/components/ui/section";
 import type { IconName } from "@/components/ui/types";
 import { listUploadsForOwner } from "@/db/app/repository";
-import { appDb, corpusDb } from "@/db/client";
+import { appDb, corpusDb, legalDb } from "@/db/client";
 import { corpusStats, listSampleJudgments, type SampleJudgment } from "@/db/corpus/stats";
 import { help, home, viewer } from "@/lib/strings";
 import { currentSession, displayName } from "@/server/owner";
@@ -181,7 +181,7 @@ export default async function HomePage() {
   }
 
   const db = corpusDb();
-  const stats = corpusStats(db);
+  const stats = corpusStats(db, legalDb());
   const examples = listSampleJudgments(db, EXAMPLE_LIMIT);
 
   return (
