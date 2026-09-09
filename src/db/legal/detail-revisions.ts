@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { gunzipSync } from "node:zlib";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { LegalDb } from "@/db/client";
-import { legalResourceDetail, legalResourceDetailRevision } from "./schema";
+import { legalResource, legalResourceDetail, legalResourceDetailRevision } from "./schema";
 
 interface SaveLegalDetailInput {
   source: string;
@@ -180,6 +181,83 @@ function listLegalDetailRevisions(db: LegalDb, source: string, detailKey: string
     .map((row) => ({ ...row, isCurrent: row.id === row.currentRevisionId }));
 }
 
+/** 자료군 화면에서 최근 상세와 보존한 판 수를 함께 보여 준다. */
+function listLegalDetailOverview(db: LegalDb, source: string, limit = 100) {
+  const details = db
+    .select({
+      id: legalResourceDetail.id,
+      detailKey: legalResourceDetail.detailKey,
+      payloadHash: legalResourceDetail.payloadHash,
+      currentRevisionId: legalResourceDetail.currentRevisionId,
+      originalBytes: legalResourceDetail.originalBytes,
+      storedBytes: legalResourceDetail.storedBytes,
+      fetchedAt: legalResourceDetail.fetchedAt,
+    })
+    .from(legalResourceDetail)
+    .where(eq(legalResourceDetail.source, source))
+    .orderBy(desc(legalResourceDetail.fetchedAt))
+    .limit(limit)
+    .all();
+  if (details.length === 0) {
+    return [];
+  }
+  const detailIds = details.map((detail) => detail.id);
+  const detailKeys = details.map((detail) => detail.detailKey);
+  const counts = new Map(
+    db
+      .select({
+        detailId: legalResourceDetailRevision.detailId,
+        count: sql<number>`count(*)`,
+      })
+      .from(legalResourceDetailRevision)
+      .where(inArray(legalResourceDetailRevision.detailId, detailIds))
+      .groupBy(legalResourceDetailRevision.detailId)
+      .all()
+      .map((row) => [row.detailId, row.count]),
+  );
+  const titles = new Map<string, string>();
+  for (const row of db
+    .select({ detailKey: legalResource.detailKey, title: legalResource.title })
+    .from(legalResource)
+    .where(and(eq(legalResource.source, source), inArray(legalResource.detailKey, detailKeys)))
+    .all()) {
+    if (row.detailKey !== null && !titles.has(row.detailKey)) {
+      titles.set(row.detailKey, row.title);
+    }
+  }
+  return details.map((detail) => ({
+    ...detail,
+    title: titles.get(detail.detailKey),
+    revisions: counts.get(detail.id) ?? 0,
+  }));
+}
+
+function findLegalDetailOverview(db: LegalDb, source: string, detailId: string) {
+  const detail = db
+    .select({
+      id: legalResourceDetail.id,
+      detailKey: legalResourceDetail.detailKey,
+      payloadHash: legalResourceDetail.payloadHash,
+      currentRevisionId: legalResourceDetail.currentRevisionId,
+      originalBytes: legalResourceDetail.originalBytes,
+      storedBytes: legalResourceDetail.storedBytes,
+      fetchedAt: legalResourceDetail.fetchedAt,
+    })
+    .from(legalResourceDetail)
+    .where(and(eq(legalResourceDetail.id, detailId), eq(legalResourceDetail.source, source)))
+    .get();
+  if (detail === undefined) {
+    return;
+  }
+  const title = db
+    .select({ title: legalResource.title })
+    .from(legalResource)
+    .where(and(eq(legalResource.source, source), eq(legalResource.detailKey, detail.detailKey)))
+    .limit(1)
+    .get()?.title;
+  return { ...detail, title };
+}
+
 /** 현재판은 detail의 한 벌을 읽고, 과거판은 revision에 옮겨 둔 본문을 읽는다. */
 function readLegalDetailRevision(db: LegalDb, revisionId: string): Buffer | undefined {
   const row = db
@@ -203,5 +281,57 @@ function readLegalDetailRevision(db: LegalDb, revisionId: string): Buffer | unde
   );
 }
 
-export { listLegalDetailRevisions, readLegalDetailRevision, saveLegalDetailRevision };
+/** URL에서 받은 UUID가 요청한 자료군·상세에 실제로 속하는지 확인한 뒤 읽는다. */
+function readLegalDetailRevisionForDetail(
+  db: LegalDb,
+  source: string,
+  detailId: string,
+  revisionId: string,
+): Buffer | undefined {
+  const row = db
+    .select({
+      revisionPayload: legalResourceDetailRevision.payload,
+      currentRevisionId: legalResourceDetail.currentRevisionId,
+      currentPayload: legalResourceDetail.payload,
+    })
+    .from(legalResourceDetailRevision)
+    .innerJoin(
+      legalResourceDetail,
+      eq(legalResourceDetailRevision.detailId, legalResourceDetail.id),
+    )
+    .where(
+      and(
+        eq(legalResourceDetailRevision.id, revisionId),
+        eq(legalResourceDetail.id, detailId),
+        eq(legalResourceDetail.source, source),
+      ),
+    )
+    .get();
+  if (row === undefined) {
+    return;
+  }
+  return (
+    row.revisionPayload ?? (row.currentRevisionId === revisionId ? row.currentPayload : undefined)
+  );
+}
+
+function readLegalDetailRevisionJsonForDetail(
+  db: LegalDb,
+  source: string,
+  detailId: string,
+  revisionId: string,
+): unknown | undefined {
+  const compressed = readLegalDetailRevisionForDetail(db, source, detailId, revisionId);
+  return compressed === undefined ? undefined : JSON.parse(gunzipSync(compressed).toString("utf8"));
+}
+
+export {
+  findLegalDetailOverview,
+  listLegalDetailOverview,
+  listLegalDetailRevisions,
+  readLegalDetailRevision,
+  readLegalDetailRevisionForDetail,
+  readLegalDetailRevisionJsonForDetail,
+  saveLegalDetailRevision,
+};
 export type { SaveLegalDetailInput, SaveLegalDetailResult };

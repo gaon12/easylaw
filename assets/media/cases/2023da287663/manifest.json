@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-09-09",
+  "generator": "OpenAI ImageGen",
+  "characterReference": "assets/characters/easylaw-guides-v1-source.png",
+  "commonPrompt": "Create a brand-new 4:3 editorial illustration for a Korean Easy Read legal service. Use the attached male and female EasyLaw guides as strict character references: preserve their faces, hair, navy/teal clothing, white inner shirts, and small blue-teal folded-document badge. Refine the style into a polished Korean public-institution mascot with restrained modern Japanese anime influence: clean confident linework, gentle expressions, professional and approachable, adult proportions, no chibi exaggeration, no glossy 3D, no stock-vector look. Pale blue-gray document background, navy/teal/blue palette with limited warm yellow accents, generous negative space, clear visual hierarchy, accessible at small size. No words, letters, numbers, watermarks, logos, UI text, fake writing, or decorative symbols. Show one coherent scene, not a collage.",
+  "assets": [
+    {
+      "name": "payment-plan-002",
+      "scenePrompt": "Show the female guide distributing factory sale proceeds according to a calendar into two creditor trays, with the male guide helping explain the scheduled allocation.",
+      "source": "sources/payment-plan-002-source.png",
+      "sourceSha256": "0a72b5a9c0e28b283d4dcbee5d0e27aac2b9d00fb92769cb20bc1eca6294768e",
+      "thumbhash": "recFFYI01mVnloxfepapa0ZgygP3"
+    },
+    {
+      "name": "payment-dispute-002",
+      "scenePrompt": "Show the male and female guides comparing creditor priority with payment-calendar timing around one shared pool of money.",
+      "source": "sources/payment-dispute-002-source.png",
+      "sourceSha256": "83a118c65b44d1f5d08e36bb0b75a96c8bcc7deb9ee673ad41b5aded288c493f",
+      "thumbhash": "b9cFDYAh45l5l46/zJeUWgZ4w/d1"
+    },
+    {
+      "name": "plan-review-002",
+      "scenePrompt": "Show the guides reviewing an approved rehabilitation-plan binder together with its matching payment date.",
+      "source": "sources/plan-review-002-source.png",
+      "sourceSha256": "8ad2cabaf2b28c65bef2ffc1693441386372523115dec664b211f77cd52e4cdd",
+      "thumbhash": "qvcJDYJzqWhliXiPiaZndWeAzBn5"
+    },
+    {
+      "name": "remand-review-002",
+      "scenePrompt": "Show the male guide at a higher court sending a case file along a curved return path to the female guide at a lower court for reconsideration.",
+      "source": "sources/remand-review-002-source.png",
+      "sourceSha256": "a0d7ffda0c2f12bc175b2a7b3d539c741475a61dd11e4c643e739702d0b000e3",
+      "thumbhash": "rucJDYJGhpgOqYqViOeMl2PQSGeP"
+    }
+  ]
+}

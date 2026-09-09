@@ -1,20 +1,20 @@
 /** 관리자와 같은 동기화 엔진으로 모든 법제처 목록·상세자료를 제한 병렬 저장한다. */
 import process from "node:process";
 import {
-  isLegalSyncSource,
-  type LegalSyncSource,
-  SOURCE_NAMES,
+  BULK_SOURCE_NAMES,
+  type BulkLegalSyncSource,
+  isBulkLegalSyncSource,
   startLegalSync,
 } from "@/server/legal-sync";
 
-function requestedSources(): LegalSyncSource[] {
+function requestedSources(): BulkLegalSyncSource[] {
   const index = process.argv.indexOf("--source");
   if (index === -1) {
-    // 작은 자료군을 먼저 끝내고 가장 큰 시행일법령은 마지막에 받는다.
-    return [...SOURCE_NAMES.filter((source) => source !== "eflaw"), "eflaw"];
+    // 판례는 사건번호 요청 시 별도 저장한다. 작은 자료군부터 받고 시행일법령은 마지막이다.
+    return [...BULK_SOURCE_NAMES.filter((source) => source !== "eflaw"), "eflaw"];
   }
   const source = process.argv[index + 1];
-  if (source === undefined || !isLegalSyncSource(source)) {
+  if (source === undefined || !isBulkLegalSyncSource(source)) {
     throw new Error(`알 수 없는 자료 종류입니다: ${source ?? "(없음)"}`);
   }
   return [source];

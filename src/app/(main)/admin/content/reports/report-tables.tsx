@@ -136,7 +136,13 @@ function MediaReportRow({
           admin.reportMissingMedia
         ) : (
           <div className={styles.reportMedia}>
-            <Image alt={placement.alt} height={90} src={placement.src} width={120} />
+            <Image
+              alt={placement.alt}
+              height={90}
+              src={placement.src}
+              unoptimized={true}
+              width={120}
+            />
             <span>{placement.caption}</span>
             <code>{item.recipeKey}</code>
           </div>

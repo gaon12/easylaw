@@ -32,6 +32,7 @@ const KIBIBYTE = 1024;
 const BYTES_PER_GIB = KIBIBYTE * KIBIBYTE * KIBIBYTE;
 const FREE_SPACE_RESERVE_BYTES = 2 * BYTES_PER_GIB;
 const DETAIL_CONCURRENCY = 4;
+const FILE_CONCURRENCY = 8;
 const SOURCE_CONCURRENCY = 3;
 const MAX_CONSECUTIVE_FAILURES = 10;
 const ERROR_SAMPLE_LIMIT = 5;
@@ -49,7 +50,12 @@ const SOURCE_NAMES = [
 ] as const satisfies readonly TargetName[];
 
 type LegalSyncSource = (typeof SOURCE_NAMES)[number];
+type BulkLegalSyncSource = Exclude<LegalSyncSource, "prec">;
 type SyncTrigger = "manual" | "automatic";
+
+const BULK_SOURCE_NAMES = SOURCE_NAMES.filter(
+  (source): source is BulkLegalSyncSource => source !== "prec",
+);
 
 const ID_FIELDS: Record<LegalSyncSource, readonly string[]> = {
   eflaw: ["법령일련번호", "법령ID"],
@@ -607,9 +613,9 @@ async function syncFileCandidates(
   counters: DetailCounters,
   errors: string[],
 ): Promise<void> {
-  for (let index = 0; index < candidates.length; index += DETAIL_CONCURRENCY) {
-    const chunk = candidates.slice(index, index + DETAIL_CONCURRENCY);
-    // biome-ignore lint/performance/noAwaitInLoops: 파일 다운로드 동시 실행 수를 네 개로 제한한다.
+  for (let index = 0; index < candidates.length; index += FILE_CONCURRENCY) {
+    const chunk = candidates.slice(index, index + FILE_CONCURRENCY);
+    // biome-ignore lint/performance/noAwaitInLoops: 파일 다운로드 동시 실행 수를 여덟 개로 제한한다.
     const results = await Promise.allSettled(
       chunk.map((candidate) => syncResourceFile(candidate, counters)),
     );
@@ -811,6 +817,33 @@ async function syncLegalSource(
   }
 }
 
+function enqueueLegalSync(
+  source: LegalSyncSource,
+  trigger: SyncTrigger,
+  includeDetails: boolean,
+  prerequisite: Promise<void> = Promise.resolve(),
+): Promise<void> | undefined {
+  if (syncState.pending.has(source) || syncState.running.has(source)) {
+    return;
+  }
+  syncState.pending.add(source);
+  const queueIndex = syncState.nextQueue % SOURCE_CONCURRENCY;
+  syncState.nextQueue += 1;
+  const queue = syncState.workQueues[queueIndex] ?? Promise.resolve();
+  const job = queue
+    .catch(() => {
+      // 앞 작업의 실패가 이 줄의 다음 자료 시작을 막지 않게 한다.
+    })
+    .then(() => prerequisite)
+    .then(() => syncLegalSource(source, trigger, includeDetails))
+    .finally(() => {
+      syncState.pending.delete(source);
+    });
+  // 공유 큐는 복구하되 호출자에게 돌려주는 job은 실패를 유지해 CLI와 운영 로그가 감지한다.
+  syncState.workQueues[queueIndex] = job.catch(() => undefined);
+  return job;
+}
+
 function startLegalSync(
   sources: readonly LegalSyncSource[],
   trigger: SyncTrigger,
@@ -818,32 +851,33 @@ function startLegalSync(
 ): Promise<void> {
   const scheduled: Promise<void>[] = [];
   for (const source of sources) {
-    if (syncState.pending.has(source) || syncState.running.has(source)) {
+    // 판례는 사건번호 요청 시 corpus DB에 저장하고, 파일 자료는 모든 비파일 자료 뒤에 예약한다.
+    if (source === "prec" || source === "licbyl") {
       continue;
     }
-    syncState.pending.add(source);
-    const queueIndex = syncState.nextQueue % SOURCE_CONCURRENCY;
-    syncState.nextQueue += 1;
-    // 자료 종류는 세 줄로, 각 종류의 상세는 네 요청씩 처리해 총 동시 요청을 12개로 제한한다.
-    const queue = syncState.workQueues[queueIndex] ?? Promise.resolve();
-    const job = queue
-      .catch(() => {
-        // 앞 작업의 실패가 이 줄의 다음 자료 시작을 막지 않게 한다.
-      })
-      .then(() => syncLegalSource(source, trigger, includeDetails))
-      .finally(() => {
-        syncState.pending.delete(source);
-      });
-    // 공유 큐는 복구하되 호출자에게 돌려주는 job은 실패를 유지해 CLI와 운영 로그가 감지한다.
-    syncState.workQueues[queueIndex] = job.catch(() => undefined);
-    scheduled.push(job);
+    const job = enqueueLegalSync(source, trigger, includeDetails);
+    if (job !== undefined) {
+      scheduled.push(job);
+    }
   }
-  return Promise.all(scheduled).then(() => undefined);
+  if (sources.includes("licbyl")) {
+    const prerequisite = Promise.allSettled([...syncState.workQueues]).then(() => undefined);
+    const fileJob = enqueueLegalSync("licbyl", trigger, includeDetails, prerequisite);
+    if (fileJob !== undefined) {
+      scheduled.push(fileJob);
+    }
+  }
+  return Promise.allSettled(scheduled).then((results) => {
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") {
+      throw failed.reason;
+    }
+  });
 }
 
 function legalSyncOverview() {
   const db = legalDb();
-  return SOURCE_NAMES.map((source) => {
+  return BULK_SOURCE_NAMES.map((source) => {
     const latest = db
       .select()
       .from(legalSyncRun)
@@ -901,5 +935,17 @@ function isLegalSyncSource(value: string): value is LegalSyncSource {
   return (SOURCE_NAMES as readonly string[]).includes(value);
 }
 
-export { isLegalSyncSource, legalSyncOverview, SOURCE_NAMES, startLegalSync, syncLegalSource };
-export type { LegalSyncSource, SyncTrigger };
+function isBulkLegalSyncSource(value: string): value is BulkLegalSyncSource {
+  return (BULK_SOURCE_NAMES as readonly string[]).includes(value);
+}
+
+export {
+  BULK_SOURCE_NAMES,
+  isBulkLegalSyncSource,
+  isLegalSyncSource,
+  legalSyncOverview,
+  SOURCE_NAMES,
+  startLegalSync,
+  syncLegalSource,
+};
+export type { BulkLegalSyncSource, LegalSyncSource, SyncTrigger };

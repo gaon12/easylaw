@@ -2,14 +2,14 @@
 
 import { redirect } from "next/navigation";
 import { appDb } from "@/db/client";
-import { isLegalSyncSource, startLegalSync } from "./legal-sync";
+import { isBulkLegalSyncSource, startLegalSync } from "./legal-sync";
 import { currentSession } from "./owner";
 import { writeSettings } from "./settings";
 
 const MAX_INTERVAL_HOURS = 8760;
 
 function selected(formData: FormData) {
-  return formData.getAll("source").map(String).filter(isLegalSyncSource);
+  return formData.getAll("source").map(String).filter(isBulkLegalSyncSource);
 }
 
 async function runLegalSync(formData: FormData): Promise<void> {

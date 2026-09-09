@@ -5,28 +5,26 @@ import sharp from "sharp";
 import { rgbaToThumbHash } from "thumbhash";
 
 const ROOT = process.cwd();
-const OUTPUT = path.join(ROOT, "public", "media", "cases", "2023da287663");
+const MEDIA_ROOT = path.join(ROOT, "assets", "media", "cases", "2023da287663");
+const SOURCE_ROOT = path.join(MEDIA_ROOT, "sources");
+const OUTPUT = path.join(MEDIA_ROOT, "generated");
 
 const SOURCES = [
   {
-    name: "payment-plan-001",
-    source:
-      "C:/Users/solso/.codex/generated_images/01a070c8-0d4b-72b3-a76c-72afff3e3564/exec-0b48e782-f921-413b-a805-e82eef94ddfe.png",
+    name: "payment-plan-002",
+    source: path.join(SOURCE_ROOT, "payment-plan-002-source.png"),
   },
   {
-    name: "payment-dispute-001",
-    source:
-      "C:/Users/solso/.codex/generated_images/01a070c8-0d4b-72b3-a76c-72afff3e3564/exec-e0504fe9-8bc2-48ab-8dd3-e175e040caa3.png",
+    name: "payment-dispute-002",
+    source: path.join(SOURCE_ROOT, "payment-dispute-002-source.png"),
   },
   {
-    name: "plan-review-001",
-    source:
-      "C:/Users/solso/.codex/generated_images/01a070c8-0d4b-72b3-a76c-72afff3e3564/exec-40e71517-f26c-4979-b920-3f0a87c6257b.png",
+    name: "plan-review-002",
+    source: path.join(SOURCE_ROOT, "plan-review-002-source.png"),
   },
   {
-    name: "remand-review-001",
-    source:
-      "C:/Users/solso/.codex/generated_images/01a070c8-0d4b-72b3-a76c-72afff3e3564/exec-3a77ea9d-79d8-4a23-be41-c46d26d7fef7.png",
+    name: "remand-review-002",
+    source: path.join(SOURCE_ROOT, "remand-review-002-source.png"),
   },
 ];
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Checkbox } from "@/components/shadcn/ui/checkbox";
 import { Input } from "@/components/shadcn/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
   listLookupMisses,
 } from "@/server/admin-overview";
 import { dictScheduleState } from "@/server/dict-schedule";
-import { legalSyncOverview, SOURCE_NAMES } from "@/server/legal-sync";
+import { BULK_SOURCE_NAMES, legalSyncOverview } from "@/server/legal-sync";
 import { runLegalSync, saveLegalSyncSchedule } from "@/server/legal-sync-actions";
 import { currentSession } from "@/server/owner";
 import { readSetting, siteTimeZone } from "@/server/settings";
@@ -23,7 +24,7 @@ import { JudgmentList } from "../judgment-list";
 const syncCopy = {
   title: "법제처 자료 동기화",
   intro:
-    "법제처의 10개 자료 목록을 카탈로그로 받습니다. 새 자료와 변경을 반영하고, 공식 목록에서 사라진 자료는 삭제하지 않고 ‘사라짐’으로 표시합니다. 실행은 백그라운드에서 진행되며 이 페이지를 새로고침하면 상태를 확인할 수 있습니다.",
+    "판례를 제외한 법제처의 9개 자료 목록을 카탈로그로 받습니다. 판례는 사건번호 요청 시 별도 저장하고, 별표·서식 파일은 다른 자료가 끝난 뒤 다운로드합니다. 새 자료와 변경을 반영하고, 공식 목록에서 사라진 자료는 삭제하지 않고 ‘사라짐’으로 표시합니다. 실행은 백그라운드에서 진행되며 이 페이지를 새로고침하면 상태를 확인할 수 있습니다.",
   started: "동기화를 시작했습니다.",
   saved: "자동 동기화 설정을 저장했습니다.",
   columns: ["자료", "상태", "활성", "상세 저장", "상세 이력", "사라짐", "최근 결과"],
@@ -132,7 +133,11 @@ export default async function AdminContentPage(props: {
                   <td>{row.latest === undefined ? "실행 전" : runStatus[row.latest.status]}</td>
                   <td>{`${row.active.toLocaleString()}건`}</td>
                   <td>{`${(row.details ?? 0).toLocaleString()}건`}</td>
-                  <td>{`${row.detailRevisions.toLocaleString()}판`}</td>
+                  <td>
+                    <Link className={styles.link} href={`/admin/content/legal/${row.source}`}>
+                      {`${row.detailRevisions.toLocaleString()}판`}
+                    </Link>
+                  </td>
                   <td>{`${row.missing.toLocaleString()}건`}</td>
                   <td>
                     {row.latest === undefined
@@ -148,7 +153,7 @@ export default async function AdminContentPage(props: {
         <form action={runLegalSync} className={styles.syncForm}>
           <fieldset className={styles.syncChoices}>
             <legend className={styles.label}>{syncCopy.manualLegend}</legend>
-            {SOURCE_NAMES.map((source) => {
+            {BULK_SOURCE_NAMES.map((source) => {
               const row = syncRows.find((item) => item.source === source);
               return (
                 <div className={styles.checkboxRow} key={source}>
@@ -193,7 +198,7 @@ export default async function AdminContentPage(props: {
           </div>
           <fieldset className={styles.syncChoices}>
             <legend className={styles.label}>{syncCopy.automaticLegend}</legend>
-            {SOURCE_NAMES.map((source) => {
+            {BULK_SOURCE_NAMES.map((source) => {
               const row = syncRows.find((item) => item.source === source);
               return (
                 <div className={styles.checkboxRow} key={source}>

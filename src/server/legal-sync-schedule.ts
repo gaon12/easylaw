@@ -5,7 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { appDb, legalDb } from "@/db/client";
 import { legalSyncRun } from "@/db/legal/schema";
 import { failInterruptedLegalSyncRuns } from "@/db/legal/sync-runs";
-import { isLegalSyncSource, startLegalSync } from "./legal-sync";
+import { isBulkLegalSyncSource, startLegalSync } from "./legal-sync";
 import { readSetting } from "./settings";
 
 const CHECK_MS = 60_000;
@@ -31,7 +31,7 @@ function configuredSources() {
   return raw
     .split(",")
     .map((v) => v.trim())
-    .filter(isLegalSyncSource);
+    .filter(isBulkLegalSyncSource);
 }
 
 function check(): void {

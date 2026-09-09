@@ -1,10 +1,15 @@
+import { gzipSync } from "node:zlib";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { LegalDb } from "@/db/client";
 import {
+  findLegalDetailOverview,
+  listLegalDetailOverview,
   listLegalDetailRevisions,
   readLegalDetailRevision,
+  readLegalDetailRevisionForDetail,
+  readLegalDetailRevisionJsonForDetail,
   saveLegalDetailRevision,
 } from "./detail-revisions";
 import { legalResourceDetail, legalResourceDetailRevision, legalSchema } from "./schema";
@@ -16,7 +21,21 @@ describe("법령 상세 원문판", () => {
   beforeEach(() => {
     raw = new Database(":memory:");
     raw.pragma("foreign_keys = ON");
-    raw.exec(`CREATE TABLE legal_resource_detail (
+    raw.exec(`CREATE TABLE legal_resource (
+      id text PRIMARY KEY NOT NULL,
+      source text NOT NULL,
+      external_id text NOT NULL,
+      title text NOT NULL,
+      kind text,
+      payload text NOT NULL,
+      payload_hash text NOT NULL,
+      detail_key text,
+      first_seen_at integer NOT NULL,
+      last_seen_at integer NOT NULL,
+      missing_at integer,
+      UNIQUE(source, external_id)
+    );
+    CREATE TABLE legal_resource_detail (
       id text PRIMARY KEY NOT NULL,
       source text NOT NULL,
       detail_key text NOT NULL,
@@ -48,7 +67,7 @@ describe("법령 상세 원문판", () => {
   afterEach(() => raw.close());
 
   function save(payloadHash: string, listPayloadHash: string, fetchedAt: string) {
-    const payload = Buffer.from(`gzip:${payloadHash}`);
+    const payload = gzipSync(Buffer.from(JSON.stringify({ payloadHash })));
     return saveLegalDetailRevision(db, {
       source: "prec",
       detailKey: "123",
@@ -76,7 +95,9 @@ describe("법령 상세 원문판", () => {
       { id: changed.revisionId, payloadHash: "hash-b" },
     ]);
     const revisions = db.select().from(legalResourceDetailRevision).all();
-    expect(revisions[0]?.payload).toEqual(Buffer.from("gzip:hash-a"));
+    expect(revisions[0]?.payload).toEqual(
+      gzipSync(Buffer.from(JSON.stringify({ payloadHash: "hash-a" }))),
+    );
     expect(revisions[1]?.payload).toBeNull();
     expect(db.select().from(legalResourceDetail).get()).toMatchObject({
       id: first.detailId,
@@ -84,12 +105,48 @@ describe("법령 상세 원문판", () => {
       listPayloadHash: "list-c",
       currentRevisionId: changed.revisionId,
     });
-    expect(readLegalDetailRevision(db, first.revisionId)).toEqual(Buffer.from("gzip:hash-a"));
-    expect(readLegalDetailRevision(db, changed.revisionId)).toEqual(Buffer.from("gzip:hash-b"));
+    expect(
+      readLegalDetailRevisionJsonForDetail(db, "prec", first.detailId, first.revisionId),
+    ).toEqual({ payloadHash: "hash-a" });
+    expect(
+      readLegalDetailRevisionJsonForDetail(db, "prec", first.detailId, changed.revisionId),
+    ).toEqual({ payloadHash: "hash-b" });
+    expect(
+      readLegalDetailRevisionForDetail(db, "detc", first.detailId, first.revisionId),
+    ).toBeUndefined();
+    expect(readLegalDetailRevisionForDetail(db, "prec", "other", first.revisionId)).toBeUndefined();
+    expect(readLegalDetailRevision(db, first.revisionId)).toEqual(revisions[0]?.payload);
     expect(readLegalDetailRevision(db, "missing")).toBeUndefined();
     expect(listLegalDetailRevisions(db, "prec", "123")).toMatchObject([
       { id: changed.revisionId, isCurrent: true },
       { id: first.revisionId, isCurrent: false },
     ]);
+
+    raw
+      .prepare(
+        `INSERT INTO legal_resource
+         (id, source, external_id, title, kind, payload, payload_hash, detail_key, first_seen_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "resource-a",
+        "prec",
+        "external-a",
+        "원문판 시험 자료",
+        "판례",
+        "{}",
+        "list-c",
+        "123",
+        Date.now(),
+        Date.now(),
+      );
+    expect(listLegalDetailOverview(db, "prec")).toMatchObject([
+      { id: first.detailId, title: "원문판 시험 자료", revisions: 2 },
+    ]);
+    expect(findLegalDetailOverview(db, "prec", first.detailId)).toMatchObject({
+      detailKey: "123",
+      title: "원문판 시험 자료",
+    });
+    expect(findLegalDetailOverview(db, "detc", first.detailId)).toBeUndefined();
   });
 });

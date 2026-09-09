@@ -28,7 +28,8 @@ interface VisualRecipe {
 interface MediaAsset {
   readonly id: string;
   readonly recipeId: string;
-  readonly src: string;
+  /** `public` 밖의 `assets/media`를 기준으로 한 서버 전용 경로다. */
+  readonly storageKey: string;
   readonly width: number;
   readonly height: number;
   readonly thumbhash: string;
@@ -58,60 +59,60 @@ const RECIPES: readonly VisualRecipe[] = [
     id: "126b0457-d90c-4d68-bc24-31d9ee2d1b35",
     key: "REHAB_SCHEDULED_PAYMENT_001",
     intent: "처분대금을 승인된 지급 일정에 따라 여러 채권자에게 배분한다",
-    version: 1,
+    version: 2,
   },
   {
     id: "0a17a172-553a-4fba-a959-5906c6b11ddd",
     key: "PAYMENT_RULE_DISPUTE_001",
     intent: "지급 우선순위와 지급 시기라는 두 해석이 다툼의 대상이다",
-    version: 1,
+    version: 2,
   },
   {
     id: "323531c9-c6cf-42fb-9536-2a9af47e5d52",
     key: "PLAN_AND_DATE_REVIEW_001",
     intent: "인가된 계획과 지급 시기를 함께 확인한다",
-    version: 1,
+    version: 2,
   },
   {
     id: "7a9d240f-cbc5-4039-83e3-88633af2f534",
     key: "REMAND_FOR_REVIEW_001",
     intent: "상급심이 사건 기록을 하급심의 재심리로 돌려보낸다",
-    version: 1,
+    version: 2,
   },
 ] as const;
 
 const ASSETS = [
   {
-    id: "7ccf6907-2388-4dde-b5ad-d4fd2a04f63d",
+    id: "21b15abe-2feb-4ff7-98c1-893647160b36",
     recipeId: "126b0457-d90c-4d68-bc24-31d9ee2d1b35",
-    src: "/media/cases/2023da287663/payment-plan-001-1200.webp",
+    storageKey: "cases/2023da287663/generated/payment-plan-002-1200.webp",
     width: 1200,
     height: 900,
-    thumbhash: "Z8eBBIA1VfywlV2c+j+SmkpfiIh4CJaHCA==",
+    thumbhash: "recFFYI01mVnloxfepapa0ZgygP3",
   },
   {
-    id: "3fe15dc2-9f87-42e5-8df9-3b3ec2af0a3b",
+    id: "c63f885a-ac7b-49a4-afca-41193fa6aa42",
     recipeId: "0a17a172-553a-4fba-a959-5906c6b11ddd",
-    src: "/media/cases/2023da287663/payment-dispute-001-1200.webp",
+    storageKey: "cases/2023da287663/generated/payment-dispute-002-1200.webp",
     width: 1200,
     height: 900,
-    thumbhash: "9+cJDYJ3Z6d2iHaPeaiId3t6f5b3",
+    thumbhash: "b9cFDYAh45l5l46/zJeUWgZ4w/d1",
   },
   {
-    id: "7f707513-e9d8-4d30-90bf-ae64e62e6bcb",
+    id: "915a427a-2bcb-452d-bd65-eac3683957ef",
     recipeId: "323531c9-c6cf-42fb-9536-2a9af47e5d52",
-    src: "/media/cases/2023da287663/plan-review-001-1200.webp",
+    storageKey: "cases/2023da287663/generated/plan-review-002-1200.webp",
     width: 1200,
     height: 900,
-    thumbhash: "9fcJFYJ6rZR2mGhvaIdoeaeJj7n2",
+    thumbhash: "qvcJDYJzqWhliXiPiaZndWeAzBn5",
   },
   {
-    id: "709304ef-66ed-43a4-b728-b992b730609b",
+    id: "6392efe8-f649-4907-9b32-763346ba8685",
     recipeId: "7a9d240f-cbc5-4039-83e3-88633af2f534",
-    src: "/media/cases/2023da287663/remand-review-001-1200.webp",
+    storageKey: "cases/2023da287663/generated/remand-review-002-1200.webp",
     width: 1200,
     height: 900,
-    thumbhash: "9PcFDYK653oMynfdWJVsKeoaj5ny",
+    thumbhash: "rucJDYJGhpgOqYqViOeMl2PQSGeP",
   },
 ] as const satisfies readonly MediaAsset[];
 
@@ -274,8 +275,22 @@ function findCaseMedia(caseNoCanonical: string, level: ExplanationLevel): CaseMe
     if (asset === undefined || recipe === undefined) {
       return [];
     }
-    /* 자산의 id가 배치 id를 덮지 않게 배치를 마지막에 합친다. 둘은 신고·재사용에서 다른 축이다. */
-    return [{ ...asset, ...candidate, recipeKey: recipe.key }];
+    return [
+      {
+        id: candidate.id,
+        caseNo: candidate.caseNo,
+        level: candidate.level,
+        assetId: candidate.assetId,
+        afterHeading: candidate.afterHeading,
+        alt: candidate.alt,
+        caption: candidate.caption,
+        src: `/media/content/${candidate.id}`,
+        width: asset.width,
+        height: asset.height,
+        thumbhash: asset.thumbhash,
+        recipeKey: recipe.key,
+      },
+    ];
   });
 }
 
@@ -288,21 +303,27 @@ function findCaseMediaPlacement(placementId: string): CaseMediaPlacement | undef
   return findCaseMedia(placement.caseNo, placement.level).find(({ id }) => id === placementId);
 }
 
+function findCaseMediaAssetForPlacement(placementId: string): MediaAsset | undefined {
+  const placement = PLACEMENTS.find(({ id }) => id === placementId);
+  return placement === undefined ? undefined : ASSETS.find(({ id }) => id === placement.assetId);
+}
+
 function listVisualRecipes(): VisualRecipeSummary[] {
   return RECIPES.map((recipe) => {
     const assets = ASSETS.filter((asset) => asset.recipeId === recipe.id);
     const assetIds = new Set<string>(assets.map((asset) => asset.id));
     const preview = assets[0];
+    const previewPlacement = preview === undefined ? undefined : PLACEMENTS.find((item) => item.assetId === preview.id);
     return {
       ...recipe,
       assetCount: assets.length,
       placementCount: PLACEMENTS.filter((item) => assetIds.has(item.assetId)).length,
-      previewSrc: preview?.src ?? null,
+      previewSrc: previewPlacement === undefined ? null : `/media/content/${previewPlacement.id}`,
       previewWidth: preview?.width ?? null,
       previewHeight: preview?.height ?? null,
     };
   });
 }
 
-export { findCaseMedia, findCaseMediaPlacement, listVisualRecipes };
+export { findCaseMedia, findCaseMediaAssetForPlacement, findCaseMediaPlacement, listVisualRecipes };
 export type { CaseMediaPlacement, MediaAsset, VisualRecipe, VisualRecipeSummary };

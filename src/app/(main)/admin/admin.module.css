@@ -873,6 +873,29 @@
   background: #f0fdf4;
 }
 
+.legalDiffTable {
+  table-layout: fixed;
+}
+
+.legalDiffTable th:first-child {
+  width: min(34%, 360px);
+}
+
+.legalDiffTable td {
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.legalDiffPath {
+  color: var(--el-fg-2);
+  font-family: var(--el-font-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  font-size: var(--el-text-body-xs);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
 .paragraphNumber {
   display: block;
   margin-bottom: var(--el-space-1);

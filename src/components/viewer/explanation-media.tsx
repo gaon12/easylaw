@@ -30,6 +30,7 @@ function ExplanationMedia({
           priority={false}
           sizes="(max-width: 760px) 100vw, (max-width: 1180px) 54vw, 620px"
           src={media.src}
+          unoptimized={true}
           width={media.width}
         />
       </div>

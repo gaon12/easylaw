@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { findCaseMedia, findCaseMediaPlacement } from "./case-media";
+import {
+  findCaseMedia,
+  findCaseMediaAssetForPlacement,
+  findCaseMediaPlacement,
+} from "./case-media";
 
 describe("판례 설명 이미지 배치", () => {
   it("설명 단계마다 의미 블록 네 곳에 이미지를 배치한다", () => {
@@ -32,5 +36,15 @@ describe("판례 설명 이미지 배치", () => {
       recipeKey: "REHAB_SCHEDULED_PAYMENT_001",
     });
     expect(findCaseMediaPlacement("unknown")).toBeUndefined();
+  });
+
+  it("설명 자산은 public URL 대신 배치 검사 경로와 서버 저장 키를 사용한다", () => {
+    const placement = findCaseMedia("2023다287663", "L4")[0];
+    expect(placement?.src).toBe(`/media/content/${placement?.id}`);
+    expect(placement?.src).not.toContain("/media/cases/");
+    expect(findCaseMediaAssetForPlacement(placement?.id ?? "")?.storageKey).toMatch(
+      /^cases\/2023da287663\/generated\/.+\.webp$/,
+    );
+    expect(findCaseMediaAssetForPlacement("unknown")).toBeUndefined();
   });
 });

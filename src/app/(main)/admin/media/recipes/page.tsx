@@ -27,6 +27,7 @@ export default function MediaRecipesPage() {
                   height={recipe.previewHeight}
                   sizes="(max-width: 560px) 100vw, (max-width: 1080px) 50vw, 340px"
                   src={recipe.previewSrc}
+                  unoptimized={true}
                   width={recipe.previewWidth}
                 />
               </div>
